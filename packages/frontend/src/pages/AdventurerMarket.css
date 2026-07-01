@@ -1,0 +1,38 @@
+.market-page { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.market-toolbar {
+  display:         flex;
+  justify-content: space-between;
+  align-items:     center;
+  gap:             1rem;
+}
+
+.toolbar-stat { display: flex; flex-direction: column; gap: 0.05rem; }
+
+.market-search {
+  font-family:   var(--font-body);
+  font-size:     0.95rem;
+  padding:       0.45rem 0.75rem;
+  border:        1px solid var(--parchment-dark);
+  border-radius: var(--radius);
+  background:    var(--parchment);
+  color:         var(--ink);
+  width:         260px;
+  outline:       none;
+  transition:    border-color 0.15s;
+}
+.market-search:focus { border-color: var(--gold-dark); }
+
+.market-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1rem;
+}
+
+.market-notice {
+  background: var(--parchment-mid);
+  border:     1px solid var(--parchment-dark);
+  border-radius: var(--radius);
+  padding:    1rem 1.25rem;
+}
+.market-notice p { font-style: italic; font-size: 0.9rem; color: var(--ink-faint); }

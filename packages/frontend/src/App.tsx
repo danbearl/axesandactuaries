@@ -1,0 +1,86 @@
+import { Routes, Route } from 'react-router-dom';
+import { SignIn, SignedIn, SignedOut, useAuth } from '@clerk/clerk-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import Navigation from './components/Navigation.tsx';
+import { useSSE } from './hooks/useSSE.ts';
+import Dashboard from './pages/Dashboard.tsx';
+import AdventurerMarket from './pages/AdventurerMarket.tsx';
+import ContractMarket from './pages/ContractMarket.tsx';
+import Properties from './pages/Properties.tsx';
+import AdventureDetail from './pages/AdventureDetail.tsx';
+import Transactions from './pages/Transactions.tsx';
+import { api } from './lib/api.ts';
+
+function AuthenticatedApp() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const queryClient = useQueryClient();
+  useSSE();
+
+  // Sync the Clerk user to our database on every login
+  const syncMutation = useMutation({
+    mutationFn: () => api.auth.sync(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['player'] }),
+  });
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      syncMutation.mutate();
+    }
+  }, [isLoaded, isSignedIn]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['player'],
+    queryFn: () => api.player.me(),
+    enabled: isLoaded && isSignedIn,
+  });
+
+  if (!isLoaded || isLoading || syncMutation.isPending) {
+    return (
+      <div className="app-shell">
+        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--ink-light)' }}>
+          Loading guild records…
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  return (
+    <div className="app-shell">
+      <Navigation player={data.player} />
+      <main className="main-content">
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/market/adventurers" element={<AdventurerMarket />} />
+          <Route path="/market/contracts" element={<ContractMarket />} />
+          <Route path="/properties" element={<Properties />} />
+          <Route path="/adventures/:id" element={<AdventureDetail />} />
+          <Route path="/transactions" element={<Transactions />} />
+        </Routes>
+      </main>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <SignedOut>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '100vh',
+          background: 'var(--parchment-dark)',
+        }}>
+          <SignIn routing="hash" />
+        </div>
+      </SignedOut>
+      <SignedIn>
+        <AuthenticatedApp />
+      </SignedIn>
+    </>
+  );
+}

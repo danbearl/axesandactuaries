@@ -1,0 +1,17 @@
+.properties-page { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.owned-property, .catalog-card { margin-bottom: 0; }
+
+.level-pips { align-items: center; }
+.level-pip {
+  width: 14px; height: 14px;
+  border-radius: 3px;
+  background: var(--parchment-dark);
+  border: 1px solid var(--gold-dark);
+}
+.level-pip.active { background: var(--gold); }
+
+.property-bonus { font-size: 0.9rem; }
+
+.catalog-card { opacity: 1; transition: border-color 0.15s; }
+.catalog-card:hover { border-color: var(--gold); }

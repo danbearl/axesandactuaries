@@ -1,0 +1,238 @@
+import { prisma } from '../lib/prisma.js';
+import type { Adventurer } from '@prisma/client';
+import { QUIT_REPUTATION_PENALTY_PER_LEVEL, computeHireCost, computeDailyWage } from '@adventurer-manager/types';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface DailyWageResult {
+  playerId: string;
+  paid:     number; // adventurers paid in full this cycle
+  unpaid:   number; // adventurers who did not receive wages
+  quit:     number; // adventurers who quit due to non-payment
+}
+
+// ── Daily Wage Collection ─────────────────────────────────────────────────────
+//
+// Payment rules:
+//   1. Adventurers are paid in full, highest level first.
+//   2. Any surplus after current wages is applied to outstanding back wages,
+//      also highest level first.
+//   3. Adventurers not paid accumulate wages_owed, days_unpaid, and a growing
+//      loyalty_penalty (penalty increases by days_unpaid each day, compounding).
+//   4. Each unpaid adventurer rolls a loyalty check; if they fail, they quit.
+//      Adventurers on an active adventure cannot leave mid-contract.
+//   5. Adventurers who quit forgive their owed wages on the way out.
+//   6. Adventurers who were paid and are fully caught up recover 1 loyalty point.
+
+export async function collectDailyWages(): Promise<DailyWageResult[]> {
+  const results: DailyWageResult[] = [];
+  const hired = await prisma.adventurer.findMany({
+    where: {
+      status:     { in: ['hired', 'on_adventure'] },
+      employerId: { not: null },
+    },
+    orderBy: [
+      { employerId: 'asc' },
+      { level:      'desc' }, // highest level paid first
+      { dailyWage:  'desc' }, // tiebreak by wage
+    ],
+  });
+
+  if (hired.length === 0) return results;
+
+  const byPlayer = new Map<string, Adventurer[]>();
+  for (const adv of hired) {
+    const pid = adv.employerId!;
+    if (!byPlayer.has(pid)) byPlayer.set(pid, []);
+    byPlayer.get(pid)!.push(adv);
+  }
+
+  for (const [playerId, adventurers] of byPlayer) {
+    const player = await prisma.player.findUnique({ where: { id: playerId } });
+    if (!player) continue;
+    const result = await processPlayerWages(player, adventurers);
+    results.push({ playerId, ...result });
+  }
+
+  return results;
+}
+
+async function processPlayerWages(
+  player: { id: string; gold: number },
+  adventurers: Adventurer[],
+): Promise<{ paid: number; unpaid: number; quit: number }> {
+  let remainingGold = player.gold;
+  let totalDeducted  = 0;
+  let quitCount      = 0;
+
+  const paidSet   = new Set<string>();
+  const unpaidSet = new Set<string>();
+
+  // ── Step 1: Pay current daily wages, highest level first ──────────────────
+  for (const adv of adventurers) {
+    if (remainingGold >= adv.dailyWage) {
+      remainingGold -= adv.dailyWage;
+      totalDeducted += adv.dailyWage;
+      paidSet.add(adv.id);
+    } else {
+      unpaidSet.add(adv.id);
+    }
+  }
+
+  // ── Step 2: Apply surplus gold to back wages, highest level first ─────────
+  const backWageRepayments = new Map<string, number>();
+  for (const adv of adventurers) {
+    if (paidSet.has(adv.id) && adv.wagesOwed > 0 && remainingGold > 0) {
+      const repay = Math.min(remainingGold, adv.wagesOwed);
+      backWageRepayments.set(adv.id, repay);
+      remainingGold -= repay;
+      totalDeducted += repay;
+    }
+  }
+
+  // ── Step 3: Deduct from player gold ───────────────────────────────────────
+  if (totalDeducted > 0) {
+    const unpaidCount = unpaidSet.size;
+    await prisma.$transaction([
+      prisma.player.update({
+        where: { id: player.id },
+        data:  { gold: { decrement: totalDeducted } },
+      }),
+      prisma.transaction.create({
+        data: {
+          playerId:    player.id,
+          amount:      -totalDeducted,
+          reason:      'wage',
+          description: buildWageDescription(paidSet.size, unpaidCount, backWageRepayments.size),
+        },
+      }),
+    ]);
+  }
+
+  // ── Step 4: Update paid adventurers ───────────────────────────────────────
+  for (const adv of adventurers) {
+    if (!paidSet.has(adv.id)) continue;
+
+    const repaid      = backWageRepayments.get(adv.id) ?? 0;
+    const newWagesOwed = adv.wagesOwed - repaid;
+    const fullySettled = newWagesOwed === 0;
+
+    await prisma.adventurer.update({
+      where: { id: adv.id },
+      data: {
+        wagesOwed:      newWagesOwed,
+        daysUnpaid:     fullySettled ? 0 : adv.daysUnpaid,
+        // Recover 1 loyalty point per day fully in good standing
+        loyaltyPenalty: fullySettled ? Math.max(0, adv.loyaltyPenalty - 1) : adv.loyaltyPenalty,
+      },
+    });
+  }
+
+  // ── Step 5: Update unpaid adventurers, roll loyalty checks ───────────────
+  for (const adv of adventurers) {
+    if (!unpaidSet.has(adv.id)) continue;
+
+    const newDaysUnpaid     = adv.daysUnpaid + 1;
+    // Increasing penalty: day 1 adds 1, day 2 adds 2, etc. (triangular growth)
+    const newLoyaltyPenalty = adv.loyaltyPenalty + newDaysUnpaid;
+    const newWagesOwed      = adv.wagesOwed + adv.dailyWage;
+
+    const personality       = adv.personality as { loyalty: number };
+    const effectiveLoyalty  = Math.max(1, personality.loyalty - newLoyaltyPenalty);
+    // Leave chance scales with how degraded loyalty is: loyalty 5 → ~17%, loyalty 1 → ~83%
+    const leaveChance       = (6 - effectiveLoyalty) / 6;
+    // Adventurers on active adventures can't abandon their party mid-contract
+    const canLeave          = adv.status !== 'on_adventure';
+    const leaves            = canLeave && Math.random() < leaveChance;
+
+    if (leaves) {
+      quitCount++;
+      const repPenalty = adv.level * QUIT_REPUTATION_PENALTY_PER_LEVEL;
+      await prisma.$transaction([
+        prisma.adventurer.update({
+          where: { id: adv.id },
+          data: {
+            status:         'available',
+            employerId:     null,
+            poolExpiresAt:  new Date(Date.now() + 48 * 60 * 60 * 1000),
+            wagesOwed:      0,
+            daysUnpaid:     0,
+            loyaltyPenalty: 0,
+            hireCost:       computeHireCost(adv.powerRating),
+            dailyWage:      computeDailyWage(adv.powerRating),
+          },
+        }),
+        prisma.player.update({
+          where: { id: player.id },
+          data:  { reputation: { decrement: repPenalty } },
+        }),
+        prisma.transaction.create({
+          data: {
+            playerId:    player.id,
+            amount:      0,
+            reason:      'debt_forgiven',
+            description: `${adv.name} quit after ${newDaysUnpaid} day(s) unpaid — ${newWagesOwed} gp forgiven, -${repPenalty} reputation`,
+            referenceId: adv.id,
+          },
+        }),
+      ]);
+      console.log(
+        `[wages] ${adv.name} quit after ${newDaysUnpaid} day(s) unpaid ` +
+        `(effective loyalty ${effectiveLoyalty}/5, ${newWagesOwed} gp forgiven, -${repPenalty} rep)`,
+      );
+    } else {
+      await prisma.adventurer.update({
+        where: { id: adv.id },
+        data: {
+          wagesOwed:      newWagesOwed,
+          daysUnpaid:     newDaysUnpaid,
+          loyaltyPenalty: newLoyaltyPenalty,
+        },
+      });
+    }
+  }
+
+  return { paid: paidSet.size, unpaid: unpaidSet.size - quitCount, quit: quitCount };
+}
+
+function buildWageDescription(paid: number, unpaid: number, backRepaid: number): string {
+  const parts: string[] = [`Daily wages: ${paid} paid`];
+  if (backRepaid > 0) parts.push('back wages partially repaid');
+  if (unpaid > 0)     parts.push(`${unpaid} could not be paid`);
+  return parts.join(', ');
+}
+
+// ── Property Maintenance ──────────────────────────────────────────────────────
+
+export async function chargePropertyMaintenance(): Promise<void> {
+  const properties = await prisma.property.findMany({
+    where: { maintenanceCostDaily: { gt: 0 } },
+  });
+
+  const byPlayer = new Map<string, typeof properties>();
+  for (const prop of properties) {
+    const pid = prop.playerId;
+    if (!byPlayer.has(pid)) byPlayer.set(pid, []);
+    byPlayer.get(pid)!.push(prop);
+  }
+
+  for (const [playerId, props] of byPlayer) {
+    const totalCost = props.reduce((sum, p) => sum + p.maintenanceCostDaily, 0);
+    if (totalCost === 0) continue;
+
+    await prisma.$transaction([
+      prisma.player.update({
+        where: { id: playerId },
+        data:  { gold: { decrement: totalCost } },
+      }),
+      prisma.transaction.create({
+        data: {
+          playerId,
+          amount:      -totalCost,
+          reason:      'property_maintenance',
+          description: `Daily maintenance for ${props.length} propert${props.length > 1 ? 'ies' : 'y'}`,
+        },
+      }),
+    ]);
+  }
+}

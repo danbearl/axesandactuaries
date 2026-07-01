@@ -1,0 +1,213 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ─────────────────────────────────────────────────────────────────────
+
+enum AdventurerStatus {
+  available
+  hired
+  on_adventure
+  injured
+  dead
+}
+
+enum ContractStatus {
+  available
+  bidding
+  awarded
+  in_progress
+  completed
+  failed
+  expired
+}
+
+enum ContractTier {
+  errand
+  standard
+  dangerous
+  legendary
+}
+
+enum AdventureStatus {
+  in_progress
+  completed
+  failed
+}
+
+enum PropertyType {
+  dormitory
+  training_hall
+  alchemy_lab
+  library
+  infirmary
+  armory
+}
+
+enum TransactionReason {
+  contract_payment
+  wage
+  hire_cost
+  property_build
+  property_sell
+  property_maintenance
+  penalty
+  debt_forgiven
+  starting_gold
+}
+
+// ── Models ────────────────────────────────────────────────────────────────────
+
+model Player {
+  id            String    @id @default(cuid())
+  clerkUserId   String    @unique @map("clerk_user_id")
+  username      String    @unique
+  gold          Int       @default(500)
+  reputation    Int       @default(0)
+  lastWelfareAt DateTime? @map("last_welfare_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  adventurers  Adventurer[]
+  adventures   Adventure[]
+  properties   Property[]
+  transactions Transaction[]
+  contractBids ContractBid[]
+
+  @@map("players")
+}
+
+model Adventurer {
+  id                  String           @id @default(cuid())
+  name                String
+  heritage            String
+  vocation            String
+  gender              String
+  level               Int              @default(1)
+  experience          Int              @default(0)
+  powerRating         Int              @map("power_rating")
+  stats               Json
+  personality         Json
+  hireCost            Int              @map("hire_cost")
+  dailyWage           Int              @map("daily_wage")
+  status              AdventurerStatus @default(available)
+  injuryRecoveryUntil DateTime?        @map("injury_recovery_until")
+  employerId          String?          @map("employer_id")
+  poolExpiresAt       DateTime?        @map("pool_expires_at")
+  wagesOwed           Int              @default(0) @map("wages_owed")
+  daysUnpaid          Int              @default(0) @map("days_unpaid")
+  loyaltyPenalty      Int              @default(0) @map("loyalty_penalty")
+  height              String
+  build               String
+  complexion          String
+  hairColor           String           @map("hair_color")
+  eyeColor            String           @map("eye_color")
+  createdAt           DateTime         @default(now()) @map("created_at")
+
+  employer    Player?               @relation(fields: [employerId], references: [id])
+  adventures  AdventureAdventurer[]
+
+  @@index([status, employerId])
+  @@map("adventurers")
+}
+
+model Contract {
+  id                String         @id @default(cuid())
+  title             String
+  description       String
+  tier              ContractTier
+  requiredPower     Int            @map("required_power")
+  requiredStats     Json           @map("required_stats")
+  rewardGold        Int            @map("reward_gold")
+  reputationReward  Int            @map("reputation_reward")
+  penaltyGold       Int            @map("penalty_gold")
+  penaltyReputation Int            @map("penalty_reputation")
+  durationHours     Int            @map("duration_hours")
+  status            ContractStatus @default(available)
+  awardedTo         String?        @map("awarded_to")
+  bidDeadline       DateTime       @map("bid_deadline")
+  expiresAt         DateTime       @map("expires_at")
+  createdAt         DateTime       @default(now()) @map("created_at")
+
+  adventures Adventure[]
+  bids       ContractBid[]
+
+  @@index([status, bidDeadline])
+  @@map("contracts")
+}
+
+model ContractBid {
+  id         String   @id @default(cuid())
+  contractId String   @map("contract_id")
+  playerId   String   @map("player_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  contract Contract @relation(fields: [contractId], references: [id])
+  player   Player   @relation(fields: [playerId], references: [id])
+
+  @@unique([contractId, playerId])
+  @@map("contract_bids")
+}
+
+model Adventure {
+  id          String          @id @default(cuid())
+  contractId  String          @map("contract_id")
+  playerId    String          @map("player_id")
+  startsAt    DateTime        @map("starts_at")
+  completesAt DateTime        @map("completes_at")
+  status      AdventureStatus @default(in_progress)
+  outcomeRoll Float?          @map("outcome_roll")
+  resolvedAt  DateTime?       @map("resolved_at")
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  contract    Contract              @relation(fields: [contractId], references: [id])
+  player      Player                @relation(fields: [playerId], references: [id])
+  adventurers AdventureAdventurer[]
+
+  @@index([completesAt, status])
+  @@map("adventures")
+}
+
+model AdventureAdventurer {
+  adventureId  String @map("adventure_id")
+  adventurerId String @map("adventurer_id")
+
+  adventure  Adventure  @relation(fields: [adventureId], references: [id])
+  adventurer Adventurer @relation(fields: [adventurerId], references: [id])
+
+  @@id([adventureId, adventurerId])
+  @@map("adventure_adventurers")
+}
+
+model Property {
+  id                   String       @id @default(cuid())
+  playerId             String       @map("player_id")
+  type                 PropertyType
+  level                Int          @default(1)
+  maintenanceCostDaily Int          @map("maintenance_cost_daily")
+  bonus                Json
+  costBasis            Int          @default(0) @map("cost_basis")
+  createdAt            DateTime     @default(now()) @map("created_at")
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@map("properties")
+}
+
+model Transaction {
+  id          String            @id @default(cuid())
+  playerId    String            @map("player_id")
+  amount      Int
+  reason      TransactionReason
+  description String
+  referenceId String?           @map("reference_id")
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@map("transactions")
+}

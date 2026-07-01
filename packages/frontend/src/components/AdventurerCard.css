@@ -1,0 +1,49 @@
+.adv-card-compact {
+  display:         flex;
+  justify-content: space-between;
+  align-items:     center;
+  padding:         0.65rem 0.85rem;
+  background:      var(--parchment-mid);
+  border:          1px solid var(--parchment-dark);
+  border-radius:   var(--radius);
+  transition:      border-color 0.15s;
+}
+.adv-card-compact:hover { border-color: var(--gold-dark); }
+.adv-injured { border-color: var(--crimson) !important; }
+
+.adv-compact-right { text-align: right; }
+
+.adv-name { font-family: var(--font-heading); font-size: 0.95rem; font-weight: 600; color: var(--ink); }
+.adv-name-lg { font-family: var(--font-heading); font-size: 1.2rem; font-weight: 700; color: var(--ink); }
+
+.adv-card { margin-bottom: 0; }
+
+.adv-header { display: flex; justify-content: space-between; align-items: flex-start; }
+.adv-header-right { text-align: right; }
+
+.adv-power { display: flex; flex-direction: column; align-items: flex-end; gap: 0.1rem; }
+.adv-power-num {
+  font-family: var(--font-heading);
+  font-size:   1.8rem;
+  font-weight: 700;
+  color:       var(--gold-dark);
+  line-height: 1;
+}
+
+.adv-appearance {
+  font-family: var(--font-body);
+  font-style:  italic;
+  font-size:   0.9rem;
+  color:       var(--ink-faint);
+}
+
+.adv-stats { display: flex; flex-direction: column; }
+
+.adv-personality { display: flex; flex-direction: column; gap: 0.3rem; }
+.personality-row { display: flex; align-items: center; gap: 0.5rem; }
+.personality-row .label { font-size: 0.68rem; }
+
+.adv-footer { display: flex; justify-content: space-between; align-items: center; }
+.adv-economics { display: flex; gap: 1.25rem; }
+.adv-economics > div { display: flex; flex-direction: column; gap: 0.05rem; }
+.adv-actions { display: flex; gap: 0.5rem; }

@@ -1,0 +1,33 @@
+.adventure-detail { display: flex; flex-direction: column; gap: 1rem; }
+
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+.detail-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.detail-stat { display: flex; flex-direction: column; gap: 0.05rem; }
+
+.timer-display { display: flex; flex-direction: column; gap: 0.2rem; }
+.timer-big {
+  font-family: var(--font-heading);
+  font-size:   2rem;
+  font-weight: 700;
+  color:       var(--gold-dark);
+}
+
+.at-progress-track {
+  height:        8px;
+  background:    var(--parchment-dark);
+  border-radius: 4px;
+  overflow:      hidden;
+}
+.at-progress-fill {
+  height:     100%;
+  background: linear-gradient(to right, var(--gold-dark), var(--gold-light));
+  border-radius: 4px;
+  transition: width 1s linear;
+}
+
+.success-indicator { background: var(--parchment-mid); border-radius: var(--radius); padding: 0.75rem; }
+.text-warning { color: var(--gold-dark); }
+.text-danger  { color: var(--crimson); }
+
+.party-grid { display: flex; flex-direction: column; gap: 0.5rem; }

@@ -1,0 +1,55 @@
+.contract-card { margin-bottom: 0; }
+
+.cc-header { display: flex; align-items: flex-start; justify-content: space-between; }
+
+.cc-title-row { display: flex; flex-direction: column; gap: 0.35rem; }
+
+.cc-title {
+  font-family: var(--font-heading);
+  font-size:   1.05rem;
+  font-weight: 600;
+  color:       var(--ink);
+}
+
+.cc-description {
+  font-style:  italic;
+  font-size:   0.95rem;
+  color:       var(--ink-light);
+  line-height: 1.55;
+}
+
+.cc-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.cc-detail-col { display: flex; flex-direction: column; gap: 0.4rem; }
+
+.cc-stat { display: flex; flex-direction: column; gap: 0.05rem; }
+
+.cc-rewards { border-left: 1px solid var(--parchment-dark); padding-left: 1rem; }
+
+.cc-reward { display: flex; flex-direction: column; gap: 0.05rem; }
+
+.cc-req-badge {
+  font-family:    var(--font-heading);
+  font-size:      0.65rem;
+  font-weight:    700;
+  padding:        0.15rem 0.4rem;
+  background:     var(--slate);
+  color:          var(--parchment);
+  border-radius:  3px;
+  letter-spacing: 0.05em;
+}
+
+.cc-actions {
+  display:     flex;
+  justify-content: flex-end;
+  gap:         0.5rem;
+  margin-top:  1rem;
+  padding-top: 0.75rem;
+  border-top:  1px solid var(--parchment-dark);
+}
+
+.contract-expanded { border-color: var(--gold); }

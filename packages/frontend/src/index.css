@@ -1,0 +1,308 @@
+/* ── Design Tokens ──────────────────────────────────────────────────────────── */
+:root {
+  --parchment:       #f4ead5;
+  --parchment-dark:  #e8d9b8;
+  --parchment-mid:   #ede0c4;
+  --ink:             #2c1a0e;
+  --ink-light:       #5c3d20;
+  --ink-faint:       #8c6a45;
+  --gold:            #c9973a;
+  --gold-dark:       #9e7520;
+  --gold-light:      #e8bc5a;
+  --crimson:         #8b1a1a;
+  --crimson-light:   #c04040;
+  --emerald:         #1a5c2e;
+  --emerald-light:   #2e8b4a;
+  --slate:           #3a4a5c;
+  --slate-light:     #6a7a8c;
+  --shadow:          rgba(44, 26, 14, 0.15);
+  --shadow-deep:     rgba(44, 26, 14, 0.35);
+
+  /* Tier colors */
+  --tier-errand:     #6a7a8c;
+  --tier-standard:   #2e8b4a;
+  --tier-dangerous:  #c04040;
+  --tier-legendary:  #9e7520;
+
+  /* Fonts */
+  --font-heading:    'Cinzel', 'Georgia', serif;
+  --font-body:       'Crimson Text', 'Georgia', serif;
+  --font-accent:     'MedievalSharp', 'Georgia', serif;
+
+  /* Spacing */
+  --radius:          6px;
+  --radius-lg:       10px;
+}
+
+/* ── Reset & Base ────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; }
+
+body {
+  font-family:      var(--font-body);
+  background-color: #1a120a;
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 60px,
+      rgba(44, 26, 14, 0.08) 60px,
+      rgba(44, 26, 14, 0.08) 61px
+    );
+  color:            var(--ink);
+  min-height:       100vh;
+}
+
+/* ── Layout ──────────────────────────────────────────────────────────────────── */
+#root {
+  display:        flex;
+  flex-direction: column;
+  min-height:     100vh;
+}
+
+.app-shell {
+  display:   flex;
+  flex:      1;
+  max-width: 1280px;
+  margin:    0 auto;
+  width:     100%;
+  padding:   0 1rem;
+}
+
+.main-content {
+  flex:    1;
+  padding: 1.5rem 1.5rem 3rem;
+}
+
+/* ── Parchment Panels ────────────────────────────────────────────────────────── */
+.panel {
+  background:    var(--parchment);
+  border:        2px solid var(--gold-dark);
+  border-radius: var(--radius-lg);
+  box-shadow:    4px 4px 12px var(--shadow-deep), inset 0 0 40px rgba(201,151,58,0.04);
+  padding:       1.5rem;
+}
+
+.panel-sm {
+  padding: 1rem;
+}
+
+/* ── Typography ──────────────────────────────────────────────────────────────── */
+h1, h2, h3, h4 {
+  font-family: var(--font-heading);
+  color:       var(--ink);
+  line-height: 1.2;
+}
+
+h1 { font-size: 2rem;   font-weight: 700; }
+h2 { font-size: 1.5rem; font-weight: 600; }
+h3 { font-size: 1.2rem; font-weight: 600; }
+h4 { font-size: 1rem;   font-weight: 600; }
+
+p  { font-size: 1.05rem; line-height: 1.6; color: var(--ink-light); }
+
+.label {
+  font-family: var(--font-heading);
+  font-size:   0.7rem;
+  font-weight: 600;
+  color:       var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.value {
+  font-family: var(--font-body);
+  font-size:   1.05rem;
+  color:       var(--ink);
+  font-weight: 600;
+}
+
+/* ── Divider ─────────────────────────────────────────────────────────────────── */
+.divider {
+  border: none;
+  border-top: 1px solid var(--parchment-dark);
+  margin: 1rem 0;
+}
+
+.divider-ornate {
+  display:     flex;
+  align-items: center;
+  gap:         0.75rem;
+  margin:      1.25rem 0;
+  color:       var(--gold-dark);
+  font-family: var(--font-heading);
+  font-size:   0.75rem;
+}
+.divider-ornate::before,
+.divider-ornate::after {
+  content: '';
+  flex:    1;
+  height:  1px;
+  background: linear-gradient(to right, transparent, var(--gold-dark), transparent);
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────────── */
+.btn {
+  font-family:     var(--font-heading);
+  font-size:       0.8rem;
+  font-weight:     600;
+  letter-spacing:  0.05em;
+  text-transform:  uppercase;
+  padding:         0.5rem 1.1rem;
+  border-radius:   var(--radius);
+  border:          2px solid transparent;
+  cursor:          pointer;
+  transition:      all 0.15s ease;
+  display:         inline-flex;
+  align-items:     center;
+  gap:             0.4rem;
+}
+
+.btn-primary {
+  background:   var(--gold);
+  border-color: var(--gold-dark);
+  color:        var(--ink);
+}
+.btn-primary:hover { background: var(--gold-light); }
+
+.btn-secondary {
+  background:   transparent;
+  border-color: var(--ink-faint);
+  color:        var(--ink-light);
+}
+.btn-secondary:hover { border-color: var(--ink-light); color: var(--ink); }
+
+.btn-danger {
+  background:   transparent;
+  border-color: var(--crimson);
+  color:        var(--crimson);
+}
+.btn-danger:hover { background: var(--crimson); color: var(--parchment); }
+
+.btn-sm { font-size: 0.72rem; padding: 0.3rem 0.7rem; }
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor:  not-allowed;
+}
+
+/* ── Stat Bars ───────────────────────────────────────────────────────────────── */
+.stat-row {
+  display:         grid;
+  grid-template-columns: 90px 1fr 28px;
+  align-items:     center;
+  gap:             0.5rem;
+  margin-bottom:   0.35rem;
+}
+
+.stat-bar-track {
+  height:        6px;
+  background:    var(--parchment-dark);
+  border-radius: 3px;
+  overflow:      hidden;
+}
+
+.stat-bar-fill {
+  height:        100%;
+  border-radius: 3px;
+  background:    linear-gradient(to right, var(--gold-dark), var(--gold));
+  transition:    width 0.3s ease;
+}
+
+/* ── Badges ──────────────────────────────────────────────────────────────────── */
+.badge {
+  font-family:     var(--font-heading);
+  font-size:       0.65rem;
+  font-weight:     700;
+  letter-spacing:  0.06em;
+  text-transform:  uppercase;
+  padding:         0.2rem 0.55rem;
+  border-radius:   3px;
+  display:         inline-block;
+}
+
+.badge-heritage {
+  background: var(--parchment-dark);
+  color:      var(--ink-light);
+  border:     1px solid var(--gold-dark);
+}
+
+.badge-vocation {
+  background: var(--slate);
+  color:      var(--parchment);
+}
+
+.badge-status-available  { background: var(--emerald);  color: var(--parchment); }
+.badge-status-hired      { background: var(--slate);    color: var(--parchment); }
+.badge-status-on_adventure { background: var(--gold-dark);  color: var(--parchment); }
+.badge-status-injured    { background: var(--crimson);  color: var(--parchment); }
+.badge-status-dead       { background: var(--ink);      color: var(--parchment-dark); }
+
+.badge-tier-errand    { background: var(--slate-light); color: var(--parchment); }
+.badge-tier-standard  { background: var(--emerald);     color: var(--parchment); }
+.badge-tier-dangerous { background: var(--crimson);     color: var(--parchment); }
+.badge-tier-legendary { background: var(--gold-dark);   color: var(--parchment); }
+
+/* ── Personality Pip Track ───────────────────────────────────────────────────── */
+.pip-track {
+  display: flex;
+  gap:     3px;
+}
+.pip {
+  width:         8px;
+  height:        8px;
+  border-radius: 50%;
+  border:        1px solid var(--gold-dark);
+  background:    var(--parchment-dark);
+}
+.pip.filled { background: var(--gold); }
+
+/* ── Gold / Reputation Display ───────────────────────────────────────────────── */
+.currency {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color:       var(--gold-dark);
+}
+.currency.positive { color: var(--emerald-light); }
+.currency.negative { color: var(--crimson-light); }
+
+/* ── Scrollable List ─────────────────────────────────────────────────────────── */
+.scroll-list {
+  overflow-y: auto;
+  max-height: 60vh;
+  padding-right: 0.25rem;
+}
+.scroll-list::-webkit-scrollbar { width: 5px; }
+.scroll-list::-webkit-scrollbar-track { background: var(--parchment-dark); border-radius: 3px; }
+.scroll-list::-webkit-scrollbar-thumb { background: var(--gold-dark); border-radius: 3px; }
+
+/* ── Empty State ─────────────────────────────────────────────────────────────── */
+.empty-state {
+  text-align:  center;
+  padding:     3rem 1rem;
+  color:       var(--ink-faint);
+  font-family: var(--font-body);
+  font-style:  italic;
+  font-size:   1.05rem;
+}
+
+/* ── Utility ─────────────────────────────────────────────────────────────────── */
+.flex        { display: flex; }
+.flex-col    { display: flex; flex-direction: column; }
+.gap-xs      { gap: 0.35rem; }
+.gap-sm      { gap: 0.65rem; }
+.gap-md      { gap: 1rem; }
+.gap-lg      { gap: 1.5rem; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.mt-sm       { margin-top: 0.5rem; }
+.mt-md       { margin-top: 1rem; }
+.mt-lg       { margin-top: 1.5rem; }
+.mb-sm       { margin-bottom: 0.5rem; }
+.mb-md       { margin-bottom: 1rem; }
+.text-right  { text-align: right; }
+.text-center { text-align: center; }
+.w-full      { width: 100%; }
+.grid-2      { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.grid-3      { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }

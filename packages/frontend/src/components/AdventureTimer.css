@@ -1,0 +1,46 @@
+.adventure-timer-link { text-decoration: none; display: block; }
+
+.adventure-timer {
+  padding:       0.85rem 1rem;
+  background:    var(--parchment-mid);
+  border:        1px solid var(--gold-dark);
+  border-radius: var(--radius);
+  cursor:        pointer;
+  transition:    border-color 0.15s, box-shadow 0.15s;
+}
+.adventure-timer:hover {
+  border-color: var(--gold);
+  box-shadow:   0 2px 8px var(--shadow);
+}
+
+.at-header { display: flex; justify-content: space-between; align-items: flex-start; }
+.at-title {
+  font-family: var(--font-heading);
+  font-size:   1rem;
+  font-weight: 600;
+  color:       var(--ink);
+}
+
+.at-timer {
+  font-family: var(--font-heading);
+  font-size:   1.15rem;
+  font-weight: 700;
+  color:       var(--gold-dark);
+  white-space: nowrap;
+}
+
+.at-progress-track {
+  height:        5px;
+  background:    var(--parchment-dark);
+  border-radius: 3px;
+  overflow:      hidden;
+}
+
+.at-progress-fill {
+  height:     100%;
+  background: linear-gradient(to right, var(--gold-dark), var(--gold));
+  border-radius: 3px;
+  transition: width 1s linear;
+}
+
+.at-footer { margin-top: 0.35rem; }

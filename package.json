@@ -1,0 +1,22 @@
+{
+  "name": "adventurer-manager",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "pnpm --filter @adventurer-manager/frontend dev",
+    "dev:api": "pnpm --filter @adventurer-manager/api dev",
+    "dev": "pnpm --filter @adventurer-manager/frontend dev",
+    "build": "pnpm --filter types build && pnpm --filter frontend build",
+    "typecheck": "pnpm -r typecheck",
+    "db:migrate": "pnpm --filter @adventurer-manager/api db:migrate",
+    "db:generate": "pnpm --filter @adventurer-manager/api db:generate",
+    "db:studio": "pnpm --filter @adventurer-manager/api db:studio",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "db:seed": "pnpm --filter @adventurer-manager/api db:seed"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}

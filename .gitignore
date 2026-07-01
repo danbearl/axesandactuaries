@@ -1,0 +1,16 @@
+node_modules
+dist
+.env
+.env.local
+*.tsbuildinfo
+.claude
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini

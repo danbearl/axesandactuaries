@@ -2,16 +2,19 @@
   "name": "@adventurer-manager/types",
   "version": "0.0.1",
   "private": true,
-  "main": "./dist/index.js",
+  "type": "module",
+  "main": "./dist/cjs/index.js",
   "types": "./src/index.ts",
   "exports": {
     ".": {
       "types": "./src/index.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/cjs/index.js",
       "default": "./dist/index.js"
     }
   },
   "scripts": {
-    "build": "tsc --project tsconfig.json",
+    "build": "tsc --project tsconfig.json && tsc --project tsconfig.cjs.json",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

@@ -87,6 +87,8 @@ export const api = {
       }),
     sell: (id: string) =>
       request<{ salePrice: number }>(`/properties/${id}/sell`, { method: 'POST' }),
+    upgrade: (id: string) =>
+      request<{ property: PropertyResponse }>(`/properties/${id}/upgrade`, { method: 'POST' }),
   },
   transactions: {
     list: (limit = 50, offset = 0) =>

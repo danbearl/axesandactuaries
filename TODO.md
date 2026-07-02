@@ -29,13 +29,27 @@
     6. Legendary contracts affect game world in some way - introduce story elements.
     7. Limit number of adventurers by dorm space
     8. Quality of properties influences adventurer loyalty
-4. Aesthetics
+    9. Increase properties such that there is a bonus building for each class and its primary stat
+    10. Determine additional effects for each of the following:
+        1. Loyalty
+            1. affects whether the adventurer will stay through hard times
+            2. Low loyalty may cause an adventurer to sponatneously leave
+        2. Ambition
+            1. Affects xp gain -- more ambitious adventurers will advance more quickly
+            2. Risks quitting if a player's reputation drops
+        3. Disposition
+            1. Affects party cohesion during contract execution
+    11. Limit party size for contracts
+    12. Contract completion reports
+4. Aesthetics / UX
     1. Visual representation of players' bases/properties
     2. Adventurer portraits
         1. Head Shots
         2. Full Body
         3. Customizeable
         4. Random with very low chance for duplicates
+    3. Adventurer profile pages - View adventurer stats, level progression, injuries, etc.
+    4. A wiki or some similar documentation on races, classes, characteristics, etc
 5. Monetization
     1. Ads?
     2. Subscription - what's the benefit?
@@ -51,4 +65,3 @@
     2. Implement secure code best practices
     3. U.S. and E.U. privacy regulatory compliance
     4. High security regarding player data
-    5. 

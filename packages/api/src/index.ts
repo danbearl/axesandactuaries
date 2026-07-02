@@ -1,6 +1,17 @@
+import * as Sentry from '@sentry/node';
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  environment: process.env.NODE_ENV ?? 'development',
+  tracesSampleRate: 0.2,
+  enabled: !!process.env.SENTRY_DSN,
+});
+
 import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import path from 'path';
+import rateLimit from 'express-rate-limit';
 import { clerkMiddleware } from '@clerk/express';
 
 import authRouter from './routes/auth.js';
@@ -23,6 +34,15 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+});
+app.use('/api/', apiLimiter);
 
 // EventSource cannot send custom headers, so the SSE endpoint passes its
 // Clerk JWT as ?token= in the query string. Promote it to Authorization
@@ -48,7 +68,18 @@ app.use('/api/v1/properties', propertiesRouter);
 app.use('/api/v1/transactions', transactionsRouter);
 app.use('/api/v1/events', eventsRouter);
 
+// In production the compiled frontend lives two directories up from dist/
+if (process.env.NODE_ENV === 'production') {
+  const distPath = path.resolve(__dirname, '../../frontend/dist');
+  app.use(express.static(distPath));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
+
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
+
+Sentry.setupExpressErrorHandler(app);
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);

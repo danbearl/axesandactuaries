@@ -98,6 +98,16 @@ export default function Properties() {
     onError: (err) => setError(err instanceof Error ? err.message : 'Sale failed'),
   });
 
+  const upgradeMutation = useMutation({
+    mutationFn: (id: string) => api.properties.upgrade(id),
+    onSuccess: () => {
+      setError(null);
+      queryClient.invalidateQueries({ queryKey: ['player'] });
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+    },
+    onError: (err) => setError(err instanceof Error ? err.message : 'Upgrade failed'),
+  });
+
   const gold = playerData?.player.gold ?? 0;
   const properties = propertiesData?.properties ?? [];
   const ownedTypes = new Set(properties.map(p => p.type));
@@ -162,8 +172,9 @@ export default function Properties() {
                     {prop.level < 3 ? (
                       <button
                         className="btn btn-secondary btn-sm"
-                        disabled={!canUpgrade}
+                        disabled={!canUpgrade || upgradeMutation.isPending}
                         title={!canUpgrade ? `Requires ${upgradeCost} gp` : undefined}
+                        onClick={() => upgradeMutation.mutate(prop.id)}
                       >
                         Upgrade to Level {prop.level + 1} — {upgradeCost} gp
                       </button>

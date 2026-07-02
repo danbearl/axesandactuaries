@@ -11,10 +11,10 @@ export default function Navigation({ player }: Props) {
   return (
     <nav className="nav-sidebar">
       <div className="nav-guild-seal">
-        <div className="seal-emblem">⚔</div>
+        <img src="/images/logo.png" alt="Axes & Actuaries" className="seal-logo" />
         <div className="seal-text">
-          <span className="seal-title">Adventurer</span>
-          <span className="seal-title">Manager</span>
+          <span className="seal-title">Axes &</span>
+          <span className="seal-title">Actuaries</span>
         </div>
       </div>
 

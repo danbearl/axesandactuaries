@@ -15,6 +15,9 @@ const PROPERTY_CONFIG = {
   armory:        { baseCost: 450, maintenanceDaily: 22, bonus: { wageDiscount: 0.1 } },
 } as const;
 
+// Upgrade cost to reach each level (key = current level before upgrade)
+const UPGRADE_COSTS: Record<number, number> = { 1: 150, 2: 350, 3: 700 };
+
 const BuildPropertyBody = z.object({
   type: z.enum(['dormitory', 'training_hall', 'alchemy_lab', 'library', 'infirmary', 'armory']),
 });
@@ -115,6 +118,63 @@ router.post('/:id/sell', requireAuth, async (req, res) => {
   ]);
 
   res.json({ salePrice });
+});
+
+// POST /api/v1/properties/:id/upgrade
+// Upgrade a property to the next level. Scales maintenance cost; the stored
+// bonus JSON represents a per-level rate and is intentionally left unchanged
+// (game engine multiplies it by p.level at resolution time).
+router.post('/:id/upgrade', requireAuth, async (req, res) => {
+  const { id } = req.params;
+
+  const property = await prisma.property.findUnique({ where: { id } });
+  if (!property || property.playerId !== req.playerId) {
+    res.status(404).json({ error: 'Property not found' });
+    return;
+  }
+  if (property.level >= 3) {
+    res.status(409).json({ error: 'Property is already at maximum level' });
+    return;
+  }
+
+  const upgradeCost = UPGRADE_COSTS[property.level];
+  const player = await prisma.player.findUniqueOrThrow({ where: { id: req.playerId } });
+  if (player.gold < upgradeCost) {
+    res.status(400).json({ error: 'Insufficient gold', required: upgradeCost, available: player.gold });
+    return;
+  }
+
+  const config = PROPERTY_CONFIG[property.type];
+  const newLevel = property.level + 1;
+  // Each level adds 50% of base daily maintenance on top of level 1 cost.
+  const newMaintenanceCostDaily = config.maintenanceDaily + Math.round(config.maintenanceDaily * 0.5 * (newLevel - 1));
+  const label = property.type.replace(/_/g, ' ');
+
+  const [, updatedProperty] = await prisma.$transaction([
+    prisma.player.update({
+      where: { id: req.playerId },
+      data:  { gold: { decrement: upgradeCost } },
+    }),
+    prisma.property.update({
+      where: { id },
+      data: {
+        level:                newLevel,
+        maintenanceCostDaily: newMaintenanceCostDaily,
+        costBasis:            { increment: upgradeCost },
+      },
+    }),
+    prisma.transaction.create({
+      data: {
+        playerId:    req.playerId,
+        amount:      -upgradeCost,
+        reason:      'property_build',
+        description: `Upgraded ${label} to Level ${newLevel}`,
+        referenceId: id,
+      },
+    }),
+  ]);
+
+  res.json({ property: updatedProperty });
 });
 
 export default router;

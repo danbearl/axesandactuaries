@@ -17,10 +17,11 @@
   border-bottom: 1px solid rgba(201,151,58,0.3);
 }
 
-.seal-emblem {
-  font-size:   1.6rem;
-  color:       var(--gold);
-  line-height: 1;
+.seal-logo {
+  width:        40px;
+  height:       40px;
+  object-fit:   contain;
+  flex-shrink:  0;
 }
 
 .seal-text {

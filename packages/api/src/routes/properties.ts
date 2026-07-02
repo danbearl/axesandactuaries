@@ -144,7 +144,7 @@ router.post('/:id/upgrade', requireAuth, async (req, res) => {
     return;
   }
 
-  const config = PROPERTY_CONFIG[property.type];
+  const config = PROPERTY_CONFIG[property.type as keyof typeof PROPERTY_CONFIG];
   const newLevel = property.level + 1;
   // Each level adds 50% of base daily maintenance on top of level 1 cost.
   const newMaintenanceCostDaily = config.maintenanceDaily + Math.round(config.maintenanceDaily * 0.5 * (newLevel - 1));

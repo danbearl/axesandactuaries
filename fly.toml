@@ -9,7 +9,7 @@ primary_region = "iad"
 
 [deploy]
   # Runs in the same image before new instances start — safe for schema migrations
-  release_command = "node_modules/.bin/prisma migrate deploy --schema packages/api/prisma/schema.prisma"
+  release_command = "packages/api/node_modules/.bin/prisma migrate deploy --schema packages/api/prisma/schema.prisma"
 
 [http_service]
   internal_port = 3001

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { XP_PER_GOLD } from '@adventurer-manager/types';
 import { prisma } from '../src/lib/prisma.js';
-import { resolveAdventure } from '../src/services/adventure.js';
+import { resolveAdventure, startAdventure } from '../src/services/adventure.js';
+import { ClaimConflictError } from '../src/lib/errors.js';
 import { createPlayer, createAdventurer, createContract } from './fixtures.js';
 
 afterEach(() => {
@@ -151,5 +152,62 @@ describe('resolveAdventure', () => {
 
     const txCount = await prisma.transaction.count({ where: { playerId: player.id } });
     expect(txCount).toBe(1);
+  });
+});
+
+describe('startAdventure', () => {
+  it('assigns the party and moves contract/adventurers to in-progress', async () => {
+    const player = await createPlayer();
+    const adventurer = await createAdventurer({ employerId: player.id, status: 'hired' });
+    const contract = await createContract({ status: 'awarded', awardedTo: player.id });
+
+    const adventure = await startAdventure(player.id, contract.id, [adventurer.id]);
+    expect(adventure.contractId).toBe(contract.id);
+
+    const updatedContract = await prisma.contract.findUniqueOrThrow({ where: { id: contract.id } });
+    expect(updatedContract.status).toBe('in_progress');
+
+    const updatedAdv = await prisma.adventurer.findUniqueOrThrow({ where: { id: adventurer.id } });
+    expect(updatedAdv.status).toBe('on_adventure');
+  });
+
+  it('rejects when the contract is not awarded to the caller', async () => {
+    const player = await createPlayer();
+    const other = await createPlayer();
+    const adventurer = await createAdventurer({ employerId: player.id, status: 'hired' });
+    const contract = await createContract({ status: 'awarded', awardedTo: other.id });
+
+    await expect(startAdventure(player.id, contract.id, [adventurer.id]))
+      .rejects.toThrow(ClaimConflictError);
+  });
+
+  it('rejects when an adventurer is not hired by the caller', async () => {
+    const player = await createPlayer();
+    const other = await createPlayer();
+    const adventurer = await createAdventurer({ employerId: other.id, status: 'hired' });
+    const contract = await createContract({ status: 'awarded', awardedTo: player.id });
+
+    await expect(startAdventure(player.id, contract.id, [adventurer.id]))
+      .rejects.toThrow(ClaimConflictError);
+  });
+
+  it('lets only one of two concurrent requests claim the same contract', async () => {
+    const player = await createPlayer();
+    const adventurer = await createAdventurer({ employerId: player.id, status: 'hired' });
+    const contract = await createContract({ status: 'awarded', awardedTo: player.id });
+
+    const results = await Promise.allSettled([
+      startAdventure(player.id, contract.id, [adventurer.id]),
+      startAdventure(player.id, contract.id, [adventurer.id]),
+    ]);
+
+    const fulfilled = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter((r) => r.status === 'rejected');
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(ClaimConflictError);
+
+    const adventureCount = await prisma.adventure.count({ where: { contractId: contract.id } });
+    expect(adventureCount).toBe(1);
   });
 });

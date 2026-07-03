@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { prisma } from '../lib/prisma.js';
-import { resolveAdventure } from '../services/adventure.js';
+import { resolveAdventure, startAdventure } from '../services/adventure.js';
+import { ClaimConflictError } from '../lib/errors.js';
 
 const router = Router();
 
@@ -61,50 +62,16 @@ router.post('/', requireAuth, async (req, res) => {
 
   const { contractId, adventurerIds } = parsed.data;
 
-  const contract = await prisma.contract.findUnique({ where: { id: contractId } });
-  if (!contract || contract.awardedTo !== req.playerId || contract.status !== 'awarded') {
-    res.status(400).json({ error: 'Contract is not awarded to you or is not in awarded status' });
-    return;
+  try {
+    const adventure = await startAdventure(req.playerId, contractId, adventurerIds);
+    res.status(201).json({ adventure });
+  } catch (err) {
+    if (err instanceof ClaimConflictError) {
+      res.status(409).json({ error: err.message });
+      return;
+    }
+    throw err;
   }
-
-  const adventurers = await prisma.adventurer.findMany({
-    where: { id: { in: adventurerIds }, employerId: req.playerId, status: 'hired' },
-  });
-  if (adventurers.length !== adventurerIds.length) {
-    res.status(400).json({ error: 'One or more adventurers are unavailable or not in your employ' });
-    return;
-  }
-
-  const completesAt = new Date(Date.now() + contract.durationHours * 60 * 60 * 1000);
-
-  const adventure = await prisma.$transaction(async (tx) => {
-    const a = await tx.adventure.create({
-      data: {
-        contractId,
-        playerId: req.playerId,
-        startsAt: new Date(),
-        completesAt,
-        adventurers: {
-          create: adventurerIds.map((aid) => ({ adventurerId: aid })),
-        },
-      },
-      include: { contract: true, adventurers: { include: { adventurer: true } } },
-    });
-
-    await tx.adventurer.updateMany({
-      where: { id: { in: adventurerIds } },
-      data: { status: 'on_adventure' },
-    });
-
-    await tx.contract.update({
-      where: { id: contractId },
-      data: { status: 'in_progress' },
-    });
-
-    return a;
-  });
-
-  res.status(201).json({ adventure });
 });
 
 export default router;

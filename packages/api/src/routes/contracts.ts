@@ -6,20 +6,8 @@ import {
   CONTRACT_TIER_REPUTATION_REQUIREMENTS,
 } from '@adventurer-manager/types';
 import type { ContractTier } from '@adventurer-manager/types';
-import { getBootstrapStatus, WELFARE_COOLDOWN_HOURS } from '../services/bootstrap.js';
-
-const WELFARE_CONTRACT = {
-  title:             'Guild Charity Work: Delivery Run',
-  description:       'The Adventurers\' Guild has arranged a simple delivery task for your company in its time of need. No penalty if things go awry — just get back on your feet.',
-  tier:              'errand' as const,
-  requiredPower:     1,
-  requiredStats:     {},
-  rewardGold:        200,
-  reputationReward:  5,
-  penaltyGold:       0,
-  penaltyReputation: 0,
-  durationHours:     2,
-};
+import { getBootstrapStatus, WELFARE_COOLDOWN_HOURS, WELFARE_CONTRACT, claimWelfareContract } from '../services/bootstrap.js';
+import { ClaimConflictError } from '../lib/errors.js';
 
 const router = Router();
 
@@ -84,27 +72,17 @@ router.post('/welfare/accept', requireAuth, async (req, res) => {
     return;
   }
 
-  const now       = new Date();
-  const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-
-  const [contract] = await prisma.$transaction([
-    prisma.contract.create({
-      data: {
-        ...WELFARE_CONTRACT,
-        status:      'awarded',
-        awardedTo:   req.playerId,
-        bidDeadline: expiresAt,
-        expiresAt,
-      },
-    }),
-    prisma.player.update({
-      where: { id: req.playerId },
-      data:  { lastWelfareAt: now },
-    }),
-  ]);
-
-  console.log(`[bootstrap] ${req.playerId} claimed guild welfare contract`);
-  res.status(201).json({ contract });
+  try {
+    const contract = await claimWelfareContract(req.playerId);
+    console.log(`[bootstrap] ${req.playerId} claimed guild welfare contract`);
+    res.status(201).json({ contract });
+  } catch (err) {
+    if (err instanceof ClaimConflictError) {
+      res.status(409).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 // POST /api/v1/contracts/:id/accept

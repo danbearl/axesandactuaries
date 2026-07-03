@@ -2,6 +2,61 @@ import { prisma } from '../lib/prisma.js';
 import { levelForXp, XP_PER_GOLD, MAX_LEVEL, computeDailyWage } from '@adventurer-manager/types';
 import type { StatBlock } from '@adventurer-manager/types';
 import { publish, CHANNELS } from '../lib/redis.js';
+import { ClaimConflictError } from '../lib/errors.js';
+
+// Assigns a party to an awarded contract, starting the adventure.
+//
+// Racing this with the same contractId (or an adventurerId already claimed
+// by another in-flight request) must not let two Adventures form against the
+// same contract — each Adventure independently pays out on resolution, so a
+// lost race here would otherwise duplicate rewards. Both claims are atomic
+// UPDATE WHERE operations inside one transaction: if either matches fewer
+// rows than expected, the transaction throws and rolls back entirely.
+export async function startAdventure(
+  playerId: string,
+  contractId: string,
+  adventurerIds: string[],
+) {
+  const uniqueAdventurerIds = [...new Set(adventurerIds)];
+  if (uniqueAdventurerIds.length !== adventurerIds.length) {
+    throw new ClaimConflictError('adventurerIds contains duplicates');
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const claimedContract = await tx.contract.updateMany({
+      where: { id: contractId, awardedTo: playerId, status: 'awarded' },
+      data: { status: 'in_progress' },
+    });
+    if (claimedContract.count === 0) {
+      throw new ClaimConflictError('Contract is not awarded to you or is not in awarded status');
+    }
+
+    const contract = await tx.contract.findUniqueOrThrow({ where: { id: contractId } });
+
+    const claimedAdventurers = await tx.adventurer.updateMany({
+      where: { id: { in: uniqueAdventurerIds }, employerId: playerId, status: 'hired' },
+      data: { status: 'on_adventure' },
+    });
+    if (claimedAdventurers.count !== uniqueAdventurerIds.length) {
+      throw new ClaimConflictError('One or more adventurers are unavailable or not in your employ');
+    }
+
+    const completesAt = new Date(Date.now() + contract.durationHours * 60 * 60 * 1000);
+
+    return tx.adventure.create({
+      data: {
+        contractId,
+        playerId,
+        startsAt: new Date(),
+        completesAt,
+        adventurers: {
+          create: uniqueAdventurerIds.map((aid) => ({ adventurerId: aid })),
+        },
+      },
+      include: { contract: true, adventurers: { include: { adventurer: true } } },
+    });
+  });
+}
 
 // Returns the party's effective combined power, including property bonuses.
 async function computePartyPower(

@@ -1,8 +1,10 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { prisma } from '../lib/prisma.js';
-import { generateAdventurer, HIRE_REPUTATION_REQUIREMENTS, computeHireCost, computeDailyWage } from '@adventurer-manager/types';
-import { getBootstrapStatus } from '../services/bootstrap.js';
+import { HIRE_REPUTATION_REQUIREMENTS, computeHireCost, computeDailyWage } from '@adventurer-manager/types';
+import { getBootstrapStatus, claimDesperateHire } from '../services/bootstrap.js';
+import { ClaimConflictError } from '../lib/errors.js';
 
 const router = Router();
 
@@ -82,41 +84,28 @@ router.post('/:id/hire', requireAuth, async (req, res) => {
 // When a player has no adventurers, no properties, and can't afford the market,
 // hire a free adventurer with minimum loyalty who's willing to work for nothing upfront.
 router.post('/desperate-hire', requireAuth, async (req, res) => {
+  // Fast-path check for a clean error message in the common (non-racing) case.
   const status = await getBootstrapStatus(req.playerId);
   if (!status.desperateHireAvailable) {
     res.status(403).json({ error: 'Desperate hire is not available — you must have no adventurers, no properties, and insufficient gold to hire from the market' });
     return;
   }
 
-  const a = generateAdventurer();
-  // Override: free hire, minimum loyalty so they leave quickly if neglected
-  const personality = { ...(a.personality as unknown as Record<string, number>), loyalty: 1 };
-
-  const adventurer = await prisma.adventurer.create({
-    data: {
-      name:         a.name,
-      heritage:     a.heritage,
-      vocation:     a.vocation,
-      gender:       a.gender,
-      level:        1,
-      experience:   0,
-      powerRating:  a.powerRating,
-      stats:        a.stats       as object,
-      personality:  personality   as object,
-      hireCost:     0,
-      dailyWage:    a.dailyWage,
-      status:       'hired',
-      employerId:   req.playerId,
-      height:       a.height,
-      build:        a.build,
-      complexion:   a.complexion,
-      hairColor:    a.hairColor,
-      eyeColor:     a.eyeColor,
-    },
-  });
-
-  console.log(`[bootstrap] ${req.playerId} used desperate hire — ${adventurer.name} joins for free`);
-  res.status(201).json({ adventurer });
+  try {
+    const adventurer = await claimDesperateHire(req.playerId);
+    console.log(`[bootstrap] ${req.playerId} used desperate hire — ${adventurer.name} joins for free`);
+    res.status(201).json({ adventurer });
+  } catch (err) {
+    if (err instanceof ClaimConflictError) {
+      res.status(403).json({ error: err.message });
+      return;
+    }
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2034') {
+      res.status(409).json({ error: 'Desperate hire is being claimed by another request — please retry' });
+      return;
+    }
+    throw err;
+  }
 });
 
 // POST /api/v1/adventurers/:id/fire

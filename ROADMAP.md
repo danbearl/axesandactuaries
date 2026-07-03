@@ -31,8 +31,20 @@ via Redis pub/sub + SSE, 3 pg-boss background workers.
   `prisma`/`@prisma/client` to `^6.1.0` (the release that fixed it) in the same change.
   Verified: `pnpm typecheck`/`pnpm test` pass, and a full `docker build` + `docker run`
   confirmed the API starts cleanly under Node 22 with no OpenSSL detection error.
-- Exploitation prevention (from original TODO.md, Game Mechanics) — anti-cheat / economy
-  exploit safeguards, more urgent now that the game is live than when originally listed.
+- [x] Exploitation prevention (2026-07-03) — audited the route handlers for TOCTOU races
+  (check-then-act gaps a player can exploit by firing concurrent requests) and fixed three:
+  (1) contract double-fulfillment via `POST /adventures` — racing it let a player start
+  multiple Adventures against one awarded contract, each paying out independently on
+  resolution (direct gold/reputation duplication), and could double-book an adventurer onto
+  two adventures at once; (2) welfare-contract cooldown bypass — unlimited free welfare
+  contracts via concurrent `POST /contracts/welfare/accept`; (3) desperate-hire farming —
+  unlimited free adventurers via concurrent `POST /adventurers/desperate-hire`. Fixed #1/#2
+  with the atomic `updateMany`-claim pattern already used elsewhere in this codebase
+  (`/adventurers/:id/hire`, `/contracts/:id/accept`); #3 has no single row to gate an atomic
+  claim on (eligibility is a derived count), so it uses a Postgres `Serializable` transaction
+  instead. Extracted the claim logic into `services/adventure.ts` (`startAdventure`) and
+  `services/bootstrap.ts` (`claimWelfareContract`, `claimDesperateHire`) so routes stay thin
+  and the fixes are unit-testable; added concurrent-request regression tests for all three.
 - Frontend error monitoring — add Sentry to `packages/frontend` (currently API-only;
   client-side errors are invisible).
 - Security/compliance baseline (from original TODO.md, Security and Compliance) — a first

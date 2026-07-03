@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../src/lib/prisma.js';
-import { getBootstrapStatus } from '../src/services/bootstrap.js';
+import { getBootstrapStatus, claimWelfareContract, claimDesperateHire } from '../src/services/bootstrap.js';
+import { ClaimConflictError } from '../src/lib/errors.js';
 import { createPlayer, createAdventurer } from './fixtures.js';
 
 async function seedMarketAdventurer(hireCost: number) {
@@ -71,5 +73,88 @@ describe('getBootstrapStatus', () => {
     const status = await getBootstrapStatus(player.id);
     expect(status.welfareContractAvailable).toBe(true);
     expect(status.welfareContractCooldownUntil).toBeNull();
+  });
+});
+
+describe('claimWelfareContract', () => {
+  it('awards a contract and starts the cooldown', async () => {
+    const player = await createPlayer({ gold: 10 });
+
+    const contract = await claimWelfareContract(player.id);
+    expect(contract.awardedTo).toBe(player.id);
+    expect(contract.status).toBe('awarded');
+
+    const updatedPlayer = await prisma.player.findUniqueOrThrow({ where: { id: player.id } });
+    expect(updatedPlayer.lastWelfareAt).not.toBeNull();
+  });
+
+  it('rejects a claim while on cooldown', async () => {
+    const player = await createPlayer({
+      gold: 10,
+      lastWelfareAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
+    });
+
+    await expect(claimWelfareContract(player.id)).rejects.toThrow(ClaimConflictError);
+  });
+
+  it('lets only one of two concurrent claims for the same player succeed', async () => {
+    const player = await createPlayer({ gold: 10 });
+
+    const results = await Promise.allSettled([
+      claimWelfareContract(player.id),
+      claimWelfareContract(player.id),
+    ]);
+
+    const fulfilled = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter((r) => r.status === 'rejected');
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(ClaimConflictError);
+
+    const contractCount = await prisma.contract.count({ where: { awardedTo: player.id } });
+    expect(contractCount).toBe(1);
+  });
+});
+
+describe('claimDesperateHire', () => {
+  it('creates a free, minimum-loyalty adventurer for an eligible player', async () => {
+    const player = await createPlayer({ gold: 0 });
+
+    const adventurer = await claimDesperateHire(player.id);
+    expect(adventurer.employerId).toBe(player.id);
+    expect(adventurer.hireCost).toBe(0);
+    expect(adventurer.status).toBe('hired');
+    expect((adventurer.personality as { loyalty: number }).loyalty).toBe(1);
+  });
+
+  it('rejects a claim once the player already has an adventurer', async () => {
+    const player = await createPlayer({ gold: 0 });
+    await createAdventurer({ employerId: player.id, status: 'hired' });
+
+    await expect(claimDesperateHire(player.id)).rejects.toThrow(ClaimConflictError);
+  });
+
+  it('lets only one of two concurrent claims for the same player succeed', async () => {
+    const player = await createPlayer({ gold: 0 });
+
+    const results = await Promise.allSettled([
+      claimDesperateHire(player.id),
+      claimDesperateHire(player.id),
+    ]);
+
+    const fulfilled = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter((r) => r.status === 'rejected');
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    // The loser can either fail the re-check (ClaimConflictError) or lose the
+    // Postgres serializable-transaction race (Prisma P2034) depending on timing.
+    const rejection = (rejected[0] as PromiseRejectedResult).reason;
+    const isExpectedRejection =
+      rejection instanceof ClaimConflictError ||
+      (rejection instanceof Prisma.PrismaClientKnownRequestError && rejection.code === 'P2034');
+    expect(isExpectedRejection).toBe(true);
+
+    const hiredCount = await prisma.adventurer.count({ where: { employerId: player.id, status: 'hired' } });
+    expect(hiredCount).toBe(1);
   });
 });

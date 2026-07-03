@@ -59,6 +59,54 @@ router.get('/mine', requireAuth, async (req, res) => {
   res.json({ contracts });
 });
 
+// GET /api/v1/contracts/welfare
+// Returns welfare contract details and eligibility for the current player.
+// Must be declared before /:id routes so Express doesn't capture "welfare" as an id.
+router.get('/welfare', requireAuth, async (req, res) => {
+  const status = await getBootstrapStatus(req.playerId);
+  res.json({
+    contract:      WELFARE_CONTRACT,
+    available:     status.welfareContractAvailable,
+    cooldownUntil: status.welfareContractCooldownUntil,
+    cooldownHours: WELFARE_COOLDOWN_HOURS,
+  });
+});
+
+// POST /api/v1/contracts/welfare/accept
+// Creates and immediately awards a welfare contract. Enforces 48h cooldown.
+router.post('/welfare/accept', requireAuth, async (req, res) => {
+  const status = await getBootstrapStatus(req.playerId);
+  if (!status.welfareContractAvailable) {
+    const msg = status.welfareContractCooldownUntil
+      ? `Guild charity work is on cooldown until ${status.welfareContractCooldownUntil.toISOString()}`
+      : 'Guild charity work is not available — you must have no properties and insufficient gold to hire from the market';
+    res.status(403).json({ error: msg });
+    return;
+  }
+
+  const now       = new Date();
+  const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  const [contract] = await prisma.$transaction([
+    prisma.contract.create({
+      data: {
+        ...WELFARE_CONTRACT,
+        status:      'awarded',
+        awardedTo:   req.playerId,
+        bidDeadline: expiresAt,
+        expiresAt,
+      },
+    }),
+    prisma.player.update({
+      where: { id: req.playerId },
+      data:  { lastWelfareAt: now },
+    }),
+  ]);
+
+  console.log(`[bootstrap] ${req.playerId} claimed guild welfare contract`);
+  res.status(201).json({ contract });
+});
+
 // POST /api/v1/contracts/:id/accept
 // Direct accept — only available for errand and standard tier.
 // Dangerous/legendary must go through bidding. Uses atomic UPDATE WHERE to
@@ -148,53 +196,6 @@ router.post('/:id/bid', requireAuth, async (req, res) => {
   });
 
   res.status(201).json({ placed: true });
-});
-
-// GET /api/v1/contracts/welfare
-// Returns welfare contract details and eligibility for the current player.
-router.get('/welfare', requireAuth, async (req, res) => {
-  const status = await getBootstrapStatus(req.playerId);
-  res.json({
-    contract:      WELFARE_CONTRACT,
-    available:     status.welfareContractAvailable,
-    cooldownUntil: status.welfareContractCooldownUntil,
-    cooldownHours: WELFARE_COOLDOWN_HOURS,
-  });
-});
-
-// POST /api/v1/contracts/welfare/accept
-// Creates and immediately awards a welfare contract. Enforces 48h cooldown.
-router.post('/welfare/accept', requireAuth, async (req, res) => {
-  const status = await getBootstrapStatus(req.playerId);
-  if (!status.welfareContractAvailable) {
-    const msg = status.welfareContractCooldownUntil
-      ? `Guild charity work is on cooldown until ${status.welfareContractCooldownUntil.toISOString()}`
-      : 'Guild charity work is not available — you must have no properties and insufficient gold to hire from the market';
-    res.status(403).json({ error: msg });
-    return;
-  }
-
-  const now       = new Date();
-  const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-
-  const [contract] = await prisma.$transaction([
-    prisma.contract.create({
-      data: {
-        ...WELFARE_CONTRACT,
-        status:      'awarded',
-        awardedTo:   req.playerId,
-        bidDeadline: expiresAt,
-        expiresAt,
-      },
-    }),
-    prisma.player.update({
-      where: { id: req.playerId },
-      data:  { lastWelfareAt: now },
-    }),
-  ]);
-
-  console.log(`[bootstrap] ${req.playerId} claimed guild welfare contract`);
-  res.status(201).json({ contract });
 });
 
 export default router;

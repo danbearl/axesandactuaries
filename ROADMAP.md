@@ -16,10 +16,13 @@ via Redis pub/sub + SSE, 3 pg-boss background workers.
 - [x] Fix GitHub Actions deploy trigger (2026-07-03) — `deploy.yml` was firing on push to
   `main`, which doesn't exist on this repo (branches are `dev`/`master`); confirmed all
   deploys to date were manual `flyctl deploy`. Retargeted trigger to `master`.
-- CI gate before deploy — in progress. Added a `verify` job (typecheck) that `deploy` now
-  `needs`, gated to `push` events only; a `pnpm test` step will be added once tests exist.
-  Pending local verification with a Node/pnpm setup matching the project's pin (see Node
-  upgrade item below).
+- [x] CI gate before deploy (2026-07-03) — added a `verify` job (typecheck + test) that
+  `deploy` now `needs`, gated to `push` events only. Verified locally and passing.
+- [x] Automated tests for core economic logic (2026-07-03) — Vitest across `packages/types`
+  (pure logic: leveling, hire/wage cost, generation) and `packages/api` (wage collection,
+  back-wage repayment, quit rolls, adventure resolution, bootstrap thresholds, market GC bid
+  awarding) against a real ephemeral Postgres, wired into CI. Route-level/HTTP integration
+  tests (Clerk-authenticated endpoints) remain a follow-up, not yet covered.
 - Upgrade Node 20 to a supported LTS (22 or 24) — Node 20 ("Iron") reached end-of-life in
   April 2026 and no longer receives security patches, which matters for a live app handling
   real user accounts via Clerk. Touches `Dockerfile`, `.github/workflows/deploy.yml`,
@@ -27,12 +30,6 @@ via Redis pub/sub + SSE, 3 pg-boss background workers.
   version (which now requires Node >=22.13) instead of the pinned `pnpm@9`. Needs its own
   verification pass (Prisma, Express, Vite, Clerk, pg-boss, ioredis) rather than being
   bundled into other changes.
-- Automated tests for core economic logic — wage collection, contract bidding/resolution,
-  adventure resolution, transaction ledger. No test infra exists at all today; this is a
-  live economy with no regression safety net.
-- Automated tests for core economic logic — wage collection, contract bidding/resolution,
-  adventure resolution, transaction ledger. No test infra exists at all today; this is a
-  live economy with no regression safety net.
 - Exploitation prevention (from original TODO.md, Game Mechanics) — anti-cheat / economy
   exploit safeguards, more urgent now that the game is live than when originally listed.
 - Frontend error monitoring — add Sentry to `packages/frontend` (currently API-only;
@@ -42,6 +39,11 @@ via Redis pub/sub + SSE, 3 pg-boss background workers.
   handles real user accounts via Clerk.
 
 ## Should Have
+- Migrate `@clerk/clerk-react` to `@clerk/react` (2026-07-03) — Clerk's Core 3 release
+  (2026-03-03) renamed the package; the old one is no longer supported. Clerk is the app's
+  entire auth layer, so this shouldn't sit indefinitely. Clerk provides an `@clerk/upgrade`
+  CLI to automate most of the migration; check whether `@clerk/express` (backend) needs any
+  Core 3 changes too.
 - Redis-backed rate limiting — replace in-memory `express-rate-limit` with Upstash-backed
   limiting (currently won't survive horizontal scaling; Redis is already paid for and only
   used for pub/sub today).

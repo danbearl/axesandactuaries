@@ -9,9 +9,12 @@
     "dev": "pnpm --filter @adventurer-manager/frontend dev",
     "build": "pnpm --filter types build && pnpm --filter frontend build && pnpm --filter api build",
     "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r --if-present test",
     "db:migrate": "pnpm --filter @adventurer-manager/api db:migrate",
     "db:generate": "pnpm --filter @adventurer-manager/api db:generate",
     "db:studio": "pnpm --filter @adventurer-manager/api db:studio",
+    "db:test:create": "pnpm --filter @adventurer-manager/api db:test:create",
+    "db:test:migrate": "pnpm --filter @adventurer-manager/api db:test:migrate",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "db:seed": "pnpm --filter @adventurer-manager/api db:seed"

@@ -37,12 +37,13 @@ COPY packages/frontend/package.json ./packages/frontend/
 COPY packages/api/prisma ./packages/api/prisma
 # Install production deps only (prisma CLI is in prod deps for migrate deploy)
 RUN pnpm install --frozen-lockfile --prod
+# Generate the Prisma runtime client — postinstall may not locate the schema
+# in pnpm's virtual store context, so run it explicitly like the build stage.
+RUN pnpm --filter @adventurer-manager/api exec prisma generate
 # Copy compiled outputs from build stage
 COPY --from=build /app/packages/types/dist ./packages/types/dist
 COPY --from=build /app/packages/api/dist ./packages/api/dist
 COPY --from=build /app/packages/frontend/dist ./packages/frontend/dist
-# Copy the generated Prisma client so the runtime has the correct JS bindings
-COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 
 EXPOSE 3001
 CMD ["node", "packages/api/dist/index.js"]

@@ -14,7 +14,7 @@
     }
   },
   "scripts": {
-    "build": "tsc --project tsconfig.json && tsc --project tsconfig.cjs.json && node -e \"require('fs').writeFileSync('dist/cjs/package.json',JSON.stringify({type:'commonjs'}))\",
+    "build": "tsc --project tsconfig.json && tsc --project tsconfig.cjs.json && node -e \"require('fs').writeFileSync('dist/cjs/package.json',JSON.stringify({type:'commonjs'}))\"",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

@@ -2,11 +2,38 @@ name: Deploy to Fly.io
 
 on:
   push:
-    branches: [main]
+    branches: [master]
+  pull_request:
+    branches: [master]
 
 jobs:
+  verify:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # tsc --noEmit for packages/api needs the generated @prisma/client types.
+      # Doesn't need DATABASE_URL: generate only reads the schema file.
+      - run: pnpm --filter @adventurer-manager/api exec prisma generate
+
+      - run: pnpm typecheck
+
   deploy:
     name: Deploy
+    needs: verify
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     concurrency:
       group: deploy-production

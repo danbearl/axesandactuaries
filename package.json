@@ -2,6 +2,7 @@
   "name": "adventurer-manager",
   "version": "0.0.1",
   "private": true,
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev:frontend": "pnpm --filter @adventurer-manager/frontend dev",
     "dev:api": "pnpm --filter @adventurer-manager/api dev",

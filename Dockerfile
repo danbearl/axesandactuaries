@@ -1,6 +1,6 @@
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 # Prisma's schema/query engine is a Rust binary that links against the system
-# OpenSSL at runtime. node:20-alpine doesn't install it as a system package.
+# OpenSSL at runtime. node:22-alpine doesn't install it as a system package.
 RUN apk add --no-cache openssl
 RUN corepack enable && corepack prepare pnpm@9 --activate
 WORKDIR /app

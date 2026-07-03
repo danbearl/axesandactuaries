@@ -26,6 +26,10 @@ describe('collectDailyWages', () => {
   });
 
   it('pays the highest-level adventurer first when gold is short', async () => {
+    // This test is about payment ordering, not the quit roll — pin Math.random
+    // high enough that the unpaid adventurer's loyalty check never triggers a quit.
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+
     const player = await createPlayer({ gold: 40 });
     const highLevel = await createAdventurer({
       employerId: player.id, status: 'hired', level: 3, dailyWage: 40,

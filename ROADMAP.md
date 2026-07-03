@@ -23,13 +23,14 @@ via Redis pub/sub + SSE, 3 pg-boss background workers.
   back-wage repayment, quit rolls, adventure resolution, bootstrap thresholds, market GC bid
   awarding) against a real ephemeral Postgres, wired into CI. Route-level/HTTP integration
   tests (Clerk-authenticated endpoints) remain a follow-up, not yet covered.
-- Upgrade Node 20 to a supported LTS (22 or 24) — Node 20 ("Iron") reached end-of-life in
-  April 2026 and no longer receives security patches, which matters for a live app handling
-  real user accounts via Clerk. Touches `Dockerfile`, `.github/workflows/deploy.yml`,
-  `package.json` engines, and `.nvmrc` together; also unblocks using pnpm's latest major
-  version (which now requires Node >=22.13) instead of the pinned `pnpm@9`. Needs its own
-  verification pass (Prisma, Express, Vite, Clerk, pg-boss, ioredis) rather than being
-  bundled into other changes.
+- [x] Upgrade Node 20 to Node 22 LTS (2026-07-03) — Node 20 ("Iron") was past end-of-life
+  (April 2026). Bumped `Dockerfile`, `.github/workflows/deploy.yml`, `package.json` engines,
+  and `.nvmrc` to Node 22. Along the way, discovered Node 22/24's Alpine base (3.21+) trips a
+  Prisma bug where it fails to detect libssl/OpenSSL and crashes on startup (prisma/prisma
+  #25817), which the pinned `prisma@^5.22.0` couldn't reach the fix for — bumped
+  `prisma`/`@prisma/client` to `^6.1.0` (the release that fixed it) in the same change.
+  Verified: `pnpm typecheck`/`pnpm test` pass, and a full `docker build` + `docker run`
+  confirmed the API starts cleanly under Node 22 with no OpenSSL detection error.
 - Exploitation prevention (from original TODO.md, Game Mechanics) — anti-cheat / economy
   exploit safeguards, more urgent now that the game is live than when originally listed.
 - Frontend error monitoring — add Sentry to `packages/frontend` (currently API-only;

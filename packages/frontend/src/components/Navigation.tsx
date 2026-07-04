@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { useClerk } from '@clerk/clerk-react';
+import { useClerk } from '@clerk/react';
 import './Navigation.css';
 
 interface Props {

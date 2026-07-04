@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth } from '@clerk/react';
 import { useQueryClient } from '@tanstack/react-query';
 
 export function useSSE() {

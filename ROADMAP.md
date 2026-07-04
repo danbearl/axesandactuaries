@@ -82,11 +82,20 @@ via Redis pub/sub + SSE, 3 pg-boss background workers.
   the frontend's extensive inline `style={{}}` usage before enabling.
 
 ## Should Have
-- Migrate `@clerk/clerk-react` to `@clerk/react` (2026-07-03) — Clerk's Core 3 release
-  (2026-03-03) renamed the package; the old one is no longer supported. Clerk is the app's
-  entire auth layer, so this shouldn't sit indefinitely. Clerk provides an `@clerk/upgrade`
-  CLI to automate most of the migration; check whether `@clerk/express` (backend) needs any
-  Core 3 changes too.
+- [x] Migrate `@clerk/clerk-react` to `@clerk/react` (2026-07-03) — Clerk's Core 3 release
+  (2026-03-03) renamed the package. `@clerk/express` (backend) was **not** renamed in Core 3,
+  so this was frontend-only. More than an import path change: `<SignedIn>`/`<SignedOut>`/
+  `<Protect>` were fully removed (not just deprecated) in favor of a single `<Show when="...">`
+  component — updated `App.tsx` accordingly (`main.tsx`, `useSSE.ts`, `Navigation.tsx` only
+  needed the import path updated, since `ClerkProvider`/`useAuth`/`useClerk` kept their APIs).
+  Verified end-to-end in a real browser: sign-in, dashboard load, and sign-out all confirmed
+  working. Along the way, found and fixed an unrelated pre-existing bug this verification
+  surfaced: `tsx` (the API's dev runner) does not actually auto-load `.env` files — a false
+  assumption made earlier in this reconstruction — so `pnpm dev:api` had never worked with
+  real env vars via `.env`. Added `dotenv` and an `import 'dotenv/config'` as the first line
+  of `src/index.ts` and `prisma/seed.ts` (no-op in production, where Fly injects real env vars
+  directly). CI/tests were unaffected — they already set `DATABASE_URL` explicitly, bypassing
+  `.env` entirely.
 - Redis-backed rate limiting — replace in-memory `express-rate-limit` with Upstash-backed
   limiting (currently won't survive horizontal scaling; Redis is already paid for and only
   used for pub/sub today).

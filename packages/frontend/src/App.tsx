@@ -1,5 +1,5 @@
 import { Routes, Route } from 'react-router-dom';
-import { SignIn, SignedIn, SignedOut, useAuth } from '@clerk/clerk-react';
+import { SignIn, Show, useAuth } from '@clerk/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import Navigation from './components/Navigation.tsx';
@@ -67,7 +67,7 @@ function AuthenticatedApp() {
 export default function App() {
   return (
     <>
-      <SignedOut>
+      <Show when="signed-out">
         <div style={{
           display: 'flex',
           justifyContent: 'center',
@@ -77,10 +77,10 @@ export default function App() {
         }}>
           <SignIn routing="hash" />
         </div>
-      </SignedOut>
-      <SignedIn>
+      </Show>
+      <Show when="signed-in">
         <AuthenticatedApp />
-      </SignedIn>
+      </Show>
     </>
   );
 }

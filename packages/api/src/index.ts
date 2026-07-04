@@ -1,3 +1,9 @@
+// Must be the very first import: tsx does not auto-load .env files (unlike
+// some other TS runners), and everything below — including Sentry.init()'s
+// own process.env.SENTRY_DSN read two lines down — needs real env vars
+// already populated. In production this is a no-op: Fly injects real env
+// vars directly and there's no .env file in the container.
+import 'dotenv/config';
 import * as Sentry from '@sentry/node';
 
 Sentry.init({

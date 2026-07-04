@@ -45,8 +45,14 @@ via Redis pub/sub + SSE, 3 pg-boss background workers.
   instead. Extracted the claim logic into `services/adventure.ts` (`startAdventure`) and
   `services/bootstrap.ts` (`claimWelfareContract`, `claimDesperateHire`) so routes stay thin
   and the fixes are unit-testable; added concurrent-request regression tests for all three.
-- Frontend error monitoring — add Sentry to `packages/frontend` (currently API-only;
-  client-side errors are invisible).
+- [x] Frontend error monitoring (2026-07-03) — added `@sentry/react` to `packages/frontend`,
+  initialized in `main.tsx` (DSN-gated, mirroring the API's `enabled: !!dsn` pattern) with an
+  `ErrorBoundary` around the app for React render errors. `VITE_SENTRY_DSN` flows through as
+  a build-arg (`Dockerfile`, `.github/workflows/deploy.yml`, GitHub Actions secret) the same
+  way `VITE_CLERK_PUBLISHABLE_KEY` already does — it's baked into the bundle at build time,
+  not a Fly runtime secret. Used a separate Sentry project from the API's (different noise
+  profile: browser/extension errors vs. server errors). Verified end-to-end: a real error
+  triggered in the running app showed up in the Sentry issue feed.
 - Security/compliance baseline (from original TODO.md, Security and Compliance) — a first
   secure-code review pass and documented secure-coding practices, given the app already
   handles real user accounts via Clerk.

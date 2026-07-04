@@ -23,10 +23,13 @@ COPY . .
 # store path that tsc can't resolve; running it here guarantees the output
 # lands where the workspace expects it.
 RUN pnpm --filter @adventurer-manager/api exec prisma generate
-# VITE_CLERK_PUBLISHABLE_KEY is baked into the frontend bundle at build time.
-# Pass it as a build arg: fly deploy --build-arg VITE_CLERK_PUBLISHABLE_KEY=pk_live_...
+# VITE_CLERK_PUBLISHABLE_KEY and VITE_SENTRY_DSN are baked into the frontend
+# bundle at build time. Pass them as build args, e.g.:
+# fly deploy --build-arg VITE_CLERK_PUBLISHABLE_KEY=pk_live_... --build-arg VITE_SENTRY_DSN=https://...
 ARG VITE_CLERK_PUBLISHABLE_KEY
+ARG VITE_SENTRY_DSN
 ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
+ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN
 RUN pnpm --filter @adventurer-manager/types build
 RUN pnpm --filter @adventurer-manager/frontend build
 RUN pnpm --filter @adventurer-manager/api build

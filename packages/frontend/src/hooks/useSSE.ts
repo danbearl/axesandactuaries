@@ -30,7 +30,11 @@ export function useSSE() {
 
       es.addEventListener('market_update', () => {
         void queryClient.invalidateQueries({ queryKey: ['contracts'] });
-        void queryClient.invalidateQueries({ queryKey: ['market-adventurers'] });
+        // Was ['market-adventurers'] — didn't match AdventurerMarket.tsx's actual
+        // query key (['adventurers', 'market']), so this invalidation was a silent
+        // no-op; prefix-matching ['adventurers'] here to match how every other
+        // handler in this file invalidates (see 'daily_summary' above).
+        void queryClient.invalidateQueries({ queryKey: ['adventurers'] });
       });
 
       // Fired when the Market GC awards a bid-won contract to this player.

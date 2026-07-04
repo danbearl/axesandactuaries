@@ -36,12 +36,41 @@ import { sseHub } from './lib/sse.js';
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
-// CSP is left disabled for now: the frontend uses inline `style={{}}` props
-// throughout (rendered as CSP-restricted inline style attributes) and Clerk's
-// hosted <SignIn> needs its own cross-origin allowances — getting a correct
-// policy for both requires testing against a real browser, not a blind
-// default. Track this as a follow-up (see SECURITY.md).
-app.use(helmet({ contentSecurityPolicy: false }));
+// CSP is deployed in Report-Only mode first: it logs violations to the
+// browser console without blocking anything, so we can verify the policy is
+// complete against real production traffic (Clerk's hosted <SignIn>, Google
+// Fonts, Sentry's ingest endpoint, our own inline `style={{}}` usage) before
+// ever switching to enforcement. See SECURITY.md.
+//
+// Clerk FAPI hostname is clerk.axesandactuaries.com (custom domain, not the
+// default *.clerk.accounts.dev). If that ever changes, update here too.
+app.use(helmet({
+  contentSecurityPolicy: {
+    reportOnly: true,
+    directives: {
+      defaultSrc: ["'self'"],
+      // 'unsafe-inline' is required by both Clerk's own SDK and this app's
+      // extensive use of React's style={{}} prop (rendered as inline style
+      // attributes, which CSP treats the same as inline scripts for style-src).
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://clerk.axesandactuaries.com'],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      connectSrc: [
+        "'self'",
+        'https://clerk.axesandactuaries.com',
+        'https://clerk-telemetry.com',
+        'https://*.clerk-telemetry.com',
+        'https://*.ingest.us.sentry.io',
+      ],
+      imgSrc: ["'self'", 'https://img.clerk.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      workerSrc: ["'self'", 'blob:'],
+      frameSrc: ["'self'"],
+      formAction: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+    },
+  },
+}));
 
 app.use(cors({
   origin: process.env.FRONTEND_URL ?? 'http://localhost:5173',

@@ -79,9 +79,15 @@ via Redis pub/sub + SSE, 3 pg-boss background workers.
   `Sentry.init()`/`setupExpressErrorHandler()` usage, so skipped the intermediate v9 stop
   rather than doing two upgrade passes. Verified: `pnpm test`/`typecheck` pass, `pnpm audit`
   no longer reports the CVE, and a live `pnpm dev:api` smoke test confirmed clean startup.
-- Content-Security-Policy tuning — `helmet`'s CSP is currently disabled; needs a policy
-  written and verified against a real browser for Clerk's hosted `<SignIn>` component and
-  the frontend's extensive inline `style={{}}` usage before enabling.
+- Content-Security-Policy tuning (2026-07-04, in progress) — deployed in Report-Only mode
+  (`reportOnly: true`), which logs violations to the browser console without blocking
+  anything. Directives cover Clerk's custom FAPI domain (`clerk.axesandactuaries.com`),
+  Google Fonts, Sentry's ingest endpoint, and `'unsafe-inline'` for both Clerk's own
+  styling and this app's inline `style={{}}` usage — but this is only ever exercised by
+  production traffic (Express serves `helmet` headers only under `NODE_ENV=production`;
+  local Vite dev never goes through this middleware). Remaining: watch the browser console
+  across real usage for any violation reports, fix the policy if anything's missing, then
+  switch to enforcing.
 
 ## Should Have
 - [x] Migrate `@clerk/clerk-react` to `@clerk/react` (2026-07-03) — Clerk's Core 3 release

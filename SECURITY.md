@@ -75,11 +75,15 @@ The pattern to use:
 
 - `helmet` is enabled in `packages/api/src/index.ts` for standard security headers
   (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, etc.).
-- **Content-Security-Policy is currently disabled** (`contentSecurityPolicy: false`). The
-  frontend's extensive use of inline `style={{}}` props and Clerk's hosted `<SignIn>`
-  component (which needs its own cross-origin allowances) both need a CSP tuned
-  specifically for them and verified against a real browser before enabling — don't turn
-  on helmet's default CSP without that verification pass.
+- **Content-Security-Policy is deployed in Report-Only mode** (`reportOnly: true` in
+  `packages/api/src/index.ts`) — it logs violations to the browser console without
+  blocking anything, pending a period of real production usage to confirm the policy is
+  complete (Clerk's hosted `<SignIn>`, Google Fonts, Sentry's ingest endpoint, this app's
+  own inline `style={{}}` usage) before switching to enforcement. Only ever applies in
+  production — Express serves the built frontend (and its `helmet` headers) only when
+  `NODE_ENV=production`; local Vite dev never goes through this middleware at all. Clerk's
+  FAPI hostname is the custom domain `clerk.axesandactuaries.com` — if that ever changes in
+  Clerk Dashboard → Domains, update the CSP directives to match.
 - CORS is restricted to a single configured origin (`FRONTEND_URL`), not a wildcard.
 - Rate limiting (`express-rate-limit`) is in-memory, keyed by IP, applied globally to
   `/api/`. This won't hold up across multiple Fly machines — see `ROADMAP.md`'s
@@ -87,7 +91,8 @@ The pattern to use:
 
 ## Known follow-ups (tracked in ROADMAP.md, not silently deferred)
 
-- Content-Security-Policy tuning (needs real-browser verification).
+- Switch CSP from Report-Only to enforcing once a period of production usage confirms zero
+  violations.
 - Redis-backed (not in-memory) rate limiting.
 - U.S./E.U. privacy regulatory compliance review.
 - Admin/moderator roles — no privileged access model exists yet.

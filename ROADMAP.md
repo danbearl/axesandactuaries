@@ -124,6 +124,10 @@ via Redis pub/sub + SSE, 3 pg-boss background workers.
   Compliance) — not blocking current small beta, but needed before wider acquisition.
 
 ## Could Have
+- Move "Sign Out" out of the sidebar footer (2026-07-04) — the button exists and works
+  (`Navigation.tsx`, `useClerk().signOut()`), but it's easy to miss below "Guild Charter ·
+  Season I" at the bottom of the sidebar. Consider a more conventional location (e.g. a
+  top-of-nav user menu) for discoverability.
 - Player-to-player messaging, trades, message board (from original TODO.md, Social Elements).
 - Titles, badges, property/adventurer cosmetic customization (from original TODO.md,
   Gamification).

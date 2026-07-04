@@ -1,17 +1,16 @@
 import { Router } from 'express';
-import type { Request, Response } from 'express';
-import { getAuth } from '@clerk/express';
+import { requireAuth } from '../middleware/requireAuth.js';
 import { sseHub } from '../lib/sse.js';
 
 const router = Router();
 
-router.get('/', (req: Request, res: Response) => {
-  const { userId } = getAuth(req);
-  if (!userId) {
-    res.status(401).json({ error: 'Unauthorized' });
-    return;
-  }
-
+// Was previously hand-rolling its own getAuth() check instead of using
+// requireAuth like every other route — that inconsistency hid a bug where
+// connections were keyed by the raw Clerk userId, but every publisher
+// (services/adventure.ts, workers/dailyReset.ts, workers/marketGC.ts)
+// publishes to `player:{internal player.id}`. The two never matched, so
+// per-player events were silently never delivered over SSE.
+router.get('/', requireAuth, (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -20,13 +19,13 @@ router.get('/', (req: Request, res: Response) => {
 
   res.write(': connected\n\n');
 
-  sseHub.add(userId, res);
+  sseHub.add(req.playerId, res);
 
   const heartbeat = setInterval(() => res.write(': ping\n\n'), 30_000);
 
   req.on('close', () => {
     clearInterval(heartbeat);
-    sseHub.remove(userId, res);
+    sseHub.remove(req.playerId, res);
   });
 });
 

@@ -53,9 +53,33 @@ via Redis pub/sub + SSE, 3 pg-boss background workers.
   not a Fly runtime secret. Used a separate Sentry project from the API's (different noise
   profile: browser/extension errors vs. server errors). Verified end-to-end: a real error
   triggered in the running app showed up in the Sentry issue feed.
-- Security/compliance baseline (from original TODO.md, Security and Compliance) — a first
-  secure-code review pass and documented secure-coding practices, given the app already
-  handles real user accounts via Clerk.
+- [x] Security/compliance baseline (2026-07-03) — audited the API for the OWASP-adjacent
+  basics (secrets handling, CORS, security headers, error-message leakage, IDOR/ownership
+  checks, XSS in the frontend) and wrote `SECURITY.md` documenting the patterns this
+  codebase relies on (atomic-claim pattern for concurrency, `requireAuth`+ownership checks,
+  secrets/env handling) for future contributors. Found and fixed a real bug along the way:
+  `routes/events.ts` was the one route hand-rolling its own auth check instead of using
+  `requireAuth`, and that inconsistency hid a bug where SSE connections were keyed by the
+  raw Clerk `userId` while every publisher used the internal `player.id` — per-player
+  real-time events were silently never delivered. Added `helmet` for security headers
+  (CSP deliberately left off pending real-browser verification against Clerk's hosted UI
+  and the frontend's inline `style` usage — see `SECURITY.md`). Ran `pnpm audit`: found and
+  fixed a **high-severity authorization bypass** in `@clerk/clerk-react` (GHSA-w24r-5266-9c3c,
+  patched >=5.61.6, a same-major bump applied immediately) — separate from the `@clerk/react`
+  Core 3 rename already tracked below. Also found a **moderate** unbounded-memory-allocation
+  bug in `@opentelemetry/core` (GHSA-8988-4f7v-96qf, transitive via `@sentry/node`) that
+  can't be fixed with a same-major bump — `@sentry/node@8.x` is built against OpenTelemetry
+  v1.x internally, and OTel v2 support only landed in `@sentry/node@10.x`. Tracked as its
+  own item below rather than forced/overridden blind.
+- Upgrade `@sentry/node` past v8 (v9 or v10) to resolve the `@opentelemetry/core`
+  unbounded-memory-allocation CVE (GHSA-8988-4f7v-96qf, moderate) — needs its own review
+  pass for breaking changes (like the Prisma and Clerk Core 3 upgrades), not a blind
+  dependency override, since `@sentry/node@8.x`'s tracing internals are built against
+  OpenTelemetry v1.x and can't reach the patched `@opentelemetry/core@2.8.0+` within the
+  same major version.
+- Content-Security-Policy tuning — `helmet`'s CSP is currently disabled; needs a policy
+  written and verified against a real browser for Clerk's hosted `<SignIn>` component and
+  the frontend's extensive inline `style={{}}` usage before enabling.
 
 ## Should Have
 - Migrate `@clerk/clerk-react` to `@clerk/react` (2026-07-03) — Clerk's Core 3 release

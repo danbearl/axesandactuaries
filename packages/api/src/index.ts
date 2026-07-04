@@ -12,6 +12,7 @@ import type { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import path from 'path';
 import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
 import { clerkMiddleware } from '@clerk/express';
 
 import authRouter from './routes/auth.js';
@@ -28,6 +29,13 @@ import { sseHub } from './lib/sse.js';
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
+
+// CSP is left disabled for now: the frontend uses inline `style={{}}` props
+// throughout (rendered as CSP-restricted inline style attributes) and Clerk's
+// hosted <SignIn> needs its own cross-origin allowances — getting a correct
+// policy for both requires testing against a real browser, not a blind
+// default. Track this as a follow-up (see SECURITY.md).
+app.use(helmet({ contentSecurityPolicy: false }));
 
 app.use(cors({
   origin: process.env.FRONTEND_URL ?? 'http://localhost:5173',

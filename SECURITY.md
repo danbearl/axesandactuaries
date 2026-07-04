@@ -75,15 +75,15 @@ The pattern to use:
 
 - `helmet` is enabled in `packages/api/src/index.ts` for standard security headers
   (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, etc.).
-- **Content-Security-Policy is deployed in Report-Only mode** (`reportOnly: true` in
-  `packages/api/src/index.ts`) — it logs violations to the browser console without
-  blocking anything, pending a period of real production usage to confirm the policy is
-  complete (Clerk's hosted `<SignIn>`, Google Fonts, Sentry's ingest endpoint, this app's
-  own inline `style={{}}` usage) before switching to enforcement. Only ever applies in
-  production — Express serves the built frontend (and its `helmet` headers) only when
-  `NODE_ENV=production`; local Vite dev never goes through this middleware at all. Clerk's
-  FAPI hostname is the custom domain `clerk.axesandactuaries.com` — if that ever changes in
-  Clerk Dashboard → Domains, update the CSP directives to match.
+- **Content-Security-Policy is enforced** (`packages/api/src/index.ts`) — ran in
+  Report-Only mode first against real production traffic (sign-in through Clerk's hosted
+  `<SignIn>`, browsing multiple pages) with zero policy violations before switching to
+  enforcement. Only ever applies in production — Express serves the built frontend (and its
+  `helmet` headers) only when `NODE_ENV=production`; local Vite dev never goes through this
+  middleware at all. Clerk's FAPI hostname is the custom domain `clerk.axesandactuaries.com`
+  — if that ever changes in Clerk Dashboard → Domains, update the CSP directives to match.
+  If a future feature needs a new cross-origin resource, expect a CSP violation in the
+  browser console rather than a silent failure — add the domain to the relevant directive.
 - CORS is restricted to a single configured origin (`FRONTEND_URL`), not a wildcard.
 - Rate limiting (`express-rate-limit`) is in-memory, keyed by IP, applied globally to
   `/api/`. This won't hold up across multiple Fly machines — see `ROADMAP.md`'s
@@ -91,8 +91,6 @@ The pattern to use:
 
 ## Known follow-ups (tracked in ROADMAP.md, not silently deferred)
 
-- Switch CSP from Report-Only to enforcing once a period of production usage confirms zero
-  violations.
 - Redis-backed (not in-memory) rate limiting.
 - U.S./E.U. privacy regulatory compliance review.
 - Admin/moderator roles — no privileged access model exists yet.

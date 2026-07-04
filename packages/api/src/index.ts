@@ -36,17 +36,14 @@ import { sseHub } from './lib/sse.js';
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
-// CSP is deployed in Report-Only mode first: it logs violations to the
-// browser console without blocking anything, so we can verify the policy is
-// complete against real production traffic (Clerk's hosted <SignIn>, Google
-// Fonts, Sentry's ingest endpoint, our own inline `style={{}}` usage) before
-// ever switching to enforcement. See SECURITY.md.
+// Ran in Report-Only mode first against real production traffic (sign-in +
+// browsing multiple pages) with zero policy violations before enforcing —
+// see SECURITY.md and ROADMAP.md for that verification.
 //
 // Clerk FAPI hostname is clerk.axesandactuaries.com (custom domain, not the
 // default *.clerk.accounts.dev). If that ever changes, update here too.
 app.use(helmet({
   contentSecurityPolicy: {
-    reportOnly: true,
     directives: {
       defaultSrc: ["'self'"],
       // 'unsafe-inline' is required by both Clerk's own SDK and this app's

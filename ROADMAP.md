@@ -71,12 +71,14 @@ via Redis pub/sub + SSE, 3 pg-boss background workers.
   can't be fixed with a same-major bump — `@sentry/node@8.x` is built against OpenTelemetry
   v1.x internally, and OTel v2 support only landed in `@sentry/node@10.x`. Tracked as its
   own item below rather than forced/overridden blind.
-- Upgrade `@sentry/node` past v8 (v9 or v10) to resolve the `@opentelemetry/core`
-  unbounded-memory-allocation CVE (GHSA-8988-4f7v-96qf, moderate) — needs its own review
-  pass for breaking changes (like the Prisma and Clerk Core 3 upgrades), not a blind
-  dependency override, since `@sentry/node@8.x`'s tracing internals are built against
-  OpenTelemetry v1.x and can't reach the patched `@opentelemetry/core@2.8.0+` within the
-  same major version.
+- [x] Upgrade `@sentry/node` v8 → v10 (2026-07-04) — resolves the `@opentelemetry/core`
+  unbounded-memory-allocation CVE (GHSA-8988-4f7v-96qf, moderate); v10 is where Sentry
+  bumped its OpenTelemetry dependency to v2.x (v9 doesn't reach it). Reviewed both the
+  v8→v9 and v9→v10 breaking-change sets (removed `getCurrentHub`/`Hub`/`BaseClient`,
+  renamed integration, `setUser`-based user context) — none touch this codebase's minimal
+  `Sentry.init()`/`setupExpressErrorHandler()` usage, so skipped the intermediate v9 stop
+  rather than doing two upgrade passes. Verified: `pnpm test`/`typecheck` pass, `pnpm audit`
+  no longer reports the CVE, and a live `pnpm dev:api` smoke test confirmed clean startup.
 - Content-Security-Policy tuning — `helmet`'s CSP is currently disabled; needs a policy
   written and verified against a real browser for Clerk's hosted `<SignIn>` component and
   the frontend's extensive inline `style={{}}` usage before enabling.

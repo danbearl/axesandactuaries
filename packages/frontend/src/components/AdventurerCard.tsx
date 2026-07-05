@@ -7,6 +7,7 @@ interface Props {
   compact?: boolean;
   onHire?: () => void;
   onFire?: () => void;
+  onClick?: () => void;
   repRequired?: number;
 }
 
@@ -19,14 +20,17 @@ const PERSONALITY_LABELS = {
   disposition: ['Gruff', 'Reserved', 'Neutral', 'Friendly', 'Amiable'],
 };
 
-export default function AdventurerCard({ adventurer: a, compact, onHire, onFire, repRequired }: Props) {
+export default function AdventurerCard({ adventurer: a, compact, onHire, onFire, onClick, repRequired }: Props) {
   const tierIndex = a.level < 5 ? 0 : a.level < 10 ? 1 : 2;
   const title = VOCATION_TIERS[a.vocation][tierIndex];
   const xpToNext = (a.level * 100) - (a.experience % (a.level * 100));
 
   if (compact) {
     return (
-      <div className={`character-card-compact ${a.status === 'injured' ? 'character-injured' : ''}`}>
+      <div
+        className={`character-card-compact ${a.status === 'injured' ? 'character-injured' : ''} ${onClick ? 'character-card-clickable' : ''}`}
+        onClick={onClick}
+      >
         <div className="character-compact-left">
           <div className="character-name">{a.name}</div>
           <div className="flex gap-xs items-center mt-sm">
@@ -41,7 +45,11 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
             <div className="label">Power {a.powerRating}</div>
           </div>
           {onFire && a.status !== 'on_adventure' && (
-            <button className="btn btn-danger btn-sm" onClick={onFire} title="Release from roster">
+            <button
+              className="btn btn-danger btn-sm"
+              onClick={(e) => { e.stopPropagation(); onFire(); }}
+              title="Release from roster"
+            >
               Release
             </button>
           )}

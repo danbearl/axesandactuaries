@@ -51,6 +51,7 @@ export const api = {
   },
   adventurers: {
     market: () => request<{ adventurers: AdventurerResponse[] }>('/adventurers/market'),
+    get: (id: string) => request<AdventurerDetailResponse>(`/adventurers/${id}`),
     hire: (id: string) =>
       request<{ player: PlayerResponse; adventurer: AdventurerResponse }>(`/adventurers/${id}/hire`, { method: 'POST' }),
     fire: (id: string) =>
@@ -222,4 +223,23 @@ export interface PlayerProfileStats {
 export interface PlayerProfileResponse {
   player: PlayerResponse;
   stats: PlayerProfileStats;
+}
+
+export interface AdventurerHistoryEntry {
+  adventureId: string;
+  contractTitle: string;
+  contractTier: string;
+  status: string;
+  resolvedAt: string | null;
+  createdAt: string;
+}
+
+export interface AdventurerDetailResponse {
+  adventurer: AdventurerResponse;
+  stats: {
+    totalAdventures: number;
+    completed: number;
+    failed: number;
+  };
+  recent: AdventurerHistoryEntry[];
 }

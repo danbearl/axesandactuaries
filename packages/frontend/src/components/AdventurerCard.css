@@ -10,6 +10,7 @@
 }
 .character-card-compact:hover { border-color: var(--gold-dark); }
 .character-injured { border-color: var(--crimson) !important; }
+.character-card-clickable { cursor: pointer; }
 
 .character-compact-right { text-align: right; }
 

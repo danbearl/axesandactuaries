@@ -161,8 +161,18 @@ open to a small trusted player pool (Phase 0 below).
   in code). New `Profile.tsx` page at `/profile`, linked from the nav user menu added just
   before this. Unit-tested (`test/profile.test.ts`) and verified end-to-end in a real
   browser.
-- Adventurer profile pages (from original TODO.md, Aesthetics/UX) — view adventurer stats,
-  level progression, injuries, etc.
+- [x] Adventurer profile pages (2026-07-05) — new `GET /api/v1/adventurers/:id`
+  (ownership-scoped, same pattern as `/fire`) + `services/adventurerHistory.ts` computing
+  total/completed/failed adventure counts and a recent-contracts list via the
+  `AdventureAdventurer` join. `AdventurerDetail.tsx` at `/adventurers/:id` reuses the
+  existing full `AdventurerCard` component for name/class/race/stats/personality
+  (guarantees visual consistency with the hire-market tiles — literally the same
+  component), adds a level-progress bar using the actual non-linear `XP_TO_LEVEL` table
+  (not the simplified approximation `AdventurerCard`'s own "XP to Next" footer uses), a
+  live injury-recovery countdown, and the career-record stats. Reachable by clicking an
+  adventurer in the Dashboard roster — `AdventurerCard`'s compact variant gained an
+  optional `onClick`, with the existing "Release" button calling `stopPropagation()` so it
+  doesn't also trigger navigation. Unit-tested and verified end-to-end in a real browser.
 - Wiki/documentation pages for races, classes, characteristics (from original TODO.md,
   Aesthetics/UX).
 - New player onboarding (2026-07-05) — a first-login page prompting for a user handle and

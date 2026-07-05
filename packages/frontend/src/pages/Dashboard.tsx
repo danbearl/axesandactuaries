@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type ContractResponse, type AdventurerResponse } from '../lib/api.ts';
 import AdventurerCard from '../components/AdventurerCard.tsx';
@@ -8,6 +8,7 @@ import type { Adventurer } from '@axes-actuaries/types';
 import './Dashboard.css';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [deployingContract, setDeployingContract] = useState<ContractResponse | null>(null);
   const [selectedAdventurerIds, setSelectedAdventurerIds] = useState<string[]>([]);
@@ -178,6 +179,7 @@ export default function Dashboard() {
                   key={adv.id}
                   adventurer={adv as unknown as Adventurer}
                   compact
+                  onClick={() => navigate(`/adventurers/${adv.id}`)}
                   onFire={adv.status !== 'on_adventure'
                     ? () => fireMutation.mutate(adv.id)
                     : undefined}

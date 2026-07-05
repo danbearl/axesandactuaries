@@ -4,12 +4,14 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { prisma } from '../lib/prisma.js';
 import { HIRE_REPUTATION_REQUIREMENTS, computeHireCost, computeDailyWage } from '@axes-actuaries/types';
 import { getBootstrapStatus, claimDesperateHire } from '../services/bootstrap.js';
+import { getAdventurerHistory } from '../services/adventurerHistory.js';
 import { ClaimConflictError } from '../lib/errors.js';
 
 const router = Router();
 
 // GET /api/v1/adventurers/market
 // Returns adventurers available for hire (not yet assigned to any employer, pool not expired).
+// Must be declared before /:id so Express doesn't capture "market" as an id.
 router.get('/market', requireAuth, async (req, res) => {
   const adventurers = await prisma.adventurer.findMany({
     where: {
@@ -20,6 +22,26 @@ router.get('/market', requireAuth, async (req, res) => {
     orderBy: [{ powerRating: 'desc' }, { createdAt: 'asc' }],
   });
   res.json({ adventurers });
+});
+
+// GET /api/v1/adventurers/:id
+// Adventurer detail + contract-participation history/stats. Only the employer
+// can view it — no player directory/other-player visibility exists yet.
+router.get('/:id', requireAuth, async (req, res) => {
+  const { id } = req.params;
+
+  const adventurer = await prisma.adventurer.findUnique({ where: { id } });
+  if (!adventurer) {
+    res.status(404).json({ error: 'Adventurer not found' });
+    return;
+  }
+  if (adventurer.employerId !== req.playerId) {
+    res.status(403).json({ error: 'This adventurer is not in your employ' });
+    return;
+  }
+
+  const history = await getAdventurerHistory(id);
+  res.json({ adventurer, ...history });
 });
 
 // POST /api/v1/adventurers/:id/hire

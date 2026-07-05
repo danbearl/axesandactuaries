@@ -1,0 +1,19 @@
+.adventurer-detail { display: flex; flex-direction: column; gap: 1rem; }
+
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+.detail-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.detail-stat { display: flex; flex-direction: column; gap: 0.05rem; }
+
+.at-progress-track {
+  height:        8px;
+  background:    var(--parchment-dark);
+  border-radius: 4px;
+  overflow:      hidden;
+}
+.at-progress-fill {
+  height:        100%;
+  background:    linear-gradient(to right, var(--gold-dark), var(--gold-light));
+  border-radius: 4px;
+  transition:    width 1s linear;
+}

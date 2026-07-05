@@ -26,8 +26,8 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
 
   if (compact) {
     return (
-      <div className={`adv-card-compact ${a.status === 'injured' ? 'adv-injured' : ''}`}>
-        <div className="adv-compact-left">
+      <div className={`character-card-compact ${a.status === 'injured' ? 'character-injured' : ''}`}>
+        <div className="character-compact-left">
           <div className="character-name">{a.name}</div>
           <div className="flex gap-xs items-center mt-sm">
             <span className={`badge badge-status-${a.status}`}>{STATUS_LABELS[a.status]}</span>
@@ -35,7 +35,7 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
             <span className="badge badge-vocation">{title}</span>
           </div>
         </div>
-        <div className="adv-compact-right" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div className="character-compact-right" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div className="text-right">
             <div className="label">Lv.{a.level} · {a.dailyWage} gp/day</div>
             <div className="label">Power {a.powerRating}</div>
@@ -51,8 +51,8 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
   }
 
   return (
-    <div className={`adv-card panel ${a.status === 'injured' ? 'adv-injured' : ''}`}>
-      <div className="adv-header">
+    <div className={`character-card panel ${a.status === 'injured' ? 'character-injured' : ''}`}>
+      <div className="character-header">
         <div>
           <h3 className="character-name-lg">{a.name}</h3>
           <div className="flex gap-xs items-center mt-sm">
@@ -61,10 +61,10 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
             <span className="badge badge-vocation">{title}</span>
           </div>
         </div>
-        <div className="adv-header-right">
-          <div className="adv-power">
+        <div className="character-header-right">
+          <div className="character-power">
             <span className="label">Power</span>
-            <span className="adv-power-num">{a.powerRating}</span>
+            <span className="character-power-num">{a.powerRating}</span>
           </div>
         </div>
       </div>
@@ -72,12 +72,12 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
       <hr className="divider" />
 
       {/* Appearance */}
-      <div className="adv-appearance">
+      <div className="character-appearance">
         {a.height} · {a.build} · {a.complexion} complexion · {a.hairColor} hair · {a.eyeColor} eyes
       </div>
 
       {/* Stats */}
-      <div className="adv-stats mt-md">
+      <div className="character-stats mt-md">
         {(Object.entries(a.stats) as [string, number][]).map(([stat, val]) => (
           <div key={stat} className="stat-row">
             <span className="label">{stat}</span>
@@ -90,7 +90,7 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
       </div>
 
       {/* Personality */}
-      <div className="adv-personality mt-md">
+      <div className="character-personality mt-md">
         {(Object.entries(a.personality) as [keyof typeof PERSONALITY_LABELS, number][]).map(([trait, val]) => (
           <div key={trait} className="personality-row">
             <span className="label" style={{ width: 90 }}>{trait}</span>
@@ -106,8 +106,8 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
 
       {/* Footer */}
       <hr className="divider" />
-      <div className="adv-footer">
-        <div className="adv-economics">
+      <div className="character-footer">
+        <div className="character-economics">
           <div><span className="label">Hire Cost</span> <span className="currency">{a.hireCost} gp</span></div>
           <div><span className="label">Daily Wage</span> <span className="currency">{a.dailyWage} gp</span></div>
           <div><span className="label">XP to Next</span> <span className="value">{xpToNext}</span></div>
@@ -115,7 +115,7 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
             <div><span className="label">Min. Reputation</span> <span className="value">{repRequired}</span></div>
           )}
         </div>
-        <div className="adv-actions">
+        <div className="character-actions">
           {onHire && (
             <button className="btn btn-primary btn-sm" onClick={onHire}>
               Hire — {a.hireCost} gp

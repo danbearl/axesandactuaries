@@ -8,6 +8,7 @@ import {
 import type { ContractTier } from '@axes-actuaries/types';
 import { getBootstrapStatus, WELFARE_COOLDOWN_HOURS, WELFARE_CONTRACT, claimWelfareContract } from '../services/bootstrap.js';
 import { ClaimConflictError } from '../lib/errors.js';
+import { publish, CHANNELS } from '../lib/redis.js';
 
 const router = Router();
 
@@ -120,6 +121,9 @@ router.post('/:id/accept', requireAuth, async (req, res) => {
     return;
   }
 
+  publish(CHANNELS.market, 'market_update', { type: 'contract_accept', contractId: id })
+    .catch(() => { /* non-fatal if Redis is unavailable */ });
+
   const updatedContract = await prisma.contract.findUniqueOrThrow({ where: { id } });
   res.json({ contract: updatedContract });
 });
@@ -172,6 +176,9 @@ router.post('/:id/bid', requireAuth, async (req, res) => {
       data:  { status: 'bidding' },
     });
   });
+
+  publish(CHANNELS.market, 'market_update', { type: 'contract_bid', contractId: id })
+    .catch(() => { /* non-fatal if Redis is unavailable */ });
 
   res.status(201).json({ placed: true });
 });

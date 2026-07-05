@@ -6,6 +6,7 @@ import { HIRE_REPUTATION_REQUIREMENTS, computeHireCost, computeDailyWage } from 
 import { getBootstrapStatus, claimDesperateHire } from '../services/bootstrap.js';
 import { getAdventurerHistory } from '../services/adventurerHistory.js';
 import { ClaimConflictError } from '../lib/errors.js';
+import { publish, CHANNELS } from '../lib/redis.js';
 
 const router = Router();
 
@@ -99,6 +100,10 @@ router.post('/:id/hire', requireAuth, async (req, res) => {
     res.status(409).json({ error: 'Adventurer was hired by another player' });
     return;
   }
+
+  publish(CHANNELS.market, 'market_update', { type: 'hire', adventurerId: id })
+    .catch(() => { /* non-fatal if Redis is unavailable */ });
+
   res.json({ player: result.updatedPlayer, adventurer: result.updatedAdventurer });
 });
 
@@ -188,6 +193,9 @@ router.post('/:id/fire', requireAuth, async (req, res) => {
 
     return released;
   });
+
+  publish(CHANNELS.market, 'market_update', { type: 'fire', adventurerId: id })
+    .catch(() => { /* non-fatal if Redis is unavailable */ });
 
   res.json({ adventurer: updatedAdventurer });
 });

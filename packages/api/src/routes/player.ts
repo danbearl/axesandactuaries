@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { prisma } from '../lib/prisma.js';
+import { getPlayerProfileStats } from '../services/profile.js';
 
 const router = Router();
 
@@ -31,6 +32,18 @@ router.get('/me', requireAuth, async (req, res) => {
   ]);
 
   res.json({ player, adventurers, properties, adventures });
+});
+
+// GET /api/v1/player/profile
+// Identity + lifetime/career stats, distinct from /me's live operational state.
+router.get('/profile', requireAuth, async (req, res) => {
+  const player = await prisma.player.findUniqueOrThrow({
+    where: { id: req.playerId },
+  });
+
+  const stats = await getPlayerProfileStats(req.playerId);
+
+  res.json({ player, stats });
 });
 
 export default router;

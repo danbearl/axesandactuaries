@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useClerk } from '@clerk/react';
 import './Navigation.css';
 
@@ -9,6 +9,7 @@ interface Props {
 
 export default function Navigation({ player }: Props) {
   const { signOut } = useClerk();
+  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -47,7 +48,14 @@ export default function Navigation({ player }: Props) {
           </button>
           {menuOpen && (
             <div className="nav-user-menu-dropdown" role="menu">
-              {/* Add more menu items here as the app grows (e.g. profile, settings). */}
+              <button
+                className="nav-user-menu-item"
+                role="menuitem"
+                onClick={() => { setMenuOpen(false); navigate('/profile'); }}
+              >
+                Profile
+              </button>
+              {/* Add more menu items here as the app grows (e.g. settings). */}
               <button
                 className="nav-user-menu-item"
                 role="menuitem"

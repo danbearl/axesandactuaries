@@ -47,6 +47,7 @@ export const api = {
   },
   player: {
     me: () => request<PlayerMeResponse>('/player/me'),
+    profile: () => request<PlayerProfileResponse>('/player/profile'),
   },
   adventurers: {
     market: () => request<{ adventurers: AdventurerResponse[] }>('/adventurers/market'),
@@ -209,4 +210,16 @@ export interface PlayerMeResponse {
   adventurers: AdventurerResponse[];
   properties: PropertyResponse[];
   adventures: AdventureResponse[];
+}
+
+export interface PlayerProfileStats {
+  adventuresCompleted: number;
+  adventuresFailed: number;
+  lifetimeGoldEarned: number;
+  adventurersHired: number;
+}
+
+export interface PlayerProfileResponse {
+  player: PlayerResponse;
+  stats: PlayerProfileStats;
 }

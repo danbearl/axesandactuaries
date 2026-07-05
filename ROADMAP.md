@@ -151,8 +151,16 @@ open to a small trusted player pool (Phase 0 below).
   button) so future items (profile, settings, etc.) can be added as the app grows.
   Verified in a real browser: open/close, click-outside-close, and Sign Out all confirmed
   working.
-- Player profile pages (from original TODO.md, Social Elements — profile/stats display
-  only, not messaging/trades, which are gated to Beta Phase 4).
+- [x] Player profile pages (2026-07-05) — self-view only for now (no way to browse *other*
+  players yet; that's gated to Beta Phase 4, Social Features, once there's a reason to
+  discover other players at all). Distinct from Dashboard's live/operational view: a new
+  `GET /api/v1/player/profile` route + `services/profile.ts` (`getPlayerProfileStats`)
+  computes lifetime/career stats from the permanent Transaction/Adventure history —
+  adventures completed/failed (+ success rate), lifetime gold earned, adventurers hired
+  (paid hires only; desperate/free hires don't record a `hire_cost` transaction, documented
+  in code). New `Profile.tsx` page at `/profile`, linked from the nav user menu added just
+  before this. Unit-tested (`test/profile.test.ts`) and verified end-to-end in a real
+  browser.
 - Adventurer profile pages (from original TODO.md, Aesthetics/UX) — view adventurer stats,
   level progression, injuries, etc.
 - Wiki/documentation pages for races, classes, characteristics (from original TODO.md,

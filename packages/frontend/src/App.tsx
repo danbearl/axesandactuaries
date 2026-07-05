@@ -10,6 +10,7 @@ import ContractMarket from './pages/ContractMarket.tsx';
 import Properties from './pages/Properties.tsx';
 import AdventureDetail from './pages/AdventureDetail.tsx';
 import Transactions from './pages/Transactions.tsx';
+import Profile from './pages/Profile.tsx';
 import { api } from './lib/api.ts';
 
 function AuthenticatedApp() {
@@ -58,6 +59,7 @@ function AuthenticatedApp() {
           <Route path="/properties" element={<Properties />} />
           <Route path="/adventures/:id" element={<AdventureDetail />} />
           <Route path="/transactions" element={<Transactions />} />
+          <Route path="/profile" element={<Profile />} />
         </Routes>
       </main>
     </div>

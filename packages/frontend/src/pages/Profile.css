@@ -1,0 +1,15 @@
+.profile-summary {
+  margin-bottom: 1rem;
+}
+
+.profile-summary-grid {
+  display:               grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap:                   1rem;
+}
+
+.ps-item {
+  display:        flex;
+  flex-direction: column;
+  gap:            0.15rem;
+}

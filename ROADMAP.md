@@ -137,6 +137,14 @@ open to a small trusted player pool (Phase 0 below).
   anyone with a local Postgres volume already created, which is out of scope for a package
   naming cleanup.
 
+**Trusted-pool access gate:**
+- [x] Clerk "Restricted" sign-up mode (2026-07-05) — gates sign-ups to admin-added users
+  only for the initial trusted-pool stage. Zero code changes, configured entirely in Clerk
+  Dashboard, and not paywalled (unlike the separate email-Allowlist feature considered
+  first, which requires a paid plan in production). Distinct from the invite-code system
+  planned at the Trusted Pool → Expanded Pool gate, which is a player-driven growth
+  mechanic rather than an admin-curated list.
+
 ---
 
 ## Beta Phase 1 — UX & Onboarding
@@ -209,8 +217,34 @@ open to a small trusted player pool (Phase 0 below).
   `packages/types/src/contracts.ts` marked "reserved for Phase 5."
 - Dorm-space-based adventurer limits; party size limits (from original TODO.md, Game
   Mechanics).
-- Deeper personality-stat effects — granular Loyalty/Ambition/Disposition mechanics (from
-  original TODO.md, Game Mechanics).
+- Deeper personality-stat effects (2026-07-05, concepts captured — needs game-design
+  refinement before implementation, not ready to build as-is) — granular mechanics for all
+  four personality traits (`loyalty`, `ambition`, `temperament`, `disposition`). Currently
+  only `loyalty` has any gameplay effect at all (unpaid-wage quit risk in
+  `services/economy.ts`); `ambition`, `temperament`, and `disposition` are rolled and
+  displayed but otherwise inert. Proposed direction for each, pending balance/formula
+  refinement:
+  - **Loyalty** — already factors into quit risk when wages go unpaid. Proposed extension:
+    combine with Ambition so **high Ambition + low Loyalty** creates an ongoing risk of the
+    adventurer voluntarily leaving for a better opportunity on the open market, independent
+    of whether they're actually being paid — a wealthy player could still lose an ambitious,
+    disloyal adventurer.
+  - **Ambition** — proposed to (1) accelerate XP gain, scaled by ambition; (2) interact with
+    Loyalty as above; (3) accrue a loyalty penalty against the current employer if a
+    high-ambition adventurer sits undeployed for extended periods, or is repeatedly sent on
+    contracts below their capability — under-using an ambitious adventurer should itself
+    raise defection risk over time, not just non-payment.
+  - **Disposition** — proposed to drive a new **party cohesion/affinity** mechanic:
+    adventurers frequently partied together build affinity over time, and high-affinity
+    parties perform better (exact bonus — success chance? party power? — needs design).
+    Disposition would govern how quickly that affinity builds (amiable adventurers bond
+    faster than gruff ones). This is the largest of the four — it requires tracking
+    historical party composition over time, which doesn't exist in any form today.
+  - **Temperament** — wasn't even in the original TODO.md's personality-effects list,
+    despite already existing as a rolled stat. Proposed to drive risk-taking behavior during
+    contract execution: higher temperament trades safety for upside, e.g. higher potential
+    reward at higher failure risk, or higher success chance at higher injury risk (the
+    user's own examples — the exact trade-off curve is explicitly open, needs refinement).
 
 ## Beta Phase 3 — Player Customization
 **Goal:** players have meaningful ways to express/personalize their guild once retention is
@@ -233,6 +267,11 @@ must land — they're what makes it safe to let strangers in.
 
 - Admin/Moderator roles (from original TODO.md, Administrative) — no privileged access
   model exists yet; needed before opening to players you don't know personally.
+- Invite-code system — a shareable, player-driven growth mechanic for controlled expansion
+  beyond the trusted pool (distinct from the trusted-pool-stage Clerk "Restricted" sign-up
+  mode in Pre-Beta, which only supports a fixed, admin-curated list). Makes more sense
+  once there's an actual reason for existing players to invite others, which lines up with
+  Beta Phase 4 (Social Features) shipping around the same time as this gate.
 - Abuse-prevention foundations (from original TODO.md, Social Elements) — needed before any
   player-to-player feature ships, which is exactly what Beta Phase 4 introduces.
 - U.S./E.U. privacy regulatory compliance review (from original TODO.md, Security and

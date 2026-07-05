@@ -142,10 +142,15 @@ open to a small trusted player pool (Phase 0 below).
 ## Beta Phase 1 — UX & Onboarding
 **Goal:** the app is pleasant and self-explanatory for a first-time trusted-pool player.
 
-- Move "Sign Out" out of the sidebar footer (2026-07-04) — the button exists and works
-  (`Navigation.tsx`, `useClerk().signOut()`), but it's easy to miss below "Guild Charter ·
-  Season I" at the bottom of the sidebar. Consider a more conventional location (e.g. a
-  top-of-nav user menu) for discoverability.
+- [x] Move "Sign Out" out of the sidebar footer (2026-07-05) — added a top-of-sidebar user
+  menu: the player name in `nav-player-card` is now a clickable dropdown trigger (with
+  click-outside-to-close and basic `aria-haspopup`/`aria-expanded`/`role="menu"` support)
+  containing Sign Out, moved out of the old bottom-of-sidebar footer. Gold/reputation stats
+  stay always-visible below it rather than hidden behind the menu, since those are
+  glanced at frequently. Built as a genuinely extensible menu (not a single hardcoded
+  button) so future items (profile, settings, etc.) can be added as the app grows.
+  Verified in a real browser: open/close, click-outside-close, and Sign Out all confirmed
+  working.
 - Player profile pages (from original TODO.md, Social Elements — profile/stats display
   only, not messaging/trades, which are gated to Beta Phase 4).
 - Adventurer profile pages (from original TODO.md, Aesthetics/UX) — view adventurer stats,

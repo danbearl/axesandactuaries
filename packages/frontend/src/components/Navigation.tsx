@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useClerk } from '@clerk/react';
 import './Navigation.css';
@@ -8,6 +9,21 @@ interface Props {
 
 export default function Navigation({ player }: Props) {
   const { signOut } = useClerk();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close the user menu on any click outside it.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
+
   return (
     <nav className="nav-sidebar">
       <div className="nav-guild-seal">
@@ -19,7 +35,29 @@ export default function Navigation({ player }: Props) {
       </div>
 
       <div className="nav-player-card">
-        <div className="nav-player-name">{player.username}</div>
+        <div className="nav-user-menu" ref={menuRef}>
+          <button
+            className="nav-user-menu-trigger"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+          >
+            <span className="nav-player-name">{player.username}</span>
+            <span className="nav-user-menu-chevron">{menuOpen ? '▴' : '▾'}</span>
+          </button>
+          {menuOpen && (
+            <div className="nav-user-menu-dropdown" role="menu">
+              {/* Add more menu items here as the app grows (e.g. profile, settings). */}
+              <button
+                className="nav-user-menu-item"
+                role="menuitem"
+                onClick={() => signOut()}
+              >
+                Sign Out
+              </button>
+            </div>
+          )}
+        </div>
         <div className="nav-stats">
           <div className="nav-stat">
             <span className="label">Gold</span>
@@ -69,13 +107,6 @@ export default function Navigation({ player }: Props) {
 
       <div className="nav-footer">
         <span className="label">Guild Charter · Season I</span>
-        <button
-          className="btn btn-secondary btn-sm"
-          style={{ marginTop: '0.5rem', width: '100%' }}
-          onClick={() => signOut()}
-        >
-          Sign Out
-        </button>
       </div>
     </nav>
   );

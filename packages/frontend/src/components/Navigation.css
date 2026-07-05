@@ -50,7 +50,66 @@
   font-size:   0.9rem;
   font-weight: 600;
   color:       var(--parchment);
+}
+
+.nav-user-menu {
+  position:      relative;
   margin-bottom: 0.4rem;
+}
+
+.nav-user-menu-trigger {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  width:           100%;
+  background:      none;
+  border:          none;
+  padding:         0;
+  cursor:          pointer;
+  font:            inherit;
+}
+
+.nav-user-menu-trigger:hover .nav-player-name {
+  color: var(--gold-light);
+}
+
+.nav-user-menu-chevron {
+  color:       rgba(244,234,213,0.4);
+  font-size:   0.7rem;
+  margin-left: 0.4rem;
+}
+
+.nav-user-menu-dropdown {
+  position:      absolute;
+  top:           calc(100% + 0.4rem);
+  left:          0;
+  right:         0;
+  background:    var(--ink);
+  border:        1px solid rgba(201,151,58,0.35);
+  border-radius: var(--radius);
+  box-shadow:    0 4px 12px rgba(0,0,0,0.35);
+  overflow:      hidden;
+  z-index:       20;
+}
+
+.nav-user-menu-item {
+  display:     block;
+  width:       100%;
+  text-align:  left;
+  background:  none;
+  border:      none;
+  padding:     0.55rem 0.75rem;
+  color:       rgba(244,234,213,0.75);
+  font-family: var(--font-heading);
+  font-size:   0.78rem;
+  font-weight: 600;
+  cursor:      pointer;
+  transition:  all 0.15s ease;
+}
+
+.nav-user-menu-item:hover {
+  background: rgba(201,151,58,0.15);
+  color:      var(--parchment);
 }
 
 .nav-stats {

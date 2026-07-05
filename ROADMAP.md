@@ -152,6 +152,25 @@ open to a small trusted player pool (Phase 0 below).
   level progression, injuries, etc.
 - Wiki/documentation pages for races, classes, characteristics (from original TODO.md,
   Aesthetics/UX).
+- New player onboarding (2026-07-05) — a first-login page prompting for a user handle and
+  guild name. This replaces the current silent behavior in `routes/auth.ts`, which
+  auto-generates `username` from Clerk profile data with no prompt at all today, and needs
+  a new `guildName` field added to the `Player` model (schema migration) — there's no
+  "guild name" concept in the schema yet, only `username`. **Scope for this phase is just
+  the handle/guild-name prompt.** The rest of the onboarding vision has real dependencies on
+  work that hasn't landed yet, so it's deliberately not bundled in now:
+  - *Initial customizations* — blocked on Beta Phase 3 (Player Customization); there's no
+    cosmetics/avatar infrastructure to customize yet.
+  - *UI walkthrough* — sequence toward the end of this phase, after Sign Out relocation and
+    the profile pages above land, so it isn't built against UI that's still moving within
+    this same phase.
+  - *Region selection* — blocked on Post-Beta "Regions & World Map"; the game is currently
+    single-region, so there's nothing to select. Not schedulable against any phase with a
+    committed timeline yet.
+  - *Game tutorial* — a basic version covering the stable core loop (hire → contract →
+    adventure → property) could reasonably ship late in this phase; a fuller version
+    covering newer mechanics should wait for Beta Phase 2 (Game Mechanics Depth) to land
+    first, since teaching mechanics that are about to deepen would mean redoing it.
 - Whatever other UX friction surfaces from real trusted-pool usage — this phase should stay
   open to feedback-driven items, not just the list above.
 

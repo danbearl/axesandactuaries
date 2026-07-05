@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.ts';
-import type { PropertyType } from '@adventurer-manager/types';
+import type { PropertyType } from '@axes-actuaries/types';
 import { useState } from 'react';
 import './Properties.css';
 

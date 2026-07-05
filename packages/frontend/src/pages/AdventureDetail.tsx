@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api.ts';
-import type { Adventurer } from '@adventurer-manager/types';
+import type { Adventurer } from '@axes-actuaries/types';
 import AdventurerCard from '../components/AdventurerCard.tsx';
 import './AdventureDetail.css';
 

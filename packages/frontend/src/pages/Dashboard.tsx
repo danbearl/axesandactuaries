@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type ContractResponse, type AdventurerResponse } from '../lib/api.ts';
 import AdventurerCard from '../components/AdventurerCard.tsx';
 import AdventureTimer from '../components/AdventureTimer.tsx';
-import type { Adventurer } from '@adventurer-manager/types';
+import type { Adventurer } from '@axes-actuaries/types';
 import './Dashboard.css';
 
 export default function Dashboard() {

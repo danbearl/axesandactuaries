@@ -1,5 +1,5 @@
 {
-  "name": "@adventurer-manager/frontend",
+  "name": "@axes-actuaries/frontend",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@adventurer-manager/types": "workspace:*",
+    "@axes-actuaries/types": "workspace:*",
     "@clerk/react": "^6.7.3",
     "@sentry/react": "^8.0.0",
     "@tanstack/react-query": "^5.62.0",

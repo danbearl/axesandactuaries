@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import type { Adventurer } from '@prisma/client';
-import { QUIT_REPUTATION_PENALTY_PER_LEVEL, computeHireCost, computeDailyWage } from '@adventurer-manager/types';
+import { QUIT_REPUTATION_PENALTY_PER_LEVEL, computeHireCost, computeDailyWage } from '@axes-actuaries/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

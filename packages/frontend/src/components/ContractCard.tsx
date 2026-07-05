@@ -1,5 +1,5 @@
-import type { Contract } from '@adventurer-manager/types';
-import { BIDDING_CONTRACT_TIERS, CONTRACT_TIER_REPUTATION_REQUIREMENTS } from '@adventurer-manager/types';
+import type { Contract } from '@axes-actuaries/types';
+import { BIDDING_CONTRACT_TIERS, CONTRACT_TIER_REPUTATION_REQUIREMENTS } from '@axes-actuaries/types';
 import './ContractCard.css';
 
 interface Props {

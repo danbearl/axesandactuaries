@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { Prisma } from '@prisma/client';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { prisma } from '../lib/prisma.js';
-import { HIRE_REPUTATION_REQUIREMENTS, computeHireCost, computeDailyWage } from '@adventurer-manager/types';
+import { HIRE_REPUTATION_REQUIREMENTS, computeHireCost, computeDailyWage } from '@axes-actuaries/types';
 import { getBootstrapStatus, claimDesperateHire } from '../services/bootstrap.js';
 import { ClaimConflictError } from '../lib/errors.js';
 

@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
-import { generateAdventurerPool } from '@adventurer-manager/types';
+import { generateAdventurerPool } from '@axes-actuaries/types';
 
 const prisma = new PrismaClient();
 

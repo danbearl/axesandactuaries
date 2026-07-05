@@ -7,7 +7,7 @@ export default defineConfig({
       // The types package's "exports" field points at compiled dist/ output,
       // which won't exist until `pnpm build` runs. Alias straight to source
       // so tests don't require a full workspace build first.
-      '@adventurer-manager/types': fileURLToPath(new URL('../types/src/index.ts', import.meta.url)),
+      '@axes-actuaries/types': fileURLToPath(new URL('../types/src/index.ts', import.meta.url)),
     },
   },
   test: {

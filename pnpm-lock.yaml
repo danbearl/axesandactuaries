@@ -10,7 +10,7 @@ importers:
 
   packages/api:
     dependencies:
-      '@adventurer-manager/types':
+      '@axes-actuaries/types':
         specifier: workspace:*
         version: link:../types
       '@clerk/express':
@@ -71,7 +71,7 @@ importers:
 
   packages/frontend:
     dependencies:
-      '@adventurer-manager/types':
+      '@axes-actuaries/types':
         specifier: workspace:*
         version: link:../types
       '@clerk/react':

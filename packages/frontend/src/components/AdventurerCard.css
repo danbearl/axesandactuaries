@@ -13,8 +13,8 @@
 
 .adv-compact-right { text-align: right; }
 
-.adv-name { font-family: var(--font-heading); font-size: 0.95rem; font-weight: 600; color: var(--ink); }
-.adv-name-lg { font-family: var(--font-heading); font-size: 1.2rem; font-weight: 700; color: var(--ink); }
+.character-name { font-family: var(--font-heading); font-size: 0.95rem; font-weight: 600; color: var(--ink); }
+.character-name-lg { font-family: var(--font-heading); font-size: 1.2rem; font-weight: 700; color: var(--ink); }
 
 .adv-card { margin-bottom: 0; }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { XP_PER_GOLD } from '@adventurer-manager/types';
+import { XP_PER_GOLD } from '@axes-actuaries/types';
 import { prisma } from '../src/lib/prisma.js';
 import { resolveAdventure, startAdventure } from '../src/services/adventure.js';
 import { ClaimConflictError } from '../src/lib/errors.js';

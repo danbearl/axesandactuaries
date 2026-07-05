@@ -22,7 +22,7 @@ COPY . .
 # postinstall in the deps stage may write the generated client to a virtual-
 # store path that tsc can't resolve; running it here guarantees the output
 # lands where the workspace expects it.
-RUN pnpm --filter @adventurer-manager/api exec prisma generate
+RUN pnpm --filter @axes-actuaries/api exec prisma generate
 # VITE_CLERK_PUBLISHABLE_KEY and VITE_SENTRY_DSN are baked into the frontend
 # bundle at build time. Pass them as build args, e.g.:
 # fly deploy --build-arg VITE_CLERK_PUBLISHABLE_KEY=pk_live_... --build-arg VITE_SENTRY_DSN=https://...
@@ -30,9 +30,9 @@ ARG VITE_CLERK_PUBLISHABLE_KEY
 ARG VITE_SENTRY_DSN
 ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
 ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN
-RUN pnpm --filter @adventurer-manager/types build
-RUN pnpm --filter @adventurer-manager/frontend build
-RUN pnpm --filter @adventurer-manager/api build
+RUN pnpm --filter @axes-actuaries/types build
+RUN pnpm --filter @axes-actuaries/frontend build
+RUN pnpm --filter @axes-actuaries/api build
 
 # ── Production runtime ────────────────────────────────────────────────────────
 FROM base AS runner
@@ -45,7 +45,7 @@ COPY packages/api/prisma ./packages/api/prisma
 RUN pnpm install --frozen-lockfile --prod
 # Generate the Prisma runtime client — postinstall may not locate the schema
 # in pnpm's virtual store context, so run it explicitly like the build stage.
-RUN pnpm --filter @adventurer-manager/api exec prisma generate
+RUN pnpm --filter @axes-actuaries/api exec prisma generate
 # Copy compiled outputs from build stage
 COPY --from=build /app/packages/types/dist ./packages/types/dist
 COPY --from=build /app/packages/api/dist ./packages/api/dist

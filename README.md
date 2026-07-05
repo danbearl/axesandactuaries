@@ -1,10 +1,10 @@
-# Adventurer Manager
+# Axes & Actuaries
 
 A multiplayer web-based business management game where players run adventuring companies — hiring adventurers, accepting contracts, managing properties, and competing for high-value contracts against other players.
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) 20+
+- [Node.js](https://nodejs.org/) 22+
 - [pnpm](https://pnpm.io/) 9+ (`npm install -g pnpm`)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for Postgres and Redis)
 - A [Clerk](https://clerk.com) account (free tier covers development)
@@ -96,14 +96,13 @@ packages/
 
 ## Background jobs
 
-The API runs four pg-boss workers automatically on startup:
+The API runs three pg-boss workers automatically on startup:
 
 | Worker | Schedule | Purpose |
 |---|---|---|
 | `adventureTicker` | Every minute | Resolves completed adventures |
-| `wageCollector` | Daily at midnight UTC | Charges wages, handles adventurer quits |
 | `marketGC` | Every 15 minutes | Awards bid-won contracts, expires stale listings |
-| `dailyReset` | Daily at midnight UTC | Refreshes the adventurer and contract pool |
+| `dailyReset` | Daily at midnight UTC | Charges wages, handles adventurer quits, handles property maintenance, and refreshes the adventurer/contract pool |
 
 ## Game overview
 

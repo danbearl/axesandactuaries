@@ -4,8 +4,8 @@ import { prisma } from '../lib/prisma.js';
 import {
   BIDDING_CONTRACT_TIERS,
   CONTRACT_TIER_REPUTATION_REQUIREMENTS,
-} from '@adventurer-manager/types';
-import type { ContractTier } from '@adventurer-manager/types';
+} from '@axes-actuaries/types';
+import type { ContractTier } from '@axes-actuaries/types';
 import { getBootstrapStatus, WELFARE_COOLDOWN_HOURS, WELFARE_CONTRACT, claimWelfareContract } from '../services/bootstrap.js';
 import { ClaimConflictError } from '../lib/errors.js';
 

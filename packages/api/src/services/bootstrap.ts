@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import type { PrismaClient } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
-import { generateAdventurer } from '@adventurer-manager/types';
+import { generateAdventurer } from '@axes-actuaries/types';
 import { ClaimConflictError } from '../lib/errors.js';
 
 export const WELFARE_COOLDOWN_HOURS = 48;

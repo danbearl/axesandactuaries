@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.ts';
-import { HIRE_REPUTATION_REQUIREMENTS } from '@adventurer-manager/types';
-import type { Adventurer } from '@adventurer-manager/types';
+import { HIRE_REPUTATION_REQUIREMENTS } from '@axes-actuaries/types';
+import type { Adventurer } from '@axes-actuaries/types';
 import AdventurerCard from '../components/AdventurerCard.tsx';
 import './AdventurerMarket.css';
 

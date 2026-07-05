@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type ContractResponse, type AdventurerResponse } from '../lib/api.ts';
-import type { Contract } from '@adventurer-manager/types';
-import { BIDDING_CONTRACT_TIERS, CONTRACT_TIER_REPUTATION_REQUIREMENTS } from '@adventurer-manager/types';
+import type { Contract } from '@axes-actuaries/types';
+import { BIDDING_CONTRACT_TIERS, CONTRACT_TIER_REPUTATION_REQUIREMENTS } from '@axes-actuaries/types';
 import ContractCard from '../components/ContractCard.tsx';
 import './ContractMarket.css';
 

@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
-import { generateAdventurer } from '@adventurer-manager/types';
-import { generateDailyContracts } from '@adventurer-manager/types';
+import { generateAdventurer } from '@axes-actuaries/types';
+import { generateDailyContracts } from '@axes-actuaries/types';
 import { collectDailyWages, chargePropertyMaintenance } from '../services/economy.js';
 import { publish, CHANNELS } from '../lib/redis.js';
 

@@ -1,5 +1,5 @@
 {
-  "name": "@adventurer-manager/types",
+  "name": "@axes-actuaries/types",
   "version": "0.0.1",
   "private": true,
   "main": "./dist/cjs/index.js",

@@ -121,11 +121,21 @@ open to a small trusted player pool (Phase 0 below).
   Market page's real key is `['adventurers', 'market']`. Fixed to prefix-match `['adventurers']`,
   consistent with how every other handler in the file invalidates.
 
-**Remaining minor cleanup (not blocking):**
-- Delete unused `packages/frontend/src/data/mockData.ts`.
-- Reconcile README's documented worker list (4) against the 3 actually registered in
-  `workers/index.ts`.
-- Align package scope/branding (`@adventurer-manager/*` vs. product name "Axes & Actuaries").
+**Minor cleanup — complete (2026-07-04):**
+- [x] Deleted unused `packages/frontend/src/data/mockData.ts` (confirmed zero references).
+- [x] Fixed README's worker table — it documented a separate `wageCollector` worker that
+  never existed as its own worker; wage/maintenance collection has always run inside
+  `dailyReset` (the code comment already said so: "midnight UTC (wages + maintenance +
+  market refresh)"). Corrected to the real 3 workers. Also caught and fixed a stale
+  "Node.js 20+" in Prerequisites while in there.
+- [x] Renamed package scope `@adventurer-manager/*` → `@axes-actuaries/*` (root + all three
+  workspace packages, every import across `packages/api` and `packages/frontend`, the
+  Vitest alias in `packages/api/vitest.config.ts`, `Dockerfile`, and
+  `.github/workflows/deploy.yml`) to match the product name and Fly app name. Deliberately
+  left the local dev database name (`adventurer_manager`) and docker-compose
+  user/db credentials unchanged — renaming those would require an actual data migration for
+  anyone with a local Postgres volume already created, which is out of scope for a package
+  naming cleanup.
 
 ---
 

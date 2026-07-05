@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
-import { levelForXp, XP_PER_GOLD, MAX_LEVEL, computeDailyWage } from '@adventurer-manager/types';
-import type { StatBlock } from '@adventurer-manager/types';
+import { levelForXp, XP_PER_GOLD, MAX_LEVEL, computeDailyWage } from '@axes-actuaries/types';
+import type { StatBlock } from '@axes-actuaries/types';
 import { publish, CHANNELS } from '../lib/redis.js';
 import { ClaimConflictError } from '../lib/errors.js';
 

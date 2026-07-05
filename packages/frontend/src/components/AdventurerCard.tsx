@@ -1,5 +1,5 @@
-import type { Adventurer } from '@adventurer-manager/types';
-import { VOCATION_TIERS } from '@adventurer-manager/types';
+import type { Adventurer } from '@axes-actuaries/types';
+import { VOCATION_TIERS } from '@axes-actuaries/types';
 import './AdventurerCard.css';
 
 interface Props {
@@ -28,7 +28,7 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
     return (
       <div className={`adv-card-compact ${a.status === 'injured' ? 'adv-injured' : ''}`}>
         <div className="adv-compact-left">
-          <div className="adv-name">{a.name}</div>
+          <div className="character-name">{a.name}</div>
           <div className="flex gap-xs items-center mt-sm">
             <span className={`badge badge-status-${a.status}`}>{STATUS_LABELS[a.status]}</span>
             <span className="badge badge-heritage">{a.heritage}</span>
@@ -54,7 +54,7 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
     <div className={`adv-card panel ${a.status === 'injured' ? 'adv-injured' : ''}`}>
       <div className="adv-header">
         <div>
-          <h3 className="adv-name-lg">{a.name}</h3>
+          <h3 className="character-name-lg">{a.name}</h3>
           <div className="flex gap-xs items-center mt-sm">
             <span className={`badge badge-status-${a.status}`}>{STATUS_LABELS[a.status]}</span>
             <span className="badge badge-heritage">{a.heritage}</span>

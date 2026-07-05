@@ -41,12 +41,12 @@ jobs:
 
       # tsc --noEmit for packages/api needs the generated @prisma/client types.
       # Doesn't need DATABASE_URL: generate only reads the schema file.
-      - run: pnpm --filter @adventurer-manager/api exec prisma generate
+      - run: pnpm --filter @axes-actuaries/api exec prisma generate
 
       - run: pnpm typecheck
 
       - name: Migrate test database
-        run: pnpm --filter @adventurer-manager/api exec prisma migrate deploy
+        run: pnpm --filter @axes-actuaries/api exec prisma migrate deploy
         env:
           DATABASE_URL: postgresql://adventurer:adventurer@localhost:5432/adventurer_manager_test
 

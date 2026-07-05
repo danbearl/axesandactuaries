@@ -2,17 +2,36 @@
 
 Reconstructed 2026-07-03 after loss of prior planning artifacts (previous `.claude`
 planning files were never committed to git and were lost in a drive failure).
-Supersedes `TODO.md`.
+Supersedes `TODO.md`. Reorganized 2026-07-04 from a flat priority list into development
+phases, so progress toward beta and general release is visible at a glance.
 
-## Current State (as of this roadmap)
-Core game loop is built and live in beta on Fly.io (app `axes-actuaries`), Neon Postgres,
-Upstash Redis, Clerk auth, Sentry (API-side). Built: adventurer hiring market, tiered
-contract market with competitive bidding, adventure deployment/resolution, properties
-(build/upgrade/sell), daily wage collection, reputation, full transaction ledger,
-bootstrap/anti-softlock mechanics (desperate hire, welfare contracts), real-time updates
-via Redis pub/sub + SSE, 3 pg-boss background workers.
+## Current State
+Core game loop is built and live on Fly.io (app `axes-actuaries`), Neon Postgres, Upstash
+Redis, Clerk auth, Sentry (API + frontend). Built: adventurer hiring market, tiered contract
+market with competitive bidding, adventure deployment/resolution, properties (build/upgrade/
+sell), daily wage collection, reputation, full transaction ledger, bootstrap/anti-softlock
+mechanics (desperate hire, welfare contracts), real-time updates via Redis pub/sub + SSE, 3
+pg-boss background workers. CSP is enforcing in production; the app is currently ready to
+open to a small trusted player pool (Phase 0 below).
 
-## Must Have
+## Development Phases
+
+1. **Phase 0 — Pre-Beta Hardening** — done, small trusted pool
+2. **Beta Phase 1 — UX & Onboarding**
+3. **Beta Phase 2 — Game Mechanics Depth**
+4. **Beta Phase 3 — Player Customization**
+5. **Gate — Trusted Pool → Expanded Pool**
+6. **Beta Phase 4 — Social Features** — beta concludes here → general release
+7. **Post-Beta — Regions & World Map**
+8. **Post-Beta — Infrastructure Maturity**
+9. **Post-Beta — Monetization**
+
+---
+
+## Phase 0 — Pre-Beta Hardening
+**Goal:** the app is safe and stable enough to open to a small trusted pool of real players
+(friends/family). **Status: complete**, aside from minor cleanup below.
+
 - [x] Fix GitHub Actions deploy trigger (2026-07-03) — `deploy.yml` was firing on push to
   `main`, which doesn't exist on this repo (branches are `dev`/`master`); confirmed all
   deploys to date were manual `flyctl deploy`. Retargeted trigger to `master`.
@@ -22,7 +41,7 @@ via Redis pub/sub + SSE, 3 pg-boss background workers.
   (pure logic: leveling, hire/wage cost, generation) and `packages/api` (wage collection,
   back-wage repayment, quit rolls, adventure resolution, bootstrap thresholds, market GC bid
   awarding) against a real ephemeral Postgres, wired into CI. Route-level/HTTP integration
-  tests (Clerk-authenticated endpoints) remain a follow-up, not yet covered.
+  tests (Clerk-authenticated endpoints) remain a gap — see Infrastructure Maturity phase.
 - [x] Upgrade Node 20 to Node 22 LTS (2026-07-03) — Node 20 ("Iron") was past end-of-life
   (April 2026). Bumped `Dockerfile`, `.github/workflows/deploy.yml`, `package.json` engines,
   and `.nvmrc` to Node 22. Along the way, discovered Node 22/24's Alpine base (3.21+) trips a
@@ -61,16 +80,12 @@ via Redis pub/sub + SSE, 3 pg-boss background workers.
   `routes/events.ts` was the one route hand-rolling its own auth check instead of using
   `requireAuth`, and that inconsistency hid a bug where SSE connections were keyed by the
   raw Clerk `userId` while every publisher used the internal `player.id` — per-player
-  real-time events were silently never delivered. Added `helmet` for security headers
-  (CSP deliberately left off pending real-browser verification against Clerk's hosted UI
-  and the frontend's inline `style` usage — see `SECURITY.md`). Ran `pnpm audit`: found and
-  fixed a **high-severity authorization bypass** in `@clerk/clerk-react` (GHSA-w24r-5266-9c3c,
-  patched >=5.61.6, a same-major bump applied immediately) — separate from the `@clerk/react`
-  Core 3 rename already tracked below. Also found a **moderate** unbounded-memory-allocation
-  bug in `@opentelemetry/core` (GHSA-8988-4f7v-96qf, transitive via `@sentry/node`) that
-  can't be fixed with a same-major bump — `@sentry/node@8.x` is built against OpenTelemetry
-  v1.x internally, and OTel v2 support only landed in `@sentry/node@10.x`. Tracked as its
-  own item below rather than forced/overridden blind.
+  real-time events were silently never delivered. Added `helmet` for security headers. Ran
+  `pnpm audit`: found and fixed a **high-severity authorization bypass** in
+  `@clerk/clerk-react` (GHSA-w24r-5266-9c3c, patched >=5.61.6, a same-major bump applied
+  immediately) — separate from the `@clerk/react` Core 3 rename below. Also found a
+  **moderate** unbounded-memory-allocation bug in `@opentelemetry/core` (GHSA-8988-4f7v-96qf,
+  transitive via `@sentry/node`), fixed below.
 - [x] Upgrade `@sentry/node` v8 → v10 (2026-07-04) — resolves the `@opentelemetry/core`
   unbounded-memory-allocation CVE (GHSA-8988-4f7v-96qf, moderate); v10 is where Sentry
   bumped its OpenTelemetry dependency to v2.x (v9 doesn't reach it). Reviewed both the
@@ -87,8 +102,6 @@ via Redis pub/sub + SSE, 3 pg-boss background workers.
   `'unsafe-inline'` for both Clerk's own styling and this app's inline `style={{}}` usage.
   Only ever exercised by production traffic (Express serves `helmet` headers only under
   `NODE_ENV=production`; local Vite dev never goes through this middleware).
-
-## Should Have
 - [x] Migrate `@clerk/clerk-react` to `@clerk/react` (2026-07-03) — Clerk's Core 3 release
   (2026-03-03) renamed the package. `@clerk/express` (backend) was **not** renamed in Core 3,
   so this was frontend-only. More than an import path change: `<SignedIn>`/`<SignedOut>`/
@@ -103,34 +116,42 @@ via Redis pub/sub + SSE, 3 pg-boss background workers.
   of `src/index.ts` and `prisma/seed.ts` (no-op in production, where Fly injects real env vars
   directly). CI/tests were unaffected — they already set `DATABASE_URL` explicitly, bypassing
   `.env` entirely.
-- Redis-backed rate limiting — replace in-memory `express-rate-limit` with Upstash-backed
-  limiting (currently won't survive horizontal scaling; Redis is already paid for and only
-  used for pub/sub today).
-- Admin/Moderator roles (from original TODO.md, Administrative) — no privileged access
-  model exists yet; needed as the player base grows.
-- Contract completion reports (from original TODO.md, Game Mechanics).
-- Vacation Mode (from original TODO.md, Game Mechanics) — pause wage/maintenance collection
-  without penalty; retention feature for a live player base.
-- Player profile pages (from original TODO.md, Social Elements — profile only, not
-  messaging/trades yet).
-- Adventurer profile pages (from original TODO.md, Aesthetics/UX).
-- Ranking and Achievements (from original TODO.md, Gamification) — core retention loop.
-- Abuse-prevention foundations (from original TODO.md, Social Elements) — needed before any
-  player-to-player feature ships.
-- Housekeeping: delete unused `packages/frontend/src/data/mockData.ts`; reconcile README's
-  documented worker list (4) against the 3 actually registered in `workers/index.ts`; align
-  package scope/branding (`@adventurer-manager/*` vs. product name "Axes & Actuaries").
-- U.S./E.U. privacy regulatory compliance review (from original TODO.md, Security and
-  Compliance) — not blocking current small beta, but needed before wider acquisition.
+- [x] Fix SSE query-key mismatch (2026-07-04) — `useSSE.ts`'s `market_update` handler
+  invalidated React Query key `['market-adventurers']`, which matched nothing; the Adventurer
+  Market page's real key is `['adventurers', 'market']`. Fixed to prefix-match `['adventurers']`,
+  consistent with how every other handler in the file invalidates.
 
-## Could Have
+**Remaining minor cleanup (not blocking):**
+- Delete unused `packages/frontend/src/data/mockData.ts`.
+- Reconcile README's documented worker list (4) against the 3 actually registered in
+  `workers/index.ts`.
+- Align package scope/branding (`@adventurer-manager/*` vs. product name "Axes & Actuaries").
+
+---
+
+## Beta Phase 1 — UX & Onboarding
+**Goal:** the app is pleasant and self-explanatory for a first-time trusted-pool player.
+
 - Move "Sign Out" out of the sidebar footer (2026-07-04) — the button exists and works
   (`Navigation.tsx`, `useClerk().signOut()`), but it's easy to miss below "Guild Charter ·
   Season I" at the bottom of the sidebar. Consider a more conventional location (e.g. a
   top-of-nav user menu) for discoverability.
-- Player-to-player messaging, trades, message board (from original TODO.md, Social Elements).
-- Titles, badges, property/adventurer cosmetic customization (from original TODO.md,
-  Gamification).
+- Player profile pages (from original TODO.md, Social Elements — profile/stats display
+  only, not messaging/trades, which are gated to Beta Phase 4).
+- Adventurer profile pages (from original TODO.md, Aesthetics/UX) — view adventurer stats,
+  level progression, injuries, etc.
+- Wiki/documentation pages for races, classes, characteristics (from original TODO.md,
+  Aesthetics/UX).
+- Whatever other UX friction surfaces from real trusted-pool usage — this phase should stay
+  open to feedback-driven items, not just the list above.
+
+## Beta Phase 2 — Game Mechanics Depth
+**Goal:** the core loop is deep and balanced enough to hold a trusted pool's attention.
+
+- Contract completion reports (from original TODO.md, Game Mechanics).
+- Vacation Mode (from original TODO.md, Game Mechanics) — pause wage/maintenance collection
+  without penalty; retention feature for a live player base.
+- Ranking and Achievements (from original TODO.md, Gamification) — core retention loop.
 - Adventurer equipment system (from original TODO.md, Game Mechanics).
 - Contract class/stat requirements — a `requiredStats` field already exists as a stub in
   `packages/types/src/contracts.ts` marked "reserved for Phase 5."
@@ -138,19 +159,83 @@ via Redis pub/sub + SSE, 3 pg-boss background workers.
   Mechanics).
 - Deeper personality-stat effects — granular Loyalty/Ambition/Disposition mechanics (from
   original TODO.md, Game Mechanics).
-- Visual base/property representation; adventurer portraits (from original TODO.md,
-  Aesthetics/UX).
-- Wiki/documentation pages for races, classes, characteristics (from original TODO.md,
-  Aesthetics/UX).
-- Multi-region play / world map (from original TODO.md, Game Mechanics) — large scope.
-- Legendary-contract story elements affecting the game world (from original TODO.md, Game
-  Mechanics).
 
-## Won't Have (this horizon)
-- Monetization — ads, subscriptions, cosmetic purchases, season passes (from original
-  TODO.md, Monetization). The original list itself frames these as open questions; premature
-  before retention is proven with a small live beta.
+## Beta Phase 3 — Player Customization
+**Goal:** players have meaningful ways to express/personalize their guild once retention is
+already working.
+
+- Adventurer portraits (from original TODO.md, Aesthetics/UX) — head shots, full body,
+  customizable, random with low duplicate chance.
+- Visual base/property representation (from original TODO.md, Aesthetics/UX).
+- Titles, badges, property/adventurer cosmetic customization (from original TODO.md,
+  Gamification).
 - Full custom/rare player avatar system (from original TODO.md, Social Elements /
-  Gamification) — depends on cosmetics infrastructure not yet built.
+  Gamification) — more speculative/lower-priority within this phase; depends on the
+  cosmetics infrastructure above landing first.
+
+---
+
+## Gate — Trusted Pool → Expanded Pool
+**Goal:** before opening beta beyond the initial trusted pool to a broader audience, these
+must land — they're what makes it safe to let strangers in.
+
+- Admin/Moderator roles (from original TODO.md, Administrative) — no privileged access
+  model exists yet; needed before opening to players you don't know personally.
+- Abuse-prevention foundations (from original TODO.md, Social Elements) — needed before any
+  player-to-player feature ships, which is exactly what Beta Phase 4 introduces.
+- U.S./E.U. privacy regulatory compliance review (from original TODO.md, Security and
+  Compliance) — not a blocker for a small known-personally pool, but needed before wider
+  acquisition.
+- Redis-backed rate limiting — replace in-memory `express-rate-limit` with Upstash-backed
+  limiting (won't survive horizontal scaling; Redis is already paid for and only used for
+  pub/sub today). Scale risk goes up with a broader pool.
+
+## Beta Phase 4 — Social Features
+**Goal:** player-to-player interaction works safely at small scale. **Beta concludes here —
+completing this phase (with the Gate above already cleared) means the app is feature-complete
+enough for general release.**
+
+- Player-to-player messaging, trades, message board (from original TODO.md, Social
+  Elements).
+- Social-facing profile page elements (extending Beta Phase 1's profile pages once the Gate
+  above has landed).
+
+---
+
+## Post-Beta — Regions & World Map
+**Goal:** post-general-release expansion of the game world. Pulled into its own phase given
+explicitly large scope — bundling it with Beta Phase 2 would make that phase's completion
+criteria fuzzy.
+
+- Multi-region play / world map (from original TODO.md, Game Mechanics): multiple regions,
+  different flavors/difficulty per region, region-specific adventurer pools, players must
+  expand to a region (build an office) before operating there, world map UI.
+- Legendary-contract story elements affecting the game world (from original TODO.md, Game
+  Mechanics) — grouped here rather than Beta Phase 2 since "affecting the game world"
+  presumes a persistent multi-region world state to affect.
 - Multi-region expansion beyond the initial single-region design, until the single-region
-  core game loop is proven with real players.
+  core game loop is proven with real players (from original TODO.md Won't Have — still
+  applies until this phase is reached).
+
+## Post-Beta — Infrastructure Maturity
+**Goal:** the platform holds up under real scale and ongoing maintenance, not just a beta
+pool.
+
+- Route-level/HTTP integration test coverage (Clerk-authenticated endpoints) — flagged as a
+  gap when the Pre-Beta automated-tests item shipped; current coverage is service/worker
+  functions only.
+- An actual Docker-build verification step in CI — today CI runs typecheck/test but never
+  builds the production Docker image; the *first* time it's ever built is during
+  `flyctl deploy` itself in production. This exact gap already caused a scare during the
+  Node 22/Prisma 6.1 upgrade (see Pre-Beta) and is worth closing before it causes a real
+  outage.
+- Broader observability beyond Sentry error monitoring (e.g. dashboards/alerting on top of
+  existing Sentry data, database/Redis health metrics).
+
+## Post-Beta — Monetization
+**Goal:** sustainable revenue, attempted only once retention is proven post-general-release.
+
+- Ads, subscriptions, cosmetic purchases, season passes (from original TODO.md,
+  Monetization). The original list itself frames these as open questions ("Ads? Subscription
+  – what's the benefit?") — expect this phase to start with research/decisions, not
+  implementation.

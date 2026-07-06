@@ -92,6 +92,7 @@ export interface Adventurer {
   dailyWage:   number;
   status:      AdventurerStatus;
   injuryRecoveryUntil?: string; // ISO timestamp
+  restUntil?:  string; // ISO timestamp — mandatory downtime after a healthy return, even on success
   employerId?: string;
   wagesOwed?:      number; // back wages owed; accumulates when daily pay fails
   daysUnpaid?:     number; // consecutive days without full pay
@@ -229,6 +230,17 @@ export const CONTRACT_TIER_REPUTATION_REQUIREMENTS: Readonly<Record<ContractTier
 
 // Tiers that use competitive bidding; all others support direct accept.
 export const BIDDING_CONTRACT_TIERS: ReadonlyArray<ContractTier> = ['dangerous', 'legendary'] as const;
+
+// ── Roster capacity ───────────────────────────────────────────────────────────
+// Caps total roster size to slow how fast a guild can scale up, gated by
+// dormitory investment (a gold sink that fights the same snowball).
+
+export const BASE_ROSTER_CAP = 4;
+export const ROSTER_CAP_PER_DORM_LEVEL = 4;
+
+export function computeRosterCap(dormitoryLevel: number): number {
+  return BASE_ROSTER_CAP + dormitoryLevel * ROSTER_CAP_PER_DORM_LEVEL;
+}
 
 // ── Leveling ──────────────────────────────────────────────────────────────────
 

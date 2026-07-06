@@ -152,6 +152,7 @@ export interface AdventurerResponse {
   dailyWage: number;
   status: string;
   injuryRecoveryUntil: string | null;
+  restUntil: string | null;
   employerId: string | null;
   height: string;
   build: string;

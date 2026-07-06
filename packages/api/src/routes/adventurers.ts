@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { Prisma } from '@prisma/client';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { prisma } from '../lib/prisma.js';
-import { HIRE_REPUTATION_REQUIREMENTS, computeHireCost, computeDailyWage } from '@axes-actuaries/types';
+import { HIRE_REPUTATION_REQUIREMENTS, computeHireCost, computeDailyWage, computeRosterCap } from '@axes-actuaries/types';
 import { getBootstrapStatus, claimDesperateHire } from '../services/bootstrap.js';
 import { getAdventurerHistory } from '../services/adventurerHistory.js';
 import { ClaimConflictError } from '../lib/errors.js';
@@ -69,6 +69,20 @@ router.post('/:id/hire', requireAuth, async (req, res) => {
   const repRequired = HIRE_REPUTATION_REQUIREMENTS[adventurer.level] ?? 0;
   if (player.reputation < repRequired) {
     res.status(403).json({ error: `Requires ${repRequired} reputation to hire a level ${adventurer.level} adventurer`, required: repRequired, current: player.reputation });
+    return;
+  }
+
+  const [dormitory, rosterCount] = await Promise.all([
+    prisma.property.findFirst({ where: { playerId: req.playerId, type: 'dormitory' } }),
+    prisma.adventurer.count({ where: { employerId: req.playerId, status: { not: 'dead' } } }),
+  ]);
+  const rosterCap = computeRosterCap(dormitory?.level ?? 0);
+  if (rosterCount >= rosterCap) {
+    res.status(403).json({
+      error: `Roster is full (${rosterCount}/${rosterCap}). Build or upgrade a dormitory to hire more.`,
+      rosterCount,
+      rosterCap,
+    });
     return;
   }
 

@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type ContractResponse, type AdventurerResponse } from '../lib/api.ts';
 import AdventurerCard from '../components/AdventurerCard.tsx';
 import AdventureTimer from '../components/AdventureTimer.tsx';
-import type { Adventurer } from '@axes-actuaries/types';
+import DailyResetTimer from '../components/DailyResetTimer.tsx';
+import { computeRosterCap, type Adventurer } from '@axes-actuaries/types';
 import './Dashboard.css';
 
 export default function Dashboard() {
@@ -60,7 +61,13 @@ export default function Dashboard() {
   const daysOfRunway = dailyBurn > 0 ? Math.floor(player.gold / dailyBurn) : Infinity;
 
   const recentTx = txData?.transactions ?? [];
-  const hiredAdventurers = hired.filter(a => a.status === 'hired');
+  const isDeployable = (a: AdventurerResponse) =>
+    a.status === 'hired' && (!a.restUntil || new Date(a.restUntil) <= new Date());
+  const hiredAdventurers = hired.filter(isDeployable);
+
+  const dormitory = properties.find(p => p.type === 'dormitory');
+  const rosterCap = computeRosterCap(dormitory?.level ?? 0);
+  const rosterCount = hired.filter(a => a.status !== 'dead').length;
 
   const toggleAdventurer = (id: string) => {
     setSelectedAdventurerIds(prev =>
@@ -83,6 +90,7 @@ export default function Dashboard() {
           <div className="summary-sub">
             <span className="currency negative">−{dailyBurn} gp/day burn</span>
             <span className="label">{daysOfRunway === Infinity ? '∞' : daysOfRunway} days runway</span>
+            <span className="label">Day resets in <DailyResetTimer /></span>
           </div>
         </div>
 
@@ -96,10 +104,11 @@ export default function Dashboard() {
 
         <div className="panel summary-card">
           <span className="label">Roster</span>
-          <div className="summary-big">{hired.length}</div>
+          <div className="summary-big">{rosterCount} / {rosterCap}</div>
           <div className="summary-sub">
             <span className="label">
-              {hired.filter(a => a.status === 'hired').length} available ·{' '}
+              {hiredAdventurers.length} available ·{' '}
+              {hired.filter(a => a.status === 'hired' && !isDeployable(a)).length} resting ·{' '}
               {hired.filter(a => a.status === 'on_adventure').length} deployed ·{' '}
               {hired.filter(a => a.status === 'injured').length} injured
             </span>

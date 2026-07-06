@@ -279,6 +279,82 @@ open to a small trusted player pool (Phase 0 below).
   which were referenced in `AdventureDetail.tsx` since it was first built but never actually
   defined anywhere. Test-covered in `test/adventure.test.ts` (already the home of
   `resolveAdventure`'s tests) and verified end-to-end in a real browser.
+- [x] Admin testing toolkit (2026-07-06) — added ahead of the original phase list, at the
+  user's request, to make manual QA faster. Deliberately narrower than the Gate phase's
+  planned Admin/Moderator roles system below (that one's about community moderation —
+  banning, content review; this is just a debug toolkit): new `isAdmin` boolean on `Player`
+  (default `false`, granted only via direct DB access — `pnpm db:studio` or a `players`
+  table SQL update in the Neon console — no self-service promotion path). New `requireAdmin`
+  middleware (403s non-admins) gates a `/api/v1/admin` router: `GET /players`, `PATCH
+  /players/:id` (sets gold/reputation to absolute values; gold changes are logged as an
+  `admin_adjustment` transaction — new value added to both the Prisma `TransactionReason`
+  enum and the `packages/types` TS union — so the ledger stays reconcilable), `GET
+  /adventures?status=`, `POST /adventures/:id/resolve`. `resolveAdventure` gained an
+  optional `{ forceOutcome }` param that bypasses the completion timer and the
+  success-chance roll while still running the normal injury/death/XP logic against whatever
+  outcome is forced, so a forced failure still produces realistic injury/death results to
+  test against (test-covered in `test/adventure.test.ts`). New **Admin** nav tab (🛠,
+  visible only when `isAdmin`) with two panels: force-resolve any player's in-progress
+  adventures, and adjust any player's gold/reputation by username. Verified end-to-end in a
+  real browser in both local dev and production (including promoting the production user
+  via the Neon console directly).
+- [x] Daily reset countdown (2026-07-06) — quality-of-life addition from player feedback, to
+  help plan cashflow around when wages/maintenance get collected. New `DailyResetTimer`
+  component (`components/DailyResetTimer.tsx`), a self-contained live countdown (ticks every
+  second, no API calls) to the next `00:00 UTC` — the exact instant the `daily-reset` cron
+  job runs (`workers/index.ts`'s `0 0 * * *` schedule). Added as a third line in the
+  Dashboard's existing Treasury summary card, alongside the burn-rate/runway line. Verified
+  in a real browser.
+- [x] Anti-snowball mechanics (2026-07-06) — player feedback that hiring/growth snowballed
+  too fast in the first couple of days, turning the game into a mechanical process rather
+  than a strategic one. Evaluated five proposed levers plus two more; built the batch
+  identified as highest-impact/lowest-interaction-risk (deferred: level-gated contract tiers
+  and wage/reward margin tuning, both flagged as needing follow-up once there's real data
+  against this batch to tune against):
+  - **Roster cap** — `computeRosterCap(dormitoryLevel)` in `packages/types`: 4 base, +4 per
+    dormitory level, capping at 16 with a maxed (level 3) dormitory. Enforced in the hire
+    route; surfaced in the UI on the Dashboard's Roster card (`X / Y`) and the Hire
+    Adventurers market (toolbar stat, a banner, and disabled Hire buttons once full).
+  - **XP split across the party** — `resolveAdventure` now divides `rewardGold × 0.1` by
+    party size instead of granting every member the full amount, removing the incentive to
+    stuff parties with bodies purely to multi-level in parallel.
+  - **Injury/death risk on success** — previously injury/death could only happen on
+    failure, meaning zero risk at all once a party outscaled its targets. New baseline 8%
+    injury chance even on a clean win (vs. 40% on failure), both reduced by Infirmary level
+    and floored above zero. While in there, also fixed a latent bug: death used to be a
+    fixed roll cutoff (`< 0.1`) that could exceed the injury chance itself at high Infirmary
+    levels, making virtually all injuries fatal — now expressed as a share *of* the injury
+    chance (25%) so it scales consistently regardless of the base rate or Infirmary discount.
+  - **Mandatory rest window** — a healthy, uninjured return now gets a `restUntil`
+    timestamp (25% of the contract's own duration) before redeployment, closing the
+    "instant redeploy" loop that let a roster snowball throughput with zero pacing cost.
+    Surfaced as a "Resting" badge on the adventurer card, excluded from deploy-party
+    pickers.
+
+  All service-layer logic test-covered in `test/adventure.test.ts` (XP split, success-path
+  injury, rest-window enforcement in `startAdventure`) and verified end-to-end in a real
+  browser.
+
+  **Bug found and fixed during verification**: selecting a resting adventurer in
+  `ContractMarket.tsx`'s deploy modal correctly blocked the deploy, but the contract had
+  *already* been accepted server-side by that point (its combined `acceptMutation` called
+  `POST /contracts/:id/accept` then `POST /adventures` as one step) — retrying inside the
+  same modal re-called `accept` on an already-awarded contract, 409ing with "Contract is no
+  longer available" and leaving the player stuck (their only escape was closing the dialog
+  and deploying from the Dashboard's "Contracts Awaiting Deployment" section instead, where
+  the equivalent flow only ever calls `start`, never `accept`). This also meant welfare
+  contracts — created pre-awarded — would have hit the identical bug on *every* deploy
+  attempt, not just this one. Fixed by splitting `ContractMarket.tsx` into separate
+  `acceptMutation`/`deployMutation` mutations, skipping accept entirely when the
+  (possibly locally-refreshed) contract is already non-`available`, and excluding resting
+  adventurers from the deploy modal's selectable list in the first place (mirroring the
+  same `isDeployable` filter already added to `Dashboard.tsx`'s modal).
+
+  **Follow-up**: added a `RestStatus` panel to the adventurer profile page
+  (`AdventurerDetail.tsx`), styled to match the existing `InjuryStatus` countdown (same
+  panel/badge treatment, slate-toned border instead of crimson) — a live countdown to when
+  a resting adventurer becomes redeployable, so players can plan around it the same way
+  they already could for injury recovery.
 - Vacation Mode (from original TODO.md, Game Mechanics) — pause wage/maintenance collection
   without penalty; retention feature for a live player base.
 - Ranking and Achievements (from original TODO.md, Gamification) — core retention loop.

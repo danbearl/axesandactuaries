@@ -100,6 +100,7 @@ model Adventurer {
   dailyWage           Int              @map("daily_wage")
   status              AdventurerStatus @default(available)
   injuryRecoveryUntil DateTime?        @map("injury_recovery_until")
+  restUntil           DateTime?        @map("rest_until")
   employerId          String?          @map("employer_id")
   poolExpiresAt       DateTime?        @map("pool_expires_at")
   wagesOwed           Int              @default(0) @map("wages_owed")

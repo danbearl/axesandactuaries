@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.ts';
-import { HIRE_REPUTATION_REQUIREMENTS } from '@axes-actuaries/types';
+import { HIRE_REPUTATION_REQUIREMENTS, computeRosterCap } from '@axes-actuaries/types';
 import type { Adventurer } from '@axes-actuaries/types';
 import AdventurerCard from '../components/AdventurerCard.tsx';
 import './AdventurerMarket.css';
@@ -50,6 +50,9 @@ export default function AdventurerMarket() {
   const hired       = (playerData?.adventurers ?? []).filter(a =>
     ['hired', 'on_adventure', 'injured'].includes(a.status),
   );
+  const dormitory  = properties.find(p => p.type === 'dormitory');
+  const rosterCap  = computeRosterCap(dormitory?.level ?? 0);
+  const rosterFull = hired.length >= rosterCap;
   const cheapestHire = adventurers.length > 0
     ? Math.min(...adventurers.map(a => a.hireCost))
     : Infinity;
@@ -104,6 +107,12 @@ export default function AdventurerMarket() {
             <span className="label">Available</span>
             <span className="value">{adventurers.length} adventurers</span>
           </div>
+          <div className="toolbar-stat">
+            <span className="label">Roster</span>
+            <span className="value" style={rosterFull ? { color: 'var(--crimson)' } : undefined}>
+              {hired.length} / {rosterCap}
+            </span>
+          </div>
         </div>
         <input
           className="market-search"
@@ -113,6 +122,12 @@ export default function AdventurerMarket() {
           onChange={e => setFilter(e.target.value)}
         />
       </div>
+
+      {rosterFull && (
+        <div className="panel panel-sm" style={{ borderColor: 'var(--crimson)', marginBottom: '1rem' }}>
+          Your roster is full ({hired.length}/{rosterCap}). Build or upgrade a dormitory to hire more adventurers.
+        </div>
+      )}
 
       {isLoading && <div className="empty-state">Loading adventurer pool…</div>}
 
@@ -128,7 +143,7 @@ export default function AdventurerMarket() {
             key={adv.id}
             adventurer={adv as unknown as Adventurer}
             repRequired={HIRE_REPUTATION_REQUIREMENTS[adv.level]}
-            onHire={gold >= adv.hireCost && playerRep >= (HIRE_REPUTATION_REQUIREMENTS[adv.level] ?? 0) && hiringId === null
+            onHire={gold >= adv.hireCost && playerRep >= (HIRE_REPUTATION_REQUIREMENTS[adv.level] ?? 0) && hiringId === null && !rosterFull
               ? () => hireMutation.mutate(adv.id)
               : undefined}
           />

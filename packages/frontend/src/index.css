@@ -242,6 +242,7 @@ p  { font-size: 1.05rem; line-height: 1.6; color: var(--ink-light); }
 .badge-status-completed  { background: var(--emerald);  color: var(--parchment); }
 .badge-status-failed     { background: var(--crimson);  color: var(--parchment); }
 .badge-status-in_progress { background: var(--gold-dark); color: var(--parchment); }
+.badge-status-resting    { background: var(--slate-light); color: var(--parchment); }
 
 .badge-tier-errand    { background: var(--slate-light); color: var(--parchment); }
 .badge-tier-standard  { background: var(--emerald);     color: var(--parchment); }

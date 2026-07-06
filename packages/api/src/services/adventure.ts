@@ -4,6 +4,26 @@ import type { StatBlock } from '@axes-actuaries/types';
 import { publish, CHANNELS } from '../lib/redis.js';
 import { ClaimConflictError } from '../lib/errors.js';
 
+// ── Tunables ──────────────────────────────────────────────────────────────────
+// Adventuring carries some baseline risk even on success, so an overpowered party
+// farming easy contracts still has *some* downside — previously injury/death could
+// only happen on failure, meaning zero risk at all once a party outscaled its targets.
+const FAILURE_INJURY_CHANCE = 0.4;
+const SUCCESS_INJURY_CHANCE = 0.08;
+const MIN_FAILURE_INJURY_CHANCE = 0.05;
+const MIN_SUCCESS_INJURY_CHANCE = 0.01;
+const INFIRMARY_INJURY_REDUCTION_PER_LEVEL = 0.08;
+// Share of injury-triggering rolls that are additionally fatal, expressed relative to
+// injuryChance (rather than a fixed roll cutoff) so it scales consistently whether the
+// base rate is the failure or success chance, or reduced by an infirmary.
+const DEATH_SHARE_OF_INJURY = 0.25;
+
+// A healthy return still costs downtime before redeployment — a flat fraction of how
+// long the adventure itself took. Removes the "instant redeploy" loop that let a
+// roster snowball throughput with zero pacing cost. Injured adventurers already have
+// their own (longer) recovery window and don't need this stacked on top.
+const REST_HOURS_FRACTION_OF_DURATION = 0.25;
+
 // Assigns a party to an awarded contract, starting the adventure.
 //
 // Racing this with the same contractId (or an adventurerId already claimed
@@ -34,7 +54,12 @@ export async function startAdventure(
     const contract = await tx.contract.findUniqueOrThrow({ where: { id: contractId } });
 
     const claimedAdventurers = await tx.adventurer.updateMany({
-      where: { id: { in: uniqueAdventurerIds }, employerId: playerId, status: 'hired' },
+      where: {
+        id: { in: uniqueAdventurerIds },
+        employerId: playerId,
+        status: 'hired',
+        OR: [{ restUntil: null }, { restUntil: { lte: new Date() } }],
+      },
       data: { status: 'on_adventure' },
     });
     if (claimedAdventurers.count !== uniqueAdventurerIds.length) {
@@ -133,17 +158,28 @@ export async function resolveAdventure(
       data: { status: success ? 'completed' : 'failed' },
     });
 
+    const partySize = adventure.adventurers.length;
+
     for (const aa of adventure.adventurers) {
       const adv = aa.adventurer;
       const injuryRoll = Math.random();
-      // Infirmary reduces base injury chance (0.4) by 8% per level
-      const injuryChance = Math.max(0.05, 0.4 - infirmaryLevel * 0.08);
-      const injured = !success && injuryRoll < injuryChance;
-      const dead = injured && injuryRoll < 0.1;
-      const recoveryHours = injured ? Math.floor(Math.random() * 48) + 12 : 0;
 
-      // XP and leveling
-      const xpGain = success ? Math.floor(adventure.contract.rewardGold * XP_PER_GOLD) : 0;
+      const baseInjuryChance = success ? SUCCESS_INJURY_CHANCE : FAILURE_INJURY_CHANCE;
+      const minInjuryChance = success ? MIN_SUCCESS_INJURY_CHANCE : MIN_FAILURE_INJURY_CHANCE;
+      const injuryChance = Math.max(
+        minInjuryChance,
+        baseInjuryChance - infirmaryLevel * INFIRMARY_INJURY_REDUCTION_PER_LEVEL,
+      );
+      const injured = injuryRoll < injuryChance;
+      const dead = injured && injuryRoll < injuryChance * DEATH_SHARE_OF_INJURY;
+      const recoveryHours = injured && !dead ? Math.floor(Math.random() * 48) + 12 : 0;
+      const restHours = !injured && !dead
+        ? Math.ceil(adventure.contract.durationHours * REST_HOURS_FRACTION_OF_DURATION)
+        : 0;
+
+      // XP split evenly across the party — a full contract's XP going to *every*
+      // member regardless of party size rewarded stuffing parties just to multi-level.
+      const xpGain = success ? Math.floor((adventure.contract.rewardGold * XP_PER_GOLD) / partySize) : 0;
       const newXp = adv.experience + xpGain;
       const newLevel = Math.min(MAX_LEVEL, levelForXp(newXp));
       const didLevelUp = newLevel > adv.level;
@@ -164,6 +200,9 @@ export async function resolveAdventure(
           status: dead ? 'dead' : injured ? 'injured' : 'hired',
           injuryRecoveryUntil: injured && !dead
             ? new Date(Date.now() + recoveryHours * 60 * 60 * 1000)
+            : null,
+          restUntil: restHours > 0
+            ? new Date(Date.now() + restHours * 60 * 60 * 1000)
             : null,
           experience:  { increment: xpGain },
           level:       didLevelUp ? newLevel       : undefined,

@@ -33,8 +33,10 @@ export default function ContractMarket() {
     queryFn: () => api.contracts.welfare(),
   });
 
-  const contracts        = contractData?.contracts ?? [];
-  const hiredAdventurers = (playerData?.adventurers ?? []).filter(a => a.status === 'hired');
+  const contracts = contractData?.contracts ?? [];
+  const isDeployable = (a: AdventurerResponse) =>
+    a.status === 'hired' && (!a.restUntil || new Date(a.restUntil) <= new Date());
+  const hiredAdventurers = (playerData?.adventurers ?? []).filter(isDeployable);
   const playerRep        = playerData?.player.reputation ?? 0;
 
   const welfareAvailable     = welfareData?.available ?? false;
@@ -51,11 +53,25 @@ export default function ContractMarket() {
     onError: (err) => setError(err instanceof Error ? err.message : 'Failed to claim welfare contract'),
   });
 
+  // Accepting and deploying are separate server-side steps. If deployment fails after a
+  // successful accept (e.g. a selected adventurer turns out to be resting), the contract
+  // is *already* awarded — retrying must not call accept again, or it 409s with "no longer
+  // available" since the contract isn't in 'available' status anymore. Splitting these into
+  // two mutations, and refreshing `deployingContract` after a successful accept, means a
+  // retry correctly skips straight to deploy instead of re-accepting.
   const acceptMutation = useMutation({
+    mutationFn: (contractId: string) => api.contracts.accept(contractId),
+    onSuccess: ({ contract }) => {
+      setError(null);
+      setDeployingContract(contract);
+      queryClient.invalidateQueries({ queryKey: ['contracts', 'market'] });
+    },
+    onError: (err) => setError(err instanceof Error ? err.message : 'Failed to accept contract'),
+  });
+
+  const deployMutation = useMutation({
     mutationFn: ({ contractId, adventurerIds }: { contractId: string; adventurerIds: string[] }) =>
-      api.contracts.accept(contractId).then(() =>
-        api.adventures.start(contractId, adventurerIds)
-      ),
+      api.adventures.start(contractId, adventurerIds),
     onSuccess: () => {
       setError(null);
       setDeployingContract(null);
@@ -63,7 +79,7 @@ export default function ContractMarket() {
       queryClient.invalidateQueries({ queryKey: ['player'] });
       queryClient.invalidateQueries({ queryKey: ['contracts', 'market'] });
     },
-    onError: (err) => setError(err instanceof Error ? err.message : 'Failed to accept contract'),
+    onError: (err) => setError(err instanceof Error ? err.message : 'Failed to deploy party'),
   });
 
   const bidMutation = useMutation({
@@ -85,12 +101,21 @@ export default function ContractMarket() {
     );
   };
 
-  const handleDeploy = () => {
+  const handleDeploy = async () => {
     if (!deployingContract || selectedAdventurerIds.length === 0) return;
-    acceptMutation.mutate({
-      contractId: deployingContract.id,
-      adventurerIds: selectedAdventurerIds,
-    });
+    setError(null);
+
+    let contractId = deployingContract.id;
+    if (deployingContract.status === 'available') {
+      try {
+        const { contract } = await acceptMutation.mutateAsync(contractId);
+        contractId = contract.id;
+      } catch {
+        return; // acceptMutation's onError already surfaced the message
+      }
+    }
+
+    deployMutation.mutate({ contractId, adventurerIds: selectedAdventurerIds });
   };
 
   return (
@@ -273,10 +298,10 @@ export default function ContractMarket() {
               </button>
               <button
                 className="btn btn-primary btn-sm"
-                disabled={selectedAdventurerIds.length === 0 || acceptMutation.isPending}
+                disabled={selectedAdventurerIds.length === 0 || acceptMutation.isPending || deployMutation.isPending}
                 onClick={handleDeploy}
               >
-                {acceptMutation.isPending ? 'Deploying…' : 'Deploy Party'}
+                {acceptMutation.isPending ? 'Accepting…' : deployMutation.isPending ? 'Deploying…' : 'Deploy Party'}
               </button>
             </div>
           </div>

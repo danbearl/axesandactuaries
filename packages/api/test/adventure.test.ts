@@ -81,7 +81,7 @@ describe('resolveAdventure', () => {
   it('resolves a successful adventure: pays reward, grants xp and reputation', async () => {
     vi.spyOn(Math, 'random')
       .mockReturnValueOnce(0.1)  // outcomeRoll — well below successChance (0.8)
-      .mockReturnValueOnce(0.5); // injuryRoll — irrelevant since success short-circuits injury
+      .mockReturnValueOnce(0.5); // injuryRoll — well above the success-path injury chance (0.08)
 
     const { player, adventurer, contract, adventure } = await seedAdventure({
       playerGold: 500, playerReputation: 10,
@@ -109,7 +109,10 @@ describe('resolveAdventure', () => {
     const updatedAdv = await prisma.adventurer.findUniqueOrThrow({ where: { id: adventurer.id } });
     expect(updatedAdv.status).toBe('hired');
     expect(updatedAdv.injuryRecoveryUntil).toBeNull();
-    expect(updatedAdv.experience).toBe(Math.floor(300 * XP_PER_GOLD));
+    expect(updatedAdv.experience).toBe(Math.floor(300 * XP_PER_GOLD)); // sole party member gets the full share
+    // A clean, healthy return still costs downtime before redeployment (25% of the 8h contract).
+    expect(updatedAdv.restUntil).not.toBeNull();
+    expect(updatedAdv.restUntil!.getTime()).toBeGreaterThan(Date.now());
 
     const report = await prisma.adventureAdventurer.findUniqueOrThrow({
       where: { adventureId_adventurerId: { adventureId: adventure.id, adventurerId: adventurer.id } },
@@ -118,6 +121,62 @@ describe('resolveAdventure', () => {
     expect(report.injured).toBe(false);
     expect(report.died).toBe(false);
     expect(report.recoveryHours).toBeNull();
+  });
+
+  it('splits XP evenly across a multi-member party', async () => {
+    vi.spyOn(Math, 'random').mockImplementation(() => 0.99); // never injured (success or failure path)
+
+    const player = await createPlayer({ gold: 500 });
+    const a1 = await createAdventurer({ employerId: player.id, status: 'on_adventure', powerRating: 50, experience: 0, level: 1 });
+    const a2 = await createAdventurer({ employerId: player.id, status: 'on_adventure', powerRating: 50, experience: 0, level: 1 });
+    const contract = await createContract({
+      requiredPower: 50, rewardGold: 300, reputationReward: 3,
+      penaltyGold: 90, penaltyReputation: 1, status: 'in_progress',
+    });
+    const adventure = await prisma.adventure.create({
+      data: {
+        contractId: contract.id, playerId: player.id,
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        completesAt: new Date(Date.now() - 1000),
+        status: 'in_progress',
+      },
+    });
+    await prisma.adventureAdventurer.createMany({
+      data: [
+        { adventureId: adventure.id, adventurerId: a1.id },
+        { adventureId: adventure.id, adventurerId: a2.id },
+      ],
+    });
+
+    await resolveAdventure(adventure.id, { forceOutcome: 'success' });
+
+    const expectedShare = Math.floor((300 * XP_PER_GOLD) / 2);
+    const updated1 = await prisma.adventurer.findUniqueOrThrow({ where: { id: a1.id } });
+    const updated2 = await prisma.adventurer.findUniqueOrThrow({ where: { id: a2.id } });
+    expect(updated1.experience).toBe(expectedShare);
+    expect(updated2.experience).toBe(expectedShare);
+  });
+
+  it('can injure (but rarely kill) an adventurer even on a successful adventure', async () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.01)  // outcomeRoll — success
+      .mockReturnValueOnce(0.05); // injuryRoll — below the 0.08 success-path injury chance, above the death cutoff (0.02)
+
+    const { adventurer, adventure } = await seedAdventure({
+      requiredPower: 50, adventurerPowerRating: 50,
+      rewardGold: 300, reputationReward: 3, penaltyGold: 90, penaltyReputation: 1,
+      completesAt: new Date(Date.now() - 1000),
+    });
+
+    await resolveAdventure(adventure.id);
+
+    const updatedAdventure = await prisma.adventure.findUniqueOrThrow({ where: { id: adventure.id } });
+    expect(updatedAdventure.status).toBe('completed');
+
+    const updatedAdv = await prisma.adventurer.findUniqueOrThrow({ where: { id: adventurer.id } });
+    expect(updatedAdv.status).toBe('injured');
+    expect(updatedAdv.injuryRecoveryUntil).not.toBeNull();
+    expect(updatedAdv.restUntil).toBeNull(); // injury supersedes the ordinary rest window
   });
 
   it('resolves a failed adventure: applies penalty and can injure adventurers', async () => {
@@ -200,6 +259,32 @@ describe('startAdventure', () => {
 
     const updatedAdv = await prisma.adventurer.findUniqueOrThrow({ where: { id: adventurer.id } });
     expect(updatedAdv.status).toBe('on_adventure');
+  });
+
+  it('rejects when an adventurer is still resting from a prior adventure', async () => {
+    const player = await createPlayer();
+    const adventurer = await createAdventurer({
+      employerId: player.id,
+      status: 'hired',
+      restUntil: new Date(Date.now() + 60 * 60 * 1000), // still an hour of rest left
+    });
+    const contract = await createContract({ status: 'awarded', awardedTo: player.id });
+
+    await expect(startAdventure(player.id, contract.id, [adventurer.id]))
+      .rejects.toThrow(ClaimConflictError);
+  });
+
+  it('allows deployment once a rest window has passed', async () => {
+    const player = await createPlayer();
+    const adventurer = await createAdventurer({
+      employerId: player.id,
+      status: 'hired',
+      restUntil: new Date(Date.now() - 1000), // rest already over
+    });
+    const contract = await createContract({ status: 'awarded', awardedTo: player.id });
+
+    const adventure = await startAdventure(player.id, contract.id, [adventurer.id]);
+    expect(adventure.contractId).toBe(contract.id);
   });
 
   it('rejects when the contract is not awarded to the caller', async () => {

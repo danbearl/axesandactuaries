@@ -42,6 +42,34 @@ function InjuryStatus({ recoveryUntil }: { recoveryUntil: string }) {
   );
 }
 
+function RestStatus({ restUntil }: { restUntil: string }) {
+  const [remaining, setRemaining] = useState(new Date(restUntil).getTime() - Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setRemaining(new Date(restUntil).getTime() - Date.now());
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [restUntil]);
+
+  const formatted = (() => {
+    if (remaining <= 0) return 'Rested — refresh to update';
+    const totalMin = Math.floor(remaining / 60_000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return h > 0 ? `${h}h ${m}m remaining` : `${m}m remaining`;
+  })();
+
+  return (
+    <div className="panel panel-sm" style={{ borderColor: 'var(--slate-light)' }}>
+      <div className="flex items-center gap-sm">
+        <span className="badge badge-status-resting">Resting</span>
+        <span className="label">{formatted}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function AdventurerDetail() {
   const { id } = useParams<{ id: string }>();
 
@@ -106,6 +134,10 @@ export default function AdventurerDetail() {
 
           {adventurer.status === 'injured' && adventurer.injuryRecoveryUntil && (
             <InjuryStatus recoveryUntil={adventurer.injuryRecoveryUntil} />
+          )}
+
+          {adventurer.status === 'hired' && adventurer.restUntil && new Date(adventurer.restUntil) > new Date() && (
+            <RestStatus restUntil={adventurer.restUntil} />
           )}
 
           <div className="panel">

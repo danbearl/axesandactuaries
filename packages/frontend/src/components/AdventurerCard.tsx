@@ -25,6 +25,11 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
   const title = VOCATION_TIERS[a.vocation][tierIndex];
   const xpToNext = (a.level * 100) - (a.experience % (a.level * 100));
 
+  // Resting: healthy and technically "on roster", but not yet redeployable.
+  const isResting = a.status === 'hired' && !!a.restUntil && new Date(a.restUntil) > new Date();
+  const statusLabel = isResting ? 'Resting' : STATUS_LABELS[a.status];
+  const statusBadgeClass = isResting ? 'badge-status-resting' : `badge-status-${a.status}`;
+
   if (compact) {
     return (
       <div
@@ -34,7 +39,7 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
         <div className="character-compact-left">
           <div className="character-name">{a.name}</div>
           <div className="flex gap-xs items-center mt-sm">
-            <span className={`badge badge-status-${a.status}`}>{STATUS_LABELS[a.status]}</span>
+            <span className={`badge ${statusBadgeClass}`}>{statusLabel}</span>
             <span className="badge badge-heritage">{a.heritage}</span>
             <span className="badge badge-vocation">{title}</span>
           </div>
@@ -64,7 +69,7 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
         <div>
           <h3 className="character-name-lg">{a.name}</h3>
           <div className="flex gap-xs items-center mt-sm">
-            <span className={`badge badge-status-${a.status}`}>{STATUS_LABELS[a.status]}</span>
+            <span className={`badge ${statusBadgeClass}`}>{statusLabel}</span>
             <span className="badge badge-heritage">{a.heritage}</span>
             <span className="badge badge-vocation">{title}</span>
           </div>

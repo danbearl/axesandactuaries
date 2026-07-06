@@ -76,7 +76,9 @@ router.post('/:id/hire', requireAuth, async (req, res) => {
 
   const [dormitory, rosterCount] = await Promise.all([
     prisma.property.findFirst({ where: { playerId: req.playerId, type: 'dormitory' } }),
-    prisma.adventurer.count({ where: { employerId: req.playerId, status: { not: 'dead' } } }),
+    // A dead adventurer still occupies a roster slot until the employer releases them —
+    // it doesn't just vanish, so it shouldn't be free real estate either.
+    prisma.adventurer.count({ where: { employerId: req.playerId } }),
   ]);
   const rosterCap = computeRosterCap(dormitory?.level ?? 0);
   if (rosterCount >= rosterCap) {
@@ -179,16 +181,18 @@ router.post('/:id/fire', requireAuth, async (req, res) => {
   // An injured adventurer stays injured through the release — otherwise fire-then-rehire
   // (even by a different employer) would instantly clear an injury that should still be
   // recovering. They re-enter the market pool once marketGC sees their recovery timer has
-  // actually passed, not before.
+  // actually passed, not before. A dead adventurer stays dead, full stop — release just
+  // clears them off the employer's roster without resurrecting them into the market.
   const stillInjured = adventurer.status === 'injured';
+  const stillDead = adventurer.status === 'dead';
 
   const updatedAdventurer = await prisma.$transaction(async (tx) => {
     const released = await tx.adventurer.update({
       where: { id },
       data: {
-        status:         stillInjured ? 'injured' : 'available',
+        status:         stillDead ? 'dead' : stillInjured ? 'injured' : 'available',
         employerId:     null,
-        poolExpiresAt:  stillInjured ? null : new Date(Date.now() + 48 * 60 * 60 * 1000),
+        poolExpiresAt:  (stillDead || stillInjured) ? null : new Date(Date.now() + 48 * 60 * 60 * 1000),
         wagesOwed:      0,
         daysUnpaid:     0,
         loyaltyPenalty: 0,

@@ -1,7 +1,6 @@
 import { prisma } from '../lib/prisma.js';
-import { generateAdventurer } from '@axes-actuaries/types';
-import { generateDailyContracts } from '@axes-actuaries/types';
 import { collectDailyWages, chargePropertyMaintenance } from '../services/economy.js';
+import { seedAdventurers, seedContracts } from '../services/marketSeeding.js';
 import { publish, CHANNELS } from '../lib/redis.js';
 
 const DAILY_ADVENTURER_MIN        = 15;
@@ -53,10 +52,11 @@ export async function runDailyReset(): Promise<void> {
     Math.ceil(playerCount * DAILY_ADVENTURERS_PER_PLAYER),
   );
 
-  await Promise.all([
-    seedAdventurers(now, adventurerCount),
+  const [adventurersAdded, contractsAdded] = await Promise.all([
+    seedAdventurers(adventurerCount, now),
     seedContracts(now),
   ]);
+  console.log(`[daily-reset] Added ${adventurersAdded} adventurer(s), ${contractsAdded} contract(s) to market`);
 
   publish(CHANNELS.market, 'market_update', { type: 'daily_reset' })
     .catch(() => { /* non-fatal */ });
@@ -89,41 +89,4 @@ async function expireOldContracts(now: Date): Promise<void> {
   if (result.count > 0) {
     console.log(`[daily-reset] Expired ${result.count} old contract(s)`);
   }
-}
-
-async function seedAdventurers(now: Date, count: number): Promise<void> {
-  const poolExpiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-
-  const data = Array.from({ length: count }, () => {
-    const a = generateAdventurer();
-    return {
-      name:         a.name,
-      heritage:     a.heritage,
-      vocation:     a.vocation,
-      gender:       a.gender,
-      level:        a.level,
-      experience:   a.experience,
-      powerRating:  a.powerRating,
-      stats:        a.stats       as object,
-      personality:  a.personality as object,
-      hireCost:     a.hireCost,
-      dailyWage:    a.dailyWage,
-      status:       'available'   as const,
-      height:       a.height,
-      build:        a.build,
-      complexion:   a.complexion,
-      hairColor:    a.hairColor,
-      eyeColor:     a.eyeColor,
-      poolExpiresAt,
-    };
-  });
-
-  await prisma.adventurer.createMany({ data });
-  console.log(`[daily-reset] Added ${data.length} adventurer(s) to market`);
-}
-
-async function seedContracts(now: Date): Promise<void> {
-  const contracts = generateDailyContracts(now);
-  await prisma.contract.createMany({ data: contracts });
-  console.log(`[daily-reset] Added ${contracts.length} contract(s) to market`);
 }

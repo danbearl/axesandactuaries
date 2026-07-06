@@ -49,17 +49,23 @@ export default function AdventurerMarket() {
   const hasRep      = (required: number) => required === 0 || playerRep >= required;
   const adventurers = marketData?.adventurers ?? [];
   const properties  = playerData?.properties ?? [];
-  const hired       = (playerData?.adventurers ?? []).filter(a =>
+  // Working roster — used only for the desperate-hire eligibility hint below, which cares
+  // whether the player has anyone actually able to work, not whether a corpse is still
+  // sitting on their roster awaiting release.
+  const workingAdventurers = (playerData?.adventurers ?? []).filter(a =>
     ['hired', 'on_adventure', 'injured'].includes(a.status),
   );
+  // Full roster, including the deceased — a dead adventurer still occupies a slot until
+  // the employer releases them, so it counts toward the cap.
+  const rosterCount = (playerData?.adventurers ?? []).length;
   const dormitory  = properties.find(p => p.type === 'dormitory');
   const rosterCap  = computeRosterCap(dormitory?.level ?? 0);
-  const rosterFull = hired.length >= rosterCap;
+  const rosterFull = rosterCount >= rosterCap;
   const cheapestHire = adventurers.length > 0
     ? Math.min(...adventurers.map(a => a.hireCost))
     : Infinity;
   const desperateHireAvailable =
-    hired.length === 0 && properties.length === 0 && gold < cheapestHire;
+    workingAdventurers.length === 0 && properties.length === 0 && gold < cheapestHire;
 
   const filtered = filter
     ? adventurers.filter(a =>
@@ -112,7 +118,7 @@ export default function AdventurerMarket() {
           <div className="toolbar-stat">
             <span className="label">Roster</span>
             <span className="value" style={rosterFull ? { color: 'var(--crimson)' } : undefined}>
-              {hired.length} / {rosterCap}
+              {rosterCount} / {rosterCap}
             </span>
           </div>
         </div>
@@ -127,7 +133,7 @@ export default function AdventurerMarket() {
 
       {rosterFull && (
         <div className="panel panel-sm" style={{ borderColor: 'var(--crimson)', marginBottom: '1rem' }}>
-          Your roster is full ({hired.length}/{rosterCap}). Build or upgrade a dormitory to hire more adventurers.
+          Your roster is full ({rosterCount}/{rosterCap}). Build or upgrade a dormitory to hire more adventurers.
         </div>
       )}
 

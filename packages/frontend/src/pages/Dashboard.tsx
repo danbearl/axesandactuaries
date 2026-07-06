@@ -67,7 +67,8 @@ export default function Dashboard() {
 
   const dormitory = properties.find(p => p.type === 'dormitory');
   const rosterCap = computeRosterCap(dormitory?.level ?? 0);
-  const rosterCount = hired.filter(a => a.status !== 'dead').length;
+  // A dead adventurer still occupies a roster slot until released — it doesn't just vanish.
+  const rosterCount = hired.length;
 
   const toggleAdventurer = (id: string) => {
     setSelectedAdventurerIds(prev =>
@@ -110,7 +111,8 @@ export default function Dashboard() {
               {hiredAdventurers.length} available ·{' '}
               {hired.filter(a => a.status === 'hired' && !isDeployable(a)).length} resting ·{' '}
               {hired.filter(a => a.status === 'on_adventure').length} deployed ·{' '}
-              {hired.filter(a => a.status === 'injured').length} injured
+              {hired.filter(a => a.status === 'injured').length} injured ·{' '}
+              {hired.filter(a => a.status === 'dead').length} deceased
             </span>
           </div>
         </div>

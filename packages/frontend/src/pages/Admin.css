@@ -39,3 +39,17 @@
   color:     var(--crimson);
   font-size: 0.85rem;
 }
+
+.admin-roster-table {
+  width:           100%;
+  border-collapse: collapse;
+  font-size:       0.9rem;
+}
+.admin-roster-table thead tr { border-bottom: 2px solid var(--parchment-dark); }
+.admin-roster-table th {
+  padding:     0.4rem 0.6rem;
+  text-align:  left;
+  font-family: var(--font-heading);
+}
+.admin-roster-table tr:not(:last-child) { border-bottom: 1px solid var(--parchment-dark); }
+.admin-roster-table td { padding: 0.5rem 0.6rem; vertical-align: middle; }

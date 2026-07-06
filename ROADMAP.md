@@ -431,6 +431,59 @@ open to a small trusted player pool (Phase 0 below).
   since the prior single test only exercised the unemployed path while asserting the
   employed-path outcome — a latent gap the fix exposed) and verified end-to-end in a real
   browser.
+- [x] Fixed dead-adventurer resurrection + roster-cap undercounting (2026-07-06) — same root
+  cause as the injury exploit above, discovered by the user immediately after that fix
+  shipped: the fire route's status-reset logic didn't account for `dead` either, so releasing
+  a dead adventurer reset them to `available` — fully alive again, reappearing in the market
+  and rehireable by anyone. Separately, a dead adventurer sitting on a roster (not yet
+  released) didn't count toward the roster cap in any of the three places that check it,
+  even though it's still visibly occupying a roster slot until the employer releases it.
+  Fixed both: `routes/adventurers.ts`'s fire route now keeps `status: 'dead'` (alongside the
+  existing `injured`-preserving branch) when releasing a dead adventurer — release still
+  works (clears them off the roster, pays any lingering severance), it just can't resurrect
+  them. Roster-cap counting in the hire route, `Dashboard.tsx`, and `AdventurerMarket.tsx`
+  dropped their `status !== 'dead'` exclusion — a dead adventurer now counts until released,
+  same as an injured or resting one. `AdventurerMarket.tsx` needed splitting what had been
+  one `hired` variable into two: `rosterCount` (all employed adventurers, dead included, for
+  the cap) and `workingAdventurers` (excludes dead, for the desperate-hire eligibility hint —
+  a player whose only adventurer just died should still qualify for the free bootstrap hire,
+  regardless of whether they've cleaned up the corpse yet; this matches
+  `services/bootstrap.ts`'s own `getBootstrapStatus`, which already excluded `dead` correctly
+  and was left untouched). Also added a "deceased" count to the Dashboard's roster
+  breakdown line, since the sub-counts (available/resting/deployed/injured) no longer summed
+  to the roster total without it. Not unit-tested — same as the injury-exploit fix's route
+  half, this logic lives directly in the fire route rather than an extracted service, and no
+  HTTP route-level tests exist anywhere in this suite; there's no equivalent to the injury
+  fix's `marketGC` recovery-sweep half here, since dead is terminal and never has anything to
+  recover into. Verified end-to-end in a real browser.
+- [x] Admin: Clear Adventurer Status tool (2026-07-06) — added at the user's request, to make
+  manually testing injury/rest/death states (and the fixes above) faster without waiting out
+  real timers or engineering a specific outcome via the RNG. New `GET /api/v1/admin/players/
+  :id/adventurers` (a player's full roster, any status) and `POST /api/v1/admin/adventurers/
+  :id/clear-status`, which forces an adventurer back to a clean working state — `hired` if
+  still employed, `available` if not — clearing `injuryRecoveryUntil`, `restUntil`,
+  `wagesOwed`, `daysUnpaid`, and `loyaltyPenalty` in one shot, bypassing recovery timers (and,
+  for a dead adventurer, permanence itself) entirely. Deliberately unrestricted for
+  `on_adventure` adventurers too, unlike the player-facing fire route — this is an
+  admin-only override tool, not something subject to the same guardrails as normal play.
+  New third panel on the **Admin** page: pick a player, see their full roster with status
+  badges, "Clear Status" per row. Verified end-to-end in a real browser. **Follow-up**: the
+  roster table initially showed resting adventurers as plain "hired" (indistinguishable from
+  a genuinely clear one), since "resting" isn't a real status value — it's `status: 'hired'`
+  plus a future `restUntil`. Fixed by computing the same `isResting` check `AdventurerCard.tsx`
+  already uses and showing a distinct "resting" badge.
+- [x] Admin: Seed Market tool (2026-07-06) — added at the user's request, after confirming
+  `pnpm db:seed` (`prisma/seed.ts`) is destructive (wipes the available adventurer/contract
+  pool before regenerating) and thus unsafe to run against a live database just to top up the
+  market. The daily-reset worker already had purely-additive seeding logic
+  (`workers/dailyReset.ts`'s old `seedAdventurers`/`seedContracts`, just `createMany`, no
+  deletion) but it wasn't callable except from its own midnight-UTC cron. Extracted both into
+  a new shared `services/marketSeeding.ts` (mirrors the same "extract for reuse" move as
+  `services/adventure.ts`), which `workers/dailyReset.ts` now calls instead of duplicating the
+  field-mapping logic. New `POST /api/v1/admin/contracts/seed` (adds one daily batch — 5
+  errand, 8 standard, 5 dangerous, 2 legendary, same distribution as the real daily reset)
+  and `POST /api/v1/admin/adventurers/seed` (adds a specified count, 1–100). New fourth panel
+  on the **Admin** page. Verified end-to-end in a real browser.
 - Infamous/antagonistic guild content (2026-07-06, user's idea, captured for later — no
   scoping done) — since reputation can go negative and stay there, that opens design space
   for content aimed at "infamous" guilds unburdened by a sense of honor: unsavory or

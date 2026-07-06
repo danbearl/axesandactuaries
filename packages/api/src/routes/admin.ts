@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { prisma } from '../lib/prisma.js';
 import { resolveAdventure } from '../services/adventure.js';
+import { seedAdventurers, seedContracts } from '../services/marketSeeding.js';
 
 const router = Router();
 router.use(requireAuth, requireAdmin);
@@ -64,6 +65,42 @@ router.patch('/players/:id', async (req, res) => {
   res.json({ player });
 });
 
+// GET /api/v1/admin/players/:id/adventurers
+// A player's full roster (any status) — for picking who to reset in the clear-status tool.
+router.get('/players/:id/adventurers', async (req, res) => {
+  const adventurers = await prisma.adventurer.findMany({
+    where: { employerId: req.params.id },
+    orderBy: { createdAt: 'asc' },
+  });
+  res.json({ adventurers });
+});
+
+// POST /api/v1/admin/adventurers/:id/clear-status
+// Testing convenience: forces an adventurer out of injured/resting/dead back to a clean
+// working state, bypassing the normal recovery timers and (for dead) permanence entirely.
+router.post('/adventurers/:id/clear-status', async (req, res) => {
+  const adventurer = await prisma.adventurer.findUnique({ where: { id: req.params.id } });
+  if (!adventurer) {
+    res.status(404).json({ error: 'Adventurer not found' });
+    return;
+  }
+
+  const updated = await prisma.adventurer.update({
+    where: { id: req.params.id },
+    data: {
+      status:              adventurer.employerId ? 'hired' : 'available',
+      injuryRecoveryUntil: null,
+      restUntil:           null,
+      wagesOwed:           0,
+      daysUnpaid:          0,
+      loyaltyPenalty:      0,
+      poolExpiresAt:       adventurer.employerId ? adventurer.poolExpiresAt : new Date(Date.now() + 48 * 60 * 60 * 1000),
+    },
+  });
+
+  res.json({ adventurer: updated });
+});
+
 // GET /api/v1/admin/adventures?status=in_progress
 router.get('/adventures', async (req, res) => {
   const status = (typeof req.query.status === 'string' ? req.query.status : 'in_progress') as AdventureStatus;
@@ -99,6 +136,30 @@ router.post('/adventures/:id/resolve', async (req, res) => {
     return;
   }
   res.json({ adventure });
+});
+
+const SeedAdventurersBody = z.object({ count: z.number().int().min(1).max(100) });
+
+// POST /api/v1/admin/adventurers/seed
+// Adds new available adventurers to the market without touching anything already there —
+// unlike `pnpm db:seed`, which wipes the available pool first and is meant for a fresh
+// dev/local database, not topping up a live one.
+router.post('/adventurers/seed', async (req, res) => {
+  const parsed = SeedAdventurersBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const added = await seedAdventurers(parsed.data.count);
+  res.json({ added });
+});
+
+// POST /api/v1/admin/contracts/seed
+// Adds one daily batch of contracts (5 errand, 8 standard, 5 dangerous, 2 legendary) without
+// touching anything already on the market.
+router.post('/contracts/seed', async (_req, res) => {
+  const added = await seedContracts();
+  res.json({ added });
 });
 
 export default router;

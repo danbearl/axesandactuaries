@@ -121,6 +121,19 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ outcome }),
       }),
+    playerAdventurers: (playerId: string) =>
+      request<{ adventurers: AdventurerResponse[] }>(`/admin/players/${playerId}/adventurers`),
+    clearAdventurerStatus: (id: string) =>
+      request<{ adventurer: AdventurerResponse }>(`/admin/adventurers/${id}/clear-status`, {
+        method: 'POST',
+      }),
+    seedAdventurers: (count: number) =>
+      request<{ added: number }>('/admin/adventurers/seed', {
+        method: 'POST',
+        body: JSON.stringify({ count }),
+      }),
+    seedContracts: () =>
+      request<{ added: number }>('/admin/contracts/seed', { method: 'POST' }),
   },
   leaderboard: {
     get: () => request<LeaderboardResponse>('/leaderboard'),

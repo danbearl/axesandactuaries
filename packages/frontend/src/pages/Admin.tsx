@@ -56,6 +56,40 @@ export default function Admin() {
     setReputation(p ? String(p.reputation) : '');
   }
 
+  // ── Clear adventurer status ────────────────────────────────────────────────
+  const [rosterPlayerId, setRosterPlayerId] = useState('');
+  const { data: rosterData, isLoading: rosterLoading } = useQuery({
+    queryKey: ['admin', 'players', rosterPlayerId, 'adventurers'],
+    queryFn: () => api.admin.playerAdventurers(rosterPlayerId),
+    enabled: !!rosterPlayerId,
+  });
+  const roster = rosterData?.adventurers ?? [];
+
+  const clearStatusMutation = useMutation({
+    mutationFn: (adventurerId: string) => api.admin.clearAdventurerStatus(adventurerId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'players', rosterPlayerId, 'adventurers'] });
+      queryClient.invalidateQueries({ queryKey: ['player'] });
+    },
+  });
+
+  // ── Seed market ────────────────────────────────────────────────────────────
+  const [seedAdventurerCount, setSeedAdventurerCount] = useState('10');
+
+  const seedContractsMutation = useMutation({
+    mutationFn: () => api.admin.seedContracts(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contracts'] });
+    },
+  });
+
+  const seedAdventurersMutation = useMutation({
+    mutationFn: () => api.admin.seedAdventurers(Number(seedAdventurerCount) || 1),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adventurers'] });
+    },
+  });
+
   return (
     <div className="admin-page">
       <div className="page-header">
@@ -142,6 +176,126 @@ export default function Admin() {
 
         {!playersLoading && players.length === 0 && (
           <div className="empty-state mt-sm">No players found.</div>
+        )}
+      </section>
+
+      <section className="panel mt-md">
+        <h2>Clear Adventurer Status</h2>
+        <hr className="divider" />
+        <p className="label mt-sm">
+          Resets an adventurer out of injured/resting/dead into a clean working state —
+          bypasses recovery timers entirely, for testing.
+        </p>
+        <div className="admin-field mt-md">
+          <span className="label">Player</span>
+          <select value={rosterPlayerId} onChange={e => setRosterPlayerId(e.target.value)}>
+            <option value="">Select a player…</option>
+            {players.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.username}{p.guildName ? ` (${p.guildName})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {rosterPlayerId && (
+          rosterLoading ? (
+            <div className="empty-state mt-sm">Loading roster…</div>
+          ) : roster.length === 0 ? (
+            <div className="empty-state mt-sm">This player has no adventurers.</div>
+          ) : (
+            <table className="admin-roster-table mt-md">
+              <thead>
+                <tr>
+                  <th className="label">Name</th>
+                  <th className="label">Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {roster.map(adv => {
+                  // "Resting" isn't its own status value — it's status='hired' plus a
+                  // future restUntil — so without this check every resting adventurer
+                  // shows as plain "hired", indistinguishable from a genuinely clear one.
+                  const isResting = adv.status === 'hired' && !!adv.restUntil && new Date(adv.restUntil) > new Date();
+                  const statusLabel = isResting ? 'resting' : adv.status;
+                  const statusBadgeClass = isResting ? 'badge-status-resting' : `badge-status-${adv.status}`;
+                  return (
+                  <tr key={adv.id}>
+                    <td>{adv.name}</td>
+                    <td><span className={`badge ${statusBadgeClass}`}>{statusLabel}</span></td>
+                    <td className="text-right">
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        disabled={clearStatusMutation.isPending}
+                        onClick={() => clearStatusMutation.mutate(adv.id)}
+                      >
+                        Clear Status
+                      </button>
+                    </td>
+                  </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )
+        )}
+        {clearStatusMutation.isError && (
+          <div className="admin-error mt-sm">Failed to clear status.</div>
+        )}
+      </section>
+
+      <section className="panel mt-md">
+        <h2>Seed Market</h2>
+        <hr className="divider" />
+        <p className="label mt-sm">
+          Adds new listings without touching anything already on the market — safe to run
+          against a live database, unlike <code>pnpm db:seed</code>.
+        </p>
+
+        <div className="admin-actions mt-md">
+          <button
+            className="btn btn-primary"
+            disabled={seedContractsMutation.isPending}
+            onClick={() => seedContractsMutation.mutate()}
+          >
+            {seedContractsMutation.isPending ? 'Seeding…' : 'Seed Contracts'}
+          </button>
+          <span className="label">5 errand, 8 standard, 5 dangerous, 2 legendary</span>
+          {seedContractsMutation.isSuccess && (
+            <span className="currency positive">Added {seedContractsMutation.data.added}.</span>
+          )}
+        </div>
+        {seedContractsMutation.isError && (
+          <div className="admin-error mt-sm">Failed to seed contracts.</div>
+        )}
+
+        <div className="admin-field-row mt-md">
+          <label className="admin-field">
+            <span className="label">Adventurer Count</span>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={seedAdventurerCount}
+              onChange={e => setSeedAdventurerCount(e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="admin-actions mt-md">
+          <button
+            className="btn btn-primary"
+            disabled={seedAdventurersMutation.isPending}
+            onClick={() => seedAdventurersMutation.mutate()}
+          >
+            {seedAdventurersMutation.isPending ? 'Seeding…' : 'Seed Adventurers'}
+          </button>
+          {seedAdventurersMutation.isSuccess && (
+            <span className="currency positive">Added {seedAdventurersMutation.data.added}.</span>
+          )}
+        </div>
+        {seedAdventurersMutation.isError && (
+          <div className="admin-error mt-sm">Failed to seed adventurers.</div>
         )}
       </section>
     </div>

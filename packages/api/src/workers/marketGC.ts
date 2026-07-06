@@ -53,26 +53,42 @@ export async function runMarketGC(): Promise<void> {
     data:  { status: 'expired' },
   });
 
-  // Release injured adventurers who have recovered.
-  const recovered = await prisma.adventurer.updateMany({
+  // Release injured adventurers who have recovered — still employed ones return to duty;
+  // ones released (fired) while injured re-enter the open market instead, since they have
+  // no employer to return to. Split into two updates since the target status differs.
+  const recoveredEmployed = await prisma.adventurer.updateMany({
     where: {
       status:              'injured',
       injuryRecoveryUntil: { lte: now },
+      employerId:          { not: null },
     },
     data: { status: 'hired', injuryRecoveryUntil: null },
   });
+  const recoveredUnemployed = await prisma.adventurer.updateMany({
+    where: {
+      status:              'injured',
+      injuryRecoveryUntil: { lte: now },
+      employerId:          null,
+    },
+    data: {
+      status:              'available',
+      injuryRecoveryUntil: null,
+      poolExpiresAt:       new Date(now.getTime() + 48 * 60 * 60 * 1000),
+    },
+  });
+  const recoveredCount = recoveredEmployed.count + recoveredUnemployed.count;
 
-  const total = awarded + bidExpiredCount + marketExpired.count + recovered.count;
+  const total = awarded + bidExpiredCount + marketExpired.count + recoveredCount;
   if (total > 0) {
     console.log(
       `[market-gc] Awarded ${awarded} bid contract(s), expired ${bidExpiredCount + marketExpired.count} contract(s), ` +
-      `recovered ${recovered.count} adventurer(s)`,
+      `recovered ${recoveredCount} adventurer(s)`,
     );
     publish(CHANNELS.market, 'market_update', {
       type:      'gc',
       awarded,
       contracts: bidExpiredCount + marketExpired.count,
-      recovered: recovered.count,
+      recovered: recoveredCount,
     }).catch(() => {});
   }
 }

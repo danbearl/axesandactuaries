@@ -176,13 +176,19 @@ router.post('/:id/fire', requireAuth, async (req, res) => {
   // Gold is floored at zero — the employer eats any shortfall.
   const severancePaid = Math.min(adventurer.wagesOwed, player.gold);
 
+  // An injured adventurer stays injured through the release — otherwise fire-then-rehire
+  // (even by a different employer) would instantly clear an injury that should still be
+  // recovering. They re-enter the market pool once marketGC sees their recovery timer has
+  // actually passed, not before.
+  const stillInjured = adventurer.status === 'injured';
+
   const updatedAdventurer = await prisma.$transaction(async (tx) => {
     const released = await tx.adventurer.update({
       where: { id },
       data: {
-        status:         'available',
+        status:         stillInjured ? 'injured' : 'available',
         employerId:     null,
-        poolExpiresAt:  new Date(Date.now() + 48 * 60 * 60 * 1000),
+        poolExpiresAt:  stillInjured ? null : new Date(Date.now() + 48 * 60 * 60 * 1000),
         wagesOwed:      0,
         daysUnpaid:     0,
         loyaltyPenalty: 0,

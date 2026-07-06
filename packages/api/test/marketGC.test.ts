@@ -70,8 +70,10 @@ describe('runMarketGC', () => {
     expect(available.status).toBe('available');
   });
 
-  it('releases injured adventurers whose recovery time has passed', async () => {
+  it('returns a still-employed recovered adventurer to duty', async () => {
+    const player = await createPlayer();
     const adv = await createAdventurer({
+      employerId: player.id,
       status: 'injured',
       injuryRecoveryUntil: past(1000),
     });
@@ -81,5 +83,22 @@ describe('runMarketGC', () => {
     const updated = await prisma.adventurer.findUniqueOrThrow({ where: { id: adv.id } });
     expect(updated.status).toBe('hired');
     expect(updated.injuryRecoveryUntil).toBeNull();
+  });
+
+  it('returns an unemployed recovered adventurer to the open market, not "hired"', async () => {
+    // Reachable by firing an adventurer while they're injured — they have no employer to
+    // return to, so recovery should land them back in the market pool instead.
+    const adv = await createAdventurer({
+      employerId: null,
+      status: 'injured',
+      injuryRecoveryUntil: past(1000),
+    });
+
+    await runMarketGC();
+
+    const updated = await prisma.adventurer.findUniqueOrThrow({ where: { id: adv.id } });
+    expect(updated.status).toBe('available');
+    expect(updated.injuryRecoveryUntil).toBeNull();
+    expect(updated.poolExpiresAt).not.toBeNull();
   });
 });

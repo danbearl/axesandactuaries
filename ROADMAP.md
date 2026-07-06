@@ -411,6 +411,26 @@ open to a small trusted player pool (Phase 0 below).
   go negative permanently rather than flooring it at 0 — negative reputation remains a real,
   meaningful state (this fix just guarantees it can never fully lock a player out), which
   leaves room for the idea below rather than closing it off.
+- [x] Fixed fire-then-rehire injury exploit (2026-07-06) — firing an injured adventurer
+  unconditionally reset their status to `available`, clearing the injury entirely; the same
+  or a different player could then immediately rehire them fully healed, bypassing the
+  recovery timer for free. (Notably, injured adventurers already cost no daily wage —
+  `services/economy.ts`'s `collectDailyWages` only charges `hired`/`on_adventure` — so there
+  was no legitimate "cut my losses" reason to fire one early; the only reason to do it at all
+  was this exploit.) Fixed in `routes/adventurers.ts`'s fire route: releasing an adventurer
+  who is currently `injured` now keeps their status as `injured` (and leaves `poolExpiresAt`
+  null) instead of resetting to `available` — they simply have no employer in the meantime.
+  This meant `workers/marketGC.ts`'s recovery sweep (which previously assumed a recovered
+  injured adventurer was always still employed, unconditionally setting `status: 'hired'`)
+  needed splitting into two branches: still-employed recovers to `hired` as before;
+  unemployed (fired while injured) recovers to `available` with a fresh `poolExpiresAt`,
+  re-entering the open market only once actually healed. Firing an injured adventurer to
+  free a roster slot remains possible (a legitimate roster-cap-management tradeoff) — the
+  fix is specifically that doing so can no longer shortcut their recovery. Test-covered in
+  `test/marketGC.test.ts` (split the existing recovery test into employed/unemployed cases,
+  since the prior single test only exercised the unemployed path while asserting the
+  employed-path outcome — a latent gap the fix exposed) and verified end-to-end in a real
+  browser.
 - Infamous/antagonistic guild content (2026-07-06, user's idea, captured for later — no
   scoping done) — since reputation can go negative and stay there, that opens design space
   for content aimed at "infamous" guilds unburdened by a sense of honor: unsavory or

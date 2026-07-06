@@ -11,6 +11,7 @@ const REASON_LABELS: Record<string, string> = {
   property_maintenance: 'Maintenance',
   penalty:              'Penalty',
   starting_gold:        'Starting Capital',
+  admin_adjustment:     'Admin Adjustment',
 };
 
 export default function Transactions() {

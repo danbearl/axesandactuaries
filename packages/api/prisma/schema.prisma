@@ -60,6 +60,7 @@ enum TransactionReason {
   penalty
   debt_forgiven
   starting_gold
+  admin_adjustment
 }
 
 // ── Models ────────────────────────────────────────────────────────────────────
@@ -69,6 +70,7 @@ model Player {
   clerkUserId   String    @unique @map("clerk_user_id")
   username      String    @unique
   guildName     String?   @map("guild_name")
+  isAdmin       Boolean   @default(false) @map("is_admin")
   gold          Int       @default(500)
   reputation    Int       @default(0)
   lastWelfareAt DateTime? @map("last_welfare_at")

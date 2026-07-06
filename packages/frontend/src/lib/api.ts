@@ -107,6 +107,21 @@ export const api = {
     list: () => request<{ pages: WikiPageSummary[] }>('/wiki'),
     get: (slug: string) => request<{ page: WikiPageResponse }>(`/wiki/${slug}`),
   },
+  admin: {
+    players: () => request<{ players: AdminPlayerSummary[] }>('/admin/players'),
+    adjustPlayer: (id: string, data: { gold?: number; reputation?: number }) =>
+      request<{ player: PlayerResponse }>(`/admin/players/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    adventures: (status = 'in_progress') =>
+      request<{ adventures: AdminAdventureSummary[] }>(`/admin/adventures?status=${status}`),
+    resolveAdventure: (id: string, outcome: 'success' | 'failure') =>
+      request<{ adventure: AdventureResponse }>(`/admin/adventures/${id}/resolve`, {
+        method: 'POST',
+        body: JSON.stringify({ outcome }),
+      }),
+  },
 };
 
 // ── Response types (mirror the DB shapes returned by the API) ─────────────────
@@ -116,6 +131,7 @@ export interface PlayerResponse {
   clerkUserId: string;
   username: string;
   guildName: string | null;
+  isAdmin: boolean;
   gold: number;
   reputation: number;
   createdAt: string;
@@ -282,4 +298,20 @@ export interface WikiPageResponse extends WikiPageSummary {
   body: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AdminPlayerSummary {
+  id: string;
+  username: string;
+  guildName: string | null;
+  gold: number;
+  reputation: number;
+}
+
+export interface AdminAdventureSummary {
+  id: string;
+  status: string;
+  completesAt: string;
+  contract: { title: string };
+  player: { id: string; username: string };
 }

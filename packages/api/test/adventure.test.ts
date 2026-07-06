@@ -63,6 +63,21 @@ describe('resolveAdventure', () => {
     expect(result?.status).toBe('in_progress');
   });
 
+  it('forceOutcome bypasses both the completesAt gate and the success-chance roll', async () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.01) // outcomeRoll — would normally mean success, but is ignored
+      .mockReturnValueOnce(0.99); // injuryRoll — above injuryChance, so no injury
+
+    const { adventure } = await seedAdventure({
+      requiredPower: 50, rewardGold: 300, reputationReward: 3,
+      penaltyGold: 90, penaltyReputation: 1,
+      completesAt: new Date(Date.now() + 60 * 60 * 1000), // an hour from now — normally a no-op
+    });
+
+    const result = await resolveAdventure(adventure.id, { forceOutcome: 'failure' });
+    expect(result?.status).toBe('failed');
+  });
+
   it('resolves a successful adventure: pays reward, grants xp and reputation', async () => {
     vi.spyOn(Math, 'random')
       .mockReturnValueOnce(0.1)  // outcomeRoll — well below successChance (0.8)

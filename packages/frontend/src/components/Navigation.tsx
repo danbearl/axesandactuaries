@@ -4,7 +4,7 @@ import { useClerk } from '@clerk/react';
 import './Navigation.css';
 
 interface Props {
-  player: { username: string; gold: number; reputation: number };
+  player: { username: string; gold: number; reputation: number; isAdmin: boolean };
 }
 
 export default function Navigation({ player }: Props) {
@@ -123,6 +123,14 @@ export default function Navigation({ player }: Props) {
             Wiki
           </NavLink>
         </li>
+        {player.isAdmin && (
+          <li>
+            <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              <span className="nav-icon">🛠</span>
+              Admin
+            </NavLink>
+          </li>
+        )}
       </ul>
 
       <div className="nav-footer">

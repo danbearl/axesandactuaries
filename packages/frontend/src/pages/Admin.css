@@ -1,0 +1,41 @@
+.admin-page { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.admin-field {
+  display:        flex;
+  flex-direction: column;
+  gap:            0.35rem;
+  max-width:      360px;
+}
+
+.admin-field-row {
+  display: flex;
+  gap:     1rem;
+}
+.admin-field-row .admin-field { max-width: 160px; }
+
+.admin-field select,
+.admin-field input {
+  font-family:   var(--font-body);
+  font-size:     0.95rem;
+  padding:       0.5rem 0.65rem;
+  border:        1px solid var(--parchment-dark);
+  border-radius: var(--radius);
+  background:    var(--parchment);
+  color:         var(--ink);
+}
+.admin-field select:focus,
+.admin-field input:focus {
+  outline:      none;
+  border-color: var(--gold-dark);
+}
+
+.admin-actions {
+  display:     flex;
+  align-items: center;
+  gap:         0.75rem;
+}
+
+.admin-error {
+  color:     var(--crimson);
+  font-size: 0.85rem;
+}

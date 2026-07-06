@@ -82,7 +82,14 @@ async function computePartyPower(
 
 // Resolves an in-progress adventure whose completesAt has passed.
 // Safe to call multiple times — returns early if already resolved.
-export async function resolveAdventure(adventureId: string) {
+//
+// `forceOutcome` is admin-only tooling (see routes/admin.ts): it bypasses both the
+// completesAt gate and the success-chance roll, but injury/death/XP rolls still run
+// normally against whatever outcome was forced.
+export async function resolveAdventure(
+  adventureId: string,
+  opts?: { forceOutcome?: 'success' | 'failure' },
+) {
   const adventure = await prisma.adventure.findUnique({
     where: { id: adventureId },
     include: {
@@ -92,7 +99,7 @@ export async function resolveAdventure(adventureId: string) {
   });
 
   if (!adventure || adventure.status !== 'in_progress') return adventure;
-  if (adventure.completesAt > new Date()) return adventure;
+  if (!opts?.forceOutcome && adventure.completesAt > new Date()) return adventure;
 
   const partyPower = await computePartyPower(
     adventure.adventurers.map((aa) => aa.adventurerId),
@@ -102,7 +109,7 @@ export async function resolveAdventure(adventureId: string) {
   const outcomeRoll = Math.random();
   const ratio = partyPower / adventure.contract.requiredPower;
   const successChance = Math.min(0.9, 0.3 + ratio * 0.5);
-  const success = outcomeRoll < successChance;
+  const success = opts?.forceOutcome ? opts.forceOutcome === 'success' : outcomeRoll < successChance;
 
   const infirmaryLevel = (
     await prisma.property.findFirst({

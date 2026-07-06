@@ -257,7 +257,8 @@ export type TransactionReason =
   | 'property_maintenance'
   | 'penalty'
   | 'debt_forgiven'
-  | 'starting_gold';
+  | 'starting_gold'
+  | 'admin_adjustment';
 
 export interface Transaction {
   id:          string;

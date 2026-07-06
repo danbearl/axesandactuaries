@@ -15,6 +15,7 @@ import Transactions from './pages/Transactions.tsx';
 import Profile from './pages/Profile.tsx';
 import Wiki from './pages/Wiki.tsx';
 import Onboarding from './pages/Onboarding.tsx';
+import Admin from './pages/Admin.tsx';
 import { api } from './lib/api.ts';
 
 function AuthenticatedApp() {
@@ -74,6 +75,7 @@ function AuthenticatedApp() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/wiki" element={<Wiki />} />
           <Route path="/wiki/:slug" element={<Wiki />} />
+          {data.player.isAdmin && <Route path="/admin" element={<Admin />} />}
         </Routes>
       </main>
     </div>

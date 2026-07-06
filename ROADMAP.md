@@ -224,13 +224,27 @@ open to a small trusted player pool (Phase 0 below).
   intended to be run once against the production `DATABASE_URL` after the `wiki_pages`
   table exists there (created automatically by the `release_command`'s `prisma migrate
   deploy`, but not seeded automatically). Verified end-to-end in a real browser.
-- New player onboarding (2026-07-05) — a first-login page prompting for a user handle and
-  guild name. This replaces the current silent behavior in `routes/auth.ts`, which
-  auto-generates `username` from Clerk profile data with no prompt at all today, and needs
-  a new `guildName` field added to the `Player` model (schema migration) — there's no
-  "guild name" concept in the schema yet, only `username`. **Scope for this phase is just
-  the handle/guild-name prompt.** The rest of the onboarding vision has real dependencies on
-  work that hasn't landed yet, so it's deliberately not bundled in now:
+- [x] New player onboarding (2026-07-06) — a first-login page prompting for a user handle
+  and guild name. New nullable `guildName` field on `Player`; its absence is what gates the
+  app into the onboarding form (in `App.tsx`, checked right after `player.me()` loads,
+  before `Navigation`/routes render), which also means every player who signed up before
+  this feature existed hits the prompt once retroactively — an intentional, low-cost way to
+  backfill guild names without a separate migration/backfill script. `auth.ts`'s existing
+  `/sync` route is unchanged and still auto-creates a placeholder `username` on first login
+  (so the player row + starting-gold transaction exist immediately); the new `PATCH
+  /api/v1/player/onboarding` route (`player.ts`) is what actually lets the player set their
+  real handle and guild name, validated for length and safe characters via a shared
+  `NAME_PATTERN` regex, with a username-uniqueness check excluding the player's own row.
+  `Onboarding.tsx` pre-fills the handle field with that placeholder (editable) and requires
+  a guild name; on submit it invalidates the `['player']` query, which naturally drops the
+  player into the normal app once `guildName` is set. Not unit-tested — consistent with this
+  codebase's convention of no HTTP route-level tests anywhere in the suite (only
+  service-layer logic gets Vitest coverage); this route is a thin validate-then-update, same
+  tier as `/me`/`/transactions`/`/wiki`. Verified end-to-end in a real browser, including
+  against a pre-existing player account hitting the retroactive prompt.
+  **Scope for this phase is just the handle/guild-name prompt.** The rest of the onboarding
+  vision has real dependencies on work that hasn't landed yet, so it's deliberately not
+  bundled in now:
   - *Initial customizations* — blocked on Beta Phase 3 (Player Customization); there's no
     cosmetics/avatar infrastructure to customize yet.
   - *UI walkthrough* — sequence toward the end of this phase, after Sign Out relocation and

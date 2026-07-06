@@ -13,6 +13,7 @@ import AdventurerDetail from './pages/AdventurerDetail.tsx';
 import Transactions from './pages/Transactions.tsx';
 import Profile from './pages/Profile.tsx';
 import Wiki from './pages/Wiki.tsx';
+import Onboarding from './pages/Onboarding.tsx';
 import { api } from './lib/api.ts';
 
 function AuthenticatedApp() {
@@ -49,6 +50,12 @@ function AuthenticatedApp() {
   }
 
   if (!data) return null;
+
+  // First login (or a pre-existing player who predates this feature): gate the whole app
+  // behind picking a handle and guild name before showing the nav/dashboard.
+  if (!data.player.guildName) {
+    return <Onboarding player={data.player} />;
+  }
 
   return (
     <div className="app-shell">

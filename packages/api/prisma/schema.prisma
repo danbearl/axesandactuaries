@@ -68,6 +68,7 @@ model Player {
   id            String    @id @default(cuid())
   clerkUserId   String    @unique @map("clerk_user_id")
   username      String    @unique
+  guildName     String?   @map("guild_name")
   gold          Int       @default(500)
   reputation    Int       @default(0)
   lastWelfareAt DateTime? @map("last_welfare_at")

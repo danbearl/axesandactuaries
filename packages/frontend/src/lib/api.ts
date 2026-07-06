@@ -48,6 +48,11 @@ export const api = {
   player: {
     me: () => request<PlayerMeResponse>('/player/me'),
     profile: () => request<PlayerProfileResponse>('/player/profile'),
+    completeOnboarding: (username: string, guildName: string) =>
+      request<{ player: PlayerResponse }>('/player/onboarding', {
+        method: 'PATCH',
+        body: JSON.stringify({ username, guildName }),
+      }),
   },
   adventurers: {
     market: () => request<{ adventurers: AdventurerResponse[] }>('/adventurers/market'),
@@ -108,6 +113,7 @@ export interface PlayerResponse {
   id: string;
   clerkUserId: string;
   username: string;
+  guildName: string | null;
   gold: number;
   reputation: number;
   createdAt: string;

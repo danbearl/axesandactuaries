@@ -1,0 +1,40 @@
+.onboarding-shell {
+  display:         flex;
+  justify-content: center;
+  align-items:     center;
+  min-height:      100vh;
+  padding:         2rem;
+  background:      var(--parchment-dark);
+}
+
+.onboarding-panel {
+  width:     100%;
+  max-width: 420px;
+}
+
+.onboarding-field {
+  display:        flex;
+  flex-direction: column;
+  gap:            0.35rem;
+  margin-bottom:  1rem;
+}
+
+.onboarding-field input {
+  font-family:   var(--font-body);
+  font-size:     0.95rem;
+  padding:       0.55rem 0.7rem;
+  border:        1px solid var(--parchment-dark);
+  border-radius: var(--radius);
+  background:    var(--parchment);
+  color:         var(--ink);
+}
+.onboarding-field input:focus {
+  outline:      none;
+  border-color: var(--gold-dark);
+}
+
+.onboarding-error {
+  color:         var(--crimson);
+  font-size:     0.85rem;
+  margin-bottom: 0.75rem;
+}

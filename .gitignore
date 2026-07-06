@@ -5,6 +5,9 @@ dist
 *.tsbuildinfo
 .claude
 
+# Generated from ROADMAP.md via `pnpm roadmap:board` — not a source file
+roadmap-board.html
+
 # Logs
 *.log
 npm-debug.log*

@@ -17,7 +17,8 @@
     "db:test:migrate": "pnpm --filter @axes-actuaries/api db:test:migrate",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
-    "db:seed": "pnpm --filter @axes-actuaries/api db:seed"
+    "db:seed": "pnpm --filter @axes-actuaries/api db:seed",
+    "roadmap:board": "node scripts/generate-roadmap-board.mjs"
   },
   "engines": {
     "node": ">=22.0.0",

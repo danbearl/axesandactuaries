@@ -298,6 +298,23 @@ open to a small trusted player pool (Phase 0 below).
   adventures, and adjust any player's gold/reputation by username. Verified end-to-end in a
   real browser in both local dev and production (including promoting the production user
   via the Neon console directly).
+- Announcements / newsletter feature (2026-07-06) — lets an admin publish game updates,
+  balance changes, and general announcements that all players see in-game, rather than
+  relying on out-of-band channels. Natural fit once scoped: reuse the existing `isAdmin`
+  flag and Admin panel (`routes/admin.ts` / `pages/Admin.tsx`) for authoring, the same way
+  the admin testing toolkit does — no need to wait for the full Gate-phase Admin/Moderator
+  roles system just to let the one admin post updates. Likely a freeform, Markdown-rendered
+  content model similar to the Wiki feature (`react-markdown` is already a frontend
+  dependency), but feed-style (reverse-chronological, timestamped entries) rather than the
+  Wiki's static reference pages. Open questions to resolve when this gets scoped for real:
+  - Read/unread tracking per player, or just a simple public feed everyone sees the same way?
+  - Should posting a new announcement push a real-time notification via the existing SSE
+    infrastructure (`lib/sse.ts`), or is players noticing it next time they open the app
+    (e.g. a nav badge) good enough?
+  - Dismissible/pinned entries, or a plain unbounded feed (would eventually want the same
+    kind of pagination the Adventure Log already uses)?
+  - Where does it live in the nav — its own tab, or folded into an existing one (Dashboard
+    banner, Wiki)?
 - [x] Daily reset countdown (2026-07-06) — quality-of-life addition from player feedback, to
   help plan cashflow around when wages/maintenance get collected. New `DailyResetTimer`
   component (`components/DailyResetTimer.tsx`), a self-contained live countdown (ticks every

@@ -484,6 +484,21 @@ open to a small trusted player pool (Phase 0 below).
   errand, 8 standard, 5 dangerous, 2 legendary, same distribution as the real daily reset)
   and `POST /api/v1/admin/adventurers/seed` (adds a specified count, 1–100). New fourth panel
   on the **Admin** page. Verified end-to-end in a real browser.
+- [x] Fixed "[object Object]" validation error messages (2026-07-06) — reported after trying
+  to deploy more than 6 adventurers on a contract: the deploy failed silently except for a
+  literal "[object Object]" in the dialog. Root cause was systemic, not isolated to this one
+  route: 7 zod-validation-failure responses across 5 route files (`adventures.ts`, `admin.ts`
+  ×3, `player.ts`, `auth.ts`, `properties.ts`) returned `{ error: parsed.error.flatten() }` —
+  `flatten()` produces a structured `{ formErrors, fieldErrors }` object, not a string, breaking
+  the `{ error: string }` contract every other error response in the API honors. The frontend's
+  `ApiError` constructor calls `super(message)`, and per spec `Error()`'s constructor coerces
+  a non-string argument via `ToString()` — for a plain object, that's exactly `"[object
+  Object]"` — so the message was already mangled before it ever reached a render. Fixed at the
+  root with a new shared `lib/zodError.ts` (`zodErrorMessage()`, joins `flatten()`'s message
+  arrays into one string) used at all 7 call sites, plus added custom, player-friendly
+  messages on the two validators players actually hit directly: the party-size limit
+  (`adventurerIds` max 6, `routes/adventures.ts`) and the onboarding handle/guild-name
+  validation (`routes/player.ts`). Verified end-to-end in a real browser.
 - Infamous/antagonistic guild content (2026-07-06, user's idea, captured for later — no
   scoping done) — since reputation can go negative and stay there, that opens design space
   for content aimed at "infamous" guilds unburdened by a sense of honor: unsavory or

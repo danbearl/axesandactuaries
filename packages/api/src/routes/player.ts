@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { prisma } from '../lib/prisma.js';
 import { getPlayerProfileStats } from '../services/profile.js';
+import { zodErrorMessage } from '../lib/zodError.js';
 
 const router = Router();
 
@@ -10,9 +11,11 @@ const router = Router();
 // real names/guild themes, but blocks anything that would look broken in the UI.
 const NAME_PATTERN = /^[\w'\- ]+$/;
 
+const NAME_PATTERN_MESSAGE = 'Only letters, numbers, spaces, apostrophes, and hyphens are allowed';
+
 const OnboardingBody = z.object({
-  username: z.string().min(2).max(40).regex(NAME_PATTERN),
-  guildName: z.string().min(2).max(60).regex(NAME_PATTERN),
+  username: z.string().min(2, 'Handle must be at least 2 characters').max(40, 'Handle must be 40 characters or fewer').regex(NAME_PATTERN, NAME_PATTERN_MESSAGE),
+  guildName: z.string().min(2, 'Guild name must be at least 2 characters').max(60, 'Guild name must be 60 characters or fewer').regex(NAME_PATTERN, NAME_PATTERN_MESSAGE),
 });
 
 // GET /api/v1/player/me
@@ -62,7 +65,7 @@ router.get('/profile', requireAuth, async (req, res) => {
 router.patch('/onboarding', requireAuth, async (req, res) => {
   const parsed = OnboardingBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.flatten() });
+    res.status(400).json({ error: zodErrorMessage(parsed.error) });
     return;
   }
   const { username, guildName } = parsed.data;

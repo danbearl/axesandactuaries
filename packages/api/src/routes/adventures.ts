@@ -5,12 +5,15 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { prisma } from '../lib/prisma.js';
 import { resolveAdventure, startAdventure } from '../services/adventure.js';
 import { ClaimConflictError } from '../lib/errors.js';
+import { zodErrorMessage } from '../lib/zodError.js';
 
 const router = Router();
 
 const StartAdventureBody = z.object({
   contractId: z.string(),
-  adventurerIds: z.array(z.string()).min(1).max(6),
+  adventurerIds: z.array(z.string())
+    .min(1, 'Select at least one adventurer')
+    .max(6, 'You can deploy at most 6 adventurers on a single contract'),
 });
 
 // GET /api/v1/adventures
@@ -80,7 +83,7 @@ router.get('/:id', requireAuth, async (req, res) => {
 router.post('/', requireAuth, async (req, res) => {
   const parsed = StartAdventureBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.flatten() });
+    res.status(400).json({ error: zodErrorMessage(parsed.error) });
     return;
   }
 

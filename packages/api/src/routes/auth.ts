@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getAuth, clerkClient } from '@clerk/express';
 import { prisma } from '../lib/prisma.js';
 import { z } from 'zod';
+import { zodErrorMessage } from '../lib/zodError.js';
 
 const router = Router();
 
@@ -20,7 +21,7 @@ router.post('/sync', async (req, res) => {
 
   const parsed = SyncBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.flatten() });
+    res.status(400).json({ error: zodErrorMessage(parsed.error) });
     return;
   }
 

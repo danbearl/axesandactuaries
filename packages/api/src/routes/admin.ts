@@ -6,6 +6,7 @@ import { requireAdmin } from '../middleware/requireAdmin.js';
 import { prisma } from '../lib/prisma.js';
 import { resolveAdventure } from '../services/adventure.js';
 import { seedAdventurers, seedContracts } from '../services/marketSeeding.js';
+import { zodErrorMessage } from '../lib/zodError.js';
 
 const router = Router();
 router.use(requireAuth, requireAdmin);
@@ -31,7 +32,7 @@ const AdjustPlayerBody = z.object({
 router.patch('/players/:id', async (req, res) => {
   const parsed = AdjustPlayerBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.flatten() });
+    res.status(400).json({ error: zodErrorMessage(parsed.error) });
     return;
   }
   const { gold, reputation } = parsed.data;
@@ -126,7 +127,7 @@ const ForceResolveBody = z.object({ outcome: z.enum(['success', 'failure']) });
 router.post('/adventures/:id/resolve', async (req, res) => {
   const parsed = ForceResolveBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.flatten() });
+    res.status(400).json({ error: zodErrorMessage(parsed.error) });
     return;
   }
 
@@ -147,7 +148,7 @@ const SeedAdventurersBody = z.object({ count: z.number().int().min(1).max(100) }
 router.post('/adventurers/seed', async (req, res) => {
   const parsed = SeedAdventurersBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.flatten() });
+    res.status(400).json({ error: zodErrorMessage(parsed.error) });
     return;
   }
   const added = await seedAdventurers(parsed.data.count);

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import type { AdventureStatus } from '@prisma/client';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { prisma } from '../lib/prisma.js';
 import { resolveAdventure, startAdventure } from '../services/adventure.js';
@@ -29,6 +30,29 @@ router.get('/', requireAuth, async (req, res) => {
   );
 
   res.json({ adventures: resolved });
+});
+
+// GET /api/v1/adventures/history?limit=&offset=
+// Paginated log of resolved (completed or failed) adventures, most recent first.
+// Declared before /:id so Express doesn't treat "history" as an :id value.
+router.get('/history', requireAuth, async (req, res) => {
+  const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
+  const offset = Math.max(0, Number(req.query.offset) || 0);
+
+  const where = { playerId: req.playerId, status: { in: ['completed', 'failed'] as AdventureStatus[] } };
+
+  const [adventures, total] = await Promise.all([
+    prisma.adventure.findMany({
+      where,
+      include: { contract: true, adventurers: { include: { adventurer: true } } },
+      orderBy: { resolvedAt: 'desc' },
+      take: limit,
+      skip: offset,
+    }),
+    prisma.adventure.count({ where }),
+  ]);
+
+  res.json({ adventures, total, limit, offset });
 });
 
 // GET /api/v1/adventures/:id

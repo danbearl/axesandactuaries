@@ -9,6 +9,7 @@ import AdventurerMarket from './pages/AdventurerMarket.tsx';
 import ContractMarket from './pages/ContractMarket.tsx';
 import Properties from './pages/Properties.tsx';
 import AdventureDetail from './pages/AdventureDetail.tsx';
+import AdventureLog from './pages/AdventureLog.tsx';
 import AdventurerDetail from './pages/AdventurerDetail.tsx';
 import Transactions from './pages/Transactions.tsx';
 import Profile from './pages/Profile.tsx';
@@ -66,6 +67,7 @@ function AuthenticatedApp() {
           <Route path="/market/adventurers" element={<AdventurerMarket />} />
           <Route path="/market/contracts" element={<ContractMarket />} />
           <Route path="/properties" element={<Properties />} />
+          <Route path="/adventures" element={<AdventureLog />} />
           <Route path="/adventures/:id" element={<AdventureDetail />} />
           <Route path="/adventurers/:id" element={<AdventurerDetail />} />
           <Route path="/transactions" element={<Transactions />} />

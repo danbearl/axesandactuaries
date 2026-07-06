@@ -106,6 +106,12 @@ export default function Navigation({ player }: Props) {
           </NavLink>
         </li>
         <li>
+          <NavLink to="/adventures" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            <span className="nav-icon">📔</span>
+            Adventure Log
+          </NavLink>
+        </li>
+        <li>
           <NavLink to="/transactions" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
             <span className="nav-icon">📒</span>
             Ledger

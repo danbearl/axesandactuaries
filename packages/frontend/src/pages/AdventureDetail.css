@@ -31,3 +31,18 @@
 .text-danger  { color: var(--crimson); }
 
 .party-grid { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.report-table {
+  width:           100%;
+  border-collapse: collapse;
+  font-size:       0.95rem;
+}
+.report-table thead tr { border-bottom: 2px solid var(--parchment-dark); }
+.report-table th {
+  padding:     0.5rem 0.75rem;
+  text-align:  left;
+  font-family: var(--font-heading);
+}
+.report-table-row { border-bottom: 1px solid var(--parchment-dark); }
+.report-table-row:last-child { border-bottom: none; }
+.report-table td { padding: 0.55rem 0.75rem; vertical-align: middle; }

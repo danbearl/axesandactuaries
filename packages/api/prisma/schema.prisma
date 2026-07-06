@@ -178,6 +178,15 @@ model AdventureAdventurer {
   adventureId  String @map("adventure_id")
   adventurerId String @map("adventurer_id")
 
+  // Per-adventurer outcome, recorded at resolution. Snapshotting these here (rather than
+  // relying on the Adventurer's current state) is what makes contract completion reports
+  // possible — the Adventurer row only ever reflects its *current* status, which a later
+  // adventure or recovery can overwrite.
+  xpGained      Int      @default(0) @map("xp_gained")
+  injured       Boolean  @default(false)
+  died          Boolean  @default(false)
+  recoveryHours Int?     @map("recovery_hours")
+
   adventure  Adventure  @relation(fields: [adventureId], references: [id])
   adventurer Adventurer @relation(fields: [adventurerId], references: [id])
 

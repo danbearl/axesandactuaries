@@ -151,9 +151,46 @@ export default function AdventureDetail() {
         </div>
       </div>
 
+      {/* Party report — per-adventurer outcome, only known once resolved */}
+      {isResolved && (
+        <section className="panel mt-md">
+          <h2>Party Report</h2>
+          <hr className="divider" />
+          <table className="report-table mt-md">
+            <thead>
+              <tr>
+                <th className="label">Adventurer</th>
+                <th className="label">Experience Gained</th>
+                <th className="label">Outcome</th>
+              </tr>
+            </thead>
+            <tbody>
+              {adventure.adventurers.map(aa => (
+                <tr key={aa.adventurerId} className="report-table-row">
+                  <td>
+                    <Link to={`/adventurers/${aa.adventurerId}`}>{aa.adventurer.name}</Link>
+                  </td>
+                  <td>{aa.xpGained > 0 ? `+${aa.xpGained} XP` : '—'}</td>
+                  <td>
+                    {aa.died
+                      ? <span className="text-danger">☠ Died</span>
+                      : aa.injured
+                        ? <span className="text-warning">⚠ Injured — {aa.recoveryHours}h recovery</span>
+                        : <span className="currency positive">✓ Unharmed</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {adventure.adventurers.length === 0 && (
+            <div className="empty-state">No party data found.</div>
+          )}
+        </section>
+      )}
+
       {/* Party */}
       <section className="panel mt-md">
-        <h2>Deployed Party</h2>
+        <h2>{isResolved ? 'Party' : 'Deployed Party'}</h2>
         <hr className="divider" />
         <div className="party-grid mt-md">
           {party.map(adv => (

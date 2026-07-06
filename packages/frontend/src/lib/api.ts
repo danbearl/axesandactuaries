@@ -79,6 +79,8 @@ export const api = {
   adventures: {
     list: () => request<{ adventures: AdventureResponse[] }>('/adventures'),
     get: (id: string) => request<{ adventure: AdventureResponse }>(`/adventures/${id}`),
+    history: (limit = 20, offset = 0) =>
+      request<AdventureHistoryResponse>(`/adventures/history?limit=${limit}&offset=${offset}`),
     start: (contractId: string, adventurerIds: string[]) =>
       request<{ adventure: AdventureResponse }>('/adventures', {
         method: 'POST',
@@ -174,8 +176,23 @@ export interface AdventureResponse {
   outcomeRoll: number | null;
   resolvedAt: string | null;
   contract: ContractResponse;
-  adventurers: Array<{ adventureId: string; adventurerId: string; adventurer: AdventurerResponse }>;
+  adventurers: Array<{
+    adventureId: string;
+    adventurerId: string;
+    adventurer: AdventurerResponse;
+    xpGained: number;
+    injured: boolean;
+    died: boolean;
+    recoveryHours: number | null;
+  }>;
   createdAt: string;
+}
+
+export interface AdventureHistoryResponse {
+  adventures: AdventureResponse[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface PropertyResponse {

@@ -95,6 +95,14 @@ describe('resolveAdventure', () => {
     expect(updatedAdv.status).toBe('hired');
     expect(updatedAdv.injuryRecoveryUntil).toBeNull();
     expect(updatedAdv.experience).toBe(Math.floor(300 * XP_PER_GOLD));
+
+    const report = await prisma.adventureAdventurer.findUniqueOrThrow({
+      where: { adventureId_adventurerId: { adventureId: adventure.id, adventurerId: adventurer.id } },
+    });
+    expect(report.xpGained).toBe(Math.floor(300 * XP_PER_GOLD));
+    expect(report.injured).toBe(false);
+    expect(report.died).toBe(false);
+    expect(report.recoveryHours).toBeNull();
   });
 
   it('resolves a failed adventure: applies penalty and can injure adventurers', async () => {
@@ -130,6 +138,14 @@ describe('resolveAdventure', () => {
     expect(updatedAdv.status).toBe('injured');
     expect(updatedAdv.injuryRecoveryUntil).not.toBeNull();
     expect(updatedAdv.experience).toBe(0);
+
+    const report = await prisma.adventureAdventurer.findUniqueOrThrow({
+      where: { adventureId_adventurerId: { adventureId: adventure.id, adventurerId: adventurer.id } },
+    });
+    expect(report.xpGained).toBe(0);
+    expect(report.injured).toBe(true);
+    expect(report.died).toBe(false);
+    expect(report.recoveryHours).toBe(36); // Math.floor(0.5 * 48) + 12
   });
 
   it('is idempotent — resolving an already-resolved adventure does nothing further', async () => {

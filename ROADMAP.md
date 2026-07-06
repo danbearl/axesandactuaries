@@ -263,7 +263,22 @@ open to a small trusted player pool (Phase 0 below).
 ## Beta Phase 2 — Game Mechanics Depth
 **Goal:** the core loop is deep and balanced enough to hold a trusted pool's attention.
 
-- Contract completion reports (from original TODO.md, Game Mechanics).
+- [x] Contract completion reports (2026-07-06) — new **Adventure Log** tab (📔, between
+  Properties and Ledger), a paginated journal (`GET /api/v1/adventures/history?limit=&offset=`,
+  default 20/page capped at 50, resolved-only, newest first, mirroring the existing
+  `TransactionsResponse` pagination shape) listing every completed/failed adventure by
+  contract title and completion date. Clicking a row opens the existing `/adventures/:id`
+  page (`AdventureDetail.tsx`), which gained a new "Party Report" section for resolved
+  adventures showing each adventurer's XP gained and outcome (unharmed / injured with
+  recovery hours / died). This required persisting per-adventurer outcome data that
+  previously only existed transiently inside `resolveAdventure`'s loop — the `Adventurer`
+  row only ever reflects *current* state, so a later adventure or recovery would silently
+  overwrite history. New `xpGained`/`injured`/`died`/`recoveryHours` columns on the existing
+  `AdventureAdventurer` join table (rather than a new model) capture that snapshot at
+  resolution time. Added the `badge-status-completed`/`failed`/`in_progress` CSS classes,
+  which were referenced in `AdventureDetail.tsx` since it was first built but never actually
+  defined anywhere. Test-covered in `test/adventure.test.ts` (already the home of
+  `resolveAdventure`'s tests) and verified end-to-end in a real browser.
 - Vacation Mode (from original TODO.md, Game Mechanics) — pause wage/maintenance collection
   without penalty; retention feature for a live player base.
 - Ranking and Achievements (from original TODO.md, Gamification) — core retention loop.

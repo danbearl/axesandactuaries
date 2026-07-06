@@ -164,6 +164,16 @@ export async function resolveAdventure(adventureId: string) {
           dailyWage:   didLevelUp ? newDailyWage   : undefined,
         },
       });
+
+      await tx.adventureAdventurer.update({
+        where: { adventureId_adventurerId: { adventureId, adventurerId: adv.id } },
+        data: {
+          xpGained: xpGain,
+          injured,
+          died: dead,
+          recoveryHours: injured && !dead ? recoveryHours : null,
+        },
+      });
     }
 
     const goldDelta = success ? adventure.contract.rewardGold : -adventure.contract.penaltyGold;

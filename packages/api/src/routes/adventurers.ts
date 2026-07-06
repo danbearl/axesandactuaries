@@ -67,7 +67,9 @@ router.post('/:id/hire', requireAuth, async (req, res) => {
   }
 
   const repRequired = HIRE_REPUTATION_REQUIREMENTS[adventurer.level] ?? 0;
-  if (player.reputation < repRequired) {
+  // A requirement of 0 means "no gate" — it must never block a player, even one who has
+  // gone into negative reputation (a legitimate state, not a hard floor).
+  if (repRequired > 0 && player.reputation < repRequired) {
     res.status(403).json({ error: `Requires ${repRequired} reputation to hire a level ${adventurer.level} adventurer`, required: repRequired, current: player.reputation });
     return;
   }

@@ -198,7 +198,8 @@ export default function ContractMarket() {
         {filtered.map(contract => {
           const isBiddingTier = BIDDING_CONTRACT_TIERS.includes(contract.tier as 'dangerous' | 'legendary');
           const repRequired = CONTRACT_TIER_REPUTATION_REQUIREMENTS[contract.tier as keyof typeof CONTRACT_TIER_REPUTATION_REQUIREMENTS] ?? 0;
-          const hasRep = playerRep >= repRequired;
+          // A requirement of 0 is "no gate" — must never block a player even at negative reputation.
+          const hasRep = repRequired === 0 || playerRep >= repRequired;
 
           return (
             <div

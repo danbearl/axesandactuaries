@@ -45,6 +45,8 @@ export default function AdventurerMarket() {
 
   const gold        = playerData?.player.gold ?? 0;
   const playerRep   = playerData?.player.reputation ?? 0;
+  // A requirement of 0 is "no gate" — must never block a player even at negative reputation.
+  const hasRep      = (required: number) => required === 0 || playerRep >= required;
   const adventurers = marketData?.adventurers ?? [];
   const properties  = playerData?.properties ?? [];
   const hired       = (playerData?.adventurers ?? []).filter(a =>
@@ -143,7 +145,7 @@ export default function AdventurerMarket() {
             key={adv.id}
             adventurer={adv as unknown as Adventurer}
             repRequired={HIRE_REPUTATION_REQUIREMENTS[adv.level]}
-            onHire={gold >= adv.hireCost && playerRep >= (HIRE_REPUTATION_REQUIREMENTS[adv.level] ?? 0) && hiringId === null && !rosterFull
+            onHire={gold >= adv.hireCost && hasRep(HIRE_REPUTATION_REQUIREMENTS[adv.level] ?? 0) && hiringId === null && !rosterFull
               ? () => hireMutation.mutate(adv.id)
               : undefined}
           />

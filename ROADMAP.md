@@ -394,6 +394,30 @@ open to a small trusted player pool (Phase 0 below).
   breakdown of another player's underlying gold/reputation/power numbers. Test-covered in
   `test/leaderboard.test.ts` (score math, onboarding-incomplete exclusion, top-10-only vs.
   windowed response) and verified end-to-end in a real browser.
+- [x] Fixed negative-reputation lockout (2026-07-06) — a player whose reputation dropped
+  below 0 (from repeated contract-failure penalties) became unable to hire *any* adventurer,
+  including the cheapest level 1–2 ones, and the Contract Board hid the Accept button for
+  every contract including errand/standard — effectively a dead end with no way to recover
+  gold or reputation. Root cause, found in four places: reputation thresholds of `0`
+  (`HIRE_REPUTATION_REQUIREMENTS`'s level 1–2 entries, `CONTRACT_TIER_REPUTATION_
+  REQUIREMENTS`'s errand/standard entries) are meant to mean "no gate at all," but every
+  check compared the threshold against actual reputation with a plain `>=`/`<`, which
+  incorrectly trips once reputation goes negative even against a `0` threshold. Fixed in
+  `routes/adventurers.ts`'s hire route (backend, a real block), and three frontend-only
+  spots that were stricter than the backend for no reason: `AdventurerMarket.tsx`'s hire
+  button, `ContractMarket.tsx`'s `hasRep` (Accept/Bid button gating), and `ContractCard.tsx`'s
+  `repBlocked` (the red "requirement not met" indicator). All four now treat `repRequired ===
+  0` as unconditionally passable. **Design decision** (user chose): reputation is allowed to
+  go negative permanently rather than flooring it at 0 — negative reputation remains a real,
+  meaningful state (this fix just guarantees it can never fully lock a player out), which
+  leaves room for the idea below rather than closing it off.
+- Infamous/antagonistic guild content (2026-07-06, user's idea, captured for later — no
+  scoping done) — since reputation can go negative and stay there, that opens design space
+  for content aimed at "infamous" guilds unburdened by a sense of honor: unsavory or
+  antagonistic contracts (smuggling, sabotage, extortion) available only *below* a
+  reputation threshold, mirroring how `dangerous`/`legendary` contracts currently require
+  reputation *above* a threshold. Would need its own reward/risk balance and probably its
+  own contract-tier-like concept rather than reusing the existing four tiers.
 - Achievements (from original TODO.md, Gamification, split off from the ranking item above
   on 2026-07-06) — no design work done yet; needs its own scoping pass before
   implementation.

@@ -29,7 +29,8 @@ export default function ContractCard({ contract: c, onAccept, onBid, expanded, p
   const hasStatReqs  = Object.keys(c.requiredStats).length > 0;
   const isBidding    = BIDDING_CONTRACT_TIERS.includes(c.tier as 'dangerous' | 'legendary');
   const repRequired  = CONTRACT_TIER_REPUTATION_REQUIREMENTS[c.tier as keyof typeof CONTRACT_TIER_REPUTATION_REQUIREMENTS] ?? 0;
-  const repBlocked   = playerRep !== undefined && playerRep < repRequired;
+  // A requirement of 0 is "no gate" — must never flag a player as blocked even at negative reputation.
+  const repBlocked   = repRequired > 0 && playerRep !== undefined && playerRep < repRequired;
 
   return (
     <div className={`contract-card panel ${expanded ? 'contract-expanded' : ''}`}>

@@ -118,6 +118,12 @@ export default function Navigation({ player }: Props) {
           </NavLink>
         </li>
         <li>
+          <NavLink to="/leaderboard" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            <span className="nav-icon">🏆</span>
+            Leaderboard
+          </NavLink>
+        </li>
+        <li>
           <NavLink to="/wiki" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
             <span className="nav-icon">📖</span>
             Wiki

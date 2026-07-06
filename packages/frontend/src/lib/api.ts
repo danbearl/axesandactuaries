@@ -122,6 +122,9 @@ export const api = {
         body: JSON.stringify({ outcome }),
       }),
   },
+  leaderboard: {
+    get: () => request<LeaderboardResponse>('/leaderboard'),
+  },
 };
 
 // ── Response types (mirror the DB shapes returned by the API) ─────────────────
@@ -315,4 +318,18 @@ export interface AdminAdventureSummary {
   completesAt: string;
   contract: { title: string };
   player: { id: string; username: string };
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  playerId: string;
+  username: string;
+  guildName: string | null;
+  score: number;
+}
+
+export interface LeaderboardResponse {
+  top: LeaderboardEntry[];
+  me: LeaderboardEntry;
+  nearby: LeaderboardEntry[];
 }

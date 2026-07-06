@@ -1,22 +1,30 @@
 import { Routes, Route } from 'react-router-dom';
 import { SignIn, Show, useAuth } from '@clerk/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import Navigation from './components/Navigation.tsx';
 import { useSSE } from './hooks/useSSE.ts';
-import Dashboard from './pages/Dashboard.tsx';
-import AdventurerMarket from './pages/AdventurerMarket.tsx';
-import ContractMarket from './pages/ContractMarket.tsx';
-import Properties from './pages/Properties.tsx';
-import AdventureDetail from './pages/AdventureDetail.tsx';
-import AdventureLog from './pages/AdventureLog.tsx';
-import AdventurerDetail from './pages/AdventurerDetail.tsx';
-import Transactions from './pages/Transactions.tsx';
-import Profile from './pages/Profile.tsx';
-import Wiki from './pages/Wiki.tsx';
-import Onboarding from './pages/Onboarding.tsx';
-import Admin from './pages/Admin.tsx';
 import { api } from './lib/api.ts';
+
+// Route-level code-splitting: each page becomes its own chunk, fetched on navigation
+// instead of all bundled into one ~950KB script loaded up front.
+const Dashboard = lazy(() => import('./pages/Dashboard.tsx'));
+const AdventurerMarket = lazy(() => import('./pages/AdventurerMarket.tsx'));
+const ContractMarket = lazy(() => import('./pages/ContractMarket.tsx'));
+const Properties = lazy(() => import('./pages/Properties.tsx'));
+const AdventureDetail = lazy(() => import('./pages/AdventureDetail.tsx'));
+const AdventureLog = lazy(() => import('./pages/AdventureLog.tsx'));
+const AdventurerDetail = lazy(() => import('./pages/AdventurerDetail.tsx'));
+const Transactions = lazy(() => import('./pages/Transactions.tsx'));
+const Profile = lazy(() => import('./pages/Profile.tsx'));
+const Wiki = lazy(() => import('./pages/Wiki.tsx'));
+const Leaderboard = lazy(() => import('./pages/Leaderboard.tsx'));
+const Onboarding = lazy(() => import('./pages/Onboarding.tsx'));
+const Admin = lazy(() => import('./pages/Admin.tsx'));
+
+const PageFallback = () => (
+  <div className="panel" style={{ marginTop: '2rem', textAlign: 'center' }}>Loading…</div>
+);
 
 function AuthenticatedApp() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -56,27 +64,34 @@ function AuthenticatedApp() {
   // First login (or a pre-existing player who predates this feature): gate the whole app
   // behind picking a handle and guild name before showing the nav/dashboard.
   if (!data.player.guildName) {
-    return <Onboarding player={data.player} />;
+    return (
+      <Suspense fallback={<PageFallback />}>
+        <Onboarding player={data.player} />
+      </Suspense>
+    );
   }
 
   return (
     <div className="app-shell">
       <Navigation player={data.player} />
       <main className="main-content">
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/market/adventurers" element={<AdventurerMarket />} />
-          <Route path="/market/contracts" element={<ContractMarket />} />
-          <Route path="/properties" element={<Properties />} />
-          <Route path="/adventures" element={<AdventureLog />} />
-          <Route path="/adventures/:id" element={<AdventureDetail />} />
-          <Route path="/adventurers/:id" element={<AdventurerDetail />} />
-          <Route path="/transactions" element={<Transactions />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/wiki" element={<Wiki />} />
-          <Route path="/wiki/:slug" element={<Wiki />} />
-          {data.player.isAdmin && <Route path="/admin" element={<Admin />} />}
-        </Routes>
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/market/adventurers" element={<AdventurerMarket />} />
+            <Route path="/market/contracts" element={<ContractMarket />} />
+            <Route path="/properties" element={<Properties />} />
+            <Route path="/adventures" element={<AdventureLog />} />
+            <Route path="/adventures/:id" element={<AdventureDetail />} />
+            <Route path="/adventurers/:id" element={<AdventurerDetail />} />
+            <Route path="/transactions" element={<Transactions />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/wiki" element={<Wiki />} />
+            <Route path="/wiki/:slug" element={<Wiki />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
+            {data.player.isAdmin && <Route path="/admin" element={<Admin />} />}
+          </Routes>
+        </Suspense>
       </main>
     </div>
   );

@@ -12,4 +12,18 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Split large, independently-versioned vendor deps into their own chunks.
+        // These change far less often than app code, so this also improves
+        // long-term browser caching across deploys, not just chunk size.
+        manualChunks: {
+          clerk: ['@clerk/react'],
+          sentry: ['@sentry/react'],
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+  },
 });

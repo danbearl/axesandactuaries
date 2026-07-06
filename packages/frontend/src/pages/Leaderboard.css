@@ -1,0 +1,34 @@
+.leaderboard-page { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.leaderboard-table {
+  width:           100%;
+  border-collapse: collapse;
+  font-size:       0.95rem;
+}
+
+.leaderboard-table thead tr {
+  border-bottom: 2px solid var(--parchment-dark);
+}
+.leaderboard-table th {
+  padding:     0.5rem 0.75rem;
+  text-align:  left;
+  font-family: var(--font-heading);
+}
+
+.leaderboard-row {
+  border-bottom: 1px solid var(--parchment-dark);
+}
+.leaderboard-row:last-child { border-bottom: none; }
+.leaderboard-row td { padding: 0.6rem 0.75rem; vertical-align: middle; }
+
+.leaderboard-row-me {
+  background: var(--parchment-mid);
+}
+.leaderboard-row-me .leaderboard-rank { color: var(--gold-dark); }
+
+.leaderboard-rank {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color:       var(--ink-light);
+  white-space: nowrap;
+}

@@ -31,6 +31,7 @@ import transactionsRouter from './routes/transactions.js';
 import eventsRouter from './routes/events.js';
 import wikiRouter from './routes/wiki.js';
 import adminRouter from './routes/admin.js';
+import leaderboardRouter from './routes/leaderboard.js';
 import { registerWorkers, stopWorkers } from './workers/index.js';
 import { connectRedis, disconnectRedis } from './lib/redis.js';
 import { sseHub } from './lib/sse.js';
@@ -111,6 +112,7 @@ app.use('/api/v1/transactions', transactionsRouter);
 app.use('/api/v1/events', eventsRouter);
 app.use('/api/v1/wiki', wikiRouter);
 app.use('/api/v1/admin', adminRouter);
+app.use('/api/v1/leaderboard', leaderboardRouter);
 
 // In production the compiled frontend lives two directories up from dist/
 if (process.env.NODE_ENV === 'production') {

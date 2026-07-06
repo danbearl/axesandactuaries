@@ -357,7 +357,29 @@ open to a small trusted player pool (Phase 0 below).
   they already could for injury recovery.
 - Vacation Mode (from original TODO.md, Game Mechanics) — pause wage/maintenance collection
   without penalty; retention feature for a live player base.
-- Ranking and Achievements (from original TODO.md, Gamification) — core retention loop.
+- [x] Player ranking (2026-07-06) — split off from the original combined "Ranking and
+  Achievements" item at the user's request; Achievements remains its own separate pending
+  item below, deferred with no timeline yet. New **Leaderboard** nav tab (🏆, before Wiki),
+  backed by `GET /api/v1/leaderboard` and a new `services/leaderboard.ts`. Score formula
+  (as specified by the user): `(10 * (Reputation + Avg. Adventurer Power) + Assets) *
+  Contract Success %`, where Assets = treasury gold + summed property `costBasis` (total
+  invested capital, not liquidation value), Avg. Adventurer Power is averaged over the
+  player's current non-dead roster (0 with an empty roster), and Contract Success % is
+  `completed / (completed + failed)` adventures (0 with no history — a new player scores 0
+  until they've actually succeeded at something). Computed via three grouped Prisma
+  aggregates (adventurer power, property cost basis, adventure outcome counts) plus a
+  players query, so it's O(1) queries regardless of player count rather than N+1 per player.
+  Players who haven't finished onboarding (`guildName` still null) are excluded — nothing
+  to rank yet. Response shape: top 10 always, plus the viewer's own rank, plus (only when
+  ranked below 10th) a +/-5 window around their position so they can see who's just above
+  and below them without scrolling a full leaderboard. This is the first feature exposing
+  any cross-player data — deliberately kept to just rank/guild name/username/score, no
+  breakdown of another player's underlying gold/reputation/power numbers. Test-covered in
+  `test/leaderboard.test.ts` (score math, onboarding-incomplete exclusion, top-10-only vs.
+  windowed response) and verified end-to-end in a real browser.
+- Achievements (from original TODO.md, Gamification, split off from the ranking item above
+  on 2026-07-06) — no design work done yet; needs its own scoping pass before
+  implementation.
 - Adventurer equipment system (from original TODO.md, Game Mechanics).
 - Contract class/stat requirements — a `requiredStats` field already exists as a stub in
   `packages/types/src/contracts.ts` marked "reserved for Phase 5."
@@ -468,6 +490,49 @@ pool.
   outage.
 - Broader observability beyond Sentry error monitoring (e.g. dashboards/alerting on top of
   existing Sentry data, database/Redis health metrics).
+- [x] Frontend bundle code-splitting (2026-07-06) — a production build started warning that
+  chunks exceeded 500KB after minification. Root cause: `App.tsx` statically imported every
+  page component, and the default Vite config had no `manualChunks`/`chunkSizeWarningLimit`
+  override, so the whole app (including heavy dependencies like `react-markdown`'s
+  unified/mdast/micromark tree, used only by the Wiki page) bundled into one ~950KB script
+  loaded on every visit regardless of which page was actually needed. Fixed in two layers:
+  (1) route-level splitting — every page in `App.tsx` now goes through `React.lazy()`,
+  wrapped in a single `<Suspense>` boundary with a shared `PageFallback`, so each page
+  (including the Wiki's markdown-parsing weight) becomes its own chunk fetched on
+  navigation; (2) vendor splitting — `vite.config.ts` gained `build.rollupOptions.output.
+  manualChunks` to split `@clerk/react`, `@sentry/react`, and the core React/react-router
+  trio into their own chunks, since those are needed immediately by every route and
+  route-splitting alone can't shrink them (confirmed: after step 1 alone, the main chunk
+  was still 613KB of eager vendor code). Verified via actual build output — chunks are all
+  under the 500KB warning threshold, split across per-page chunks plus `clerk`/`sentry`/
+  `react-vendor` bundles that will also cache better across deploys than a single
+  monolithic bundle would, since vendor code changes far less often than app code.
+- Configurable gameplay settings (2026-07-06) — tabled deliberately until there's enough
+  player data to tune against; not worth building blind. Goal: balance numbers become
+  runtime-editable (presumably via the existing Admin panel, `routes/admin.ts` /
+  `pages/Admin.tsx`) instead of requiring a code change + full build/typecheck/test/deploy
+  cycle for every tuning pass. Needs (1) an audit identifying every hard-coded gameplay
+  constant, (2) a config storage scheme with defaults baked in or seeded, so a clean
+  deployment never requires manually populating every value by hand before the game is
+  playable — mirrors the same "safe to re-run" seeding principle already used for
+  `prisma/seedWiki.ts`. Known constants to migrate, found incidentally while building other
+  features this phase (not necessarily exhaustive — a real audit is part of this task):
+  - `packages/types/src/game.ts`: `XP_PER_GOLD`, `XP_TO_LEVEL`/`MAX_LEVEL`,
+    `HIRE_REPUTATION_REQUIREMENTS`, `CONTRACT_TIER_REPUTATION_REQUIREMENTS`,
+    `QUIT_REPUTATION_PENALTY_PER_LEVEL`, `BASE_ROSTER_CAP`/`ROSTER_CAP_PER_DORM_LEVEL`.
+  - `packages/api/src/services/adventure.ts`: all the injury/death/rest tunables added this
+    phase (`FAILURE_INJURY_CHANCE`, `SUCCESS_INJURY_CHANCE`, the min-chance floors,
+    `INFIRMARY_INJURY_REDUCTION_PER_LEVEL`, `DEATH_SHARE_OF_INJURY`,
+    `REST_HOURS_FRACTION_OF_DURATION`), plus the success-chance curve
+    (`Math.min(0.9, 0.3 + ratio * 0.5)`).
+  - `packages/api/src/routes/properties.ts`: `PROPERTY_CONFIG` (build cost, maintenance,
+    bonus per property type) and `UPGRADE_COSTS`.
+  - `packages/api/src/workers/dailyReset.ts`: `DAILY_ADVENTURER_MIN`,
+    `DAILY_ADVENTURERS_PER_PLAYER`.
+  - `packages/api/src/services/bootstrap.ts`: `WELFARE_COOLDOWN_HOURS` and the welfare
+    contract's own reward/duration values.
+  - Adventurer generation formulas in `packages/types/src/generator.ts` (hire cost, daily
+    wage, stat rolls) and contract generation in `packages/types/src/contracts.ts`.
 
 ## Post-Beta — Monetization
 **Goal:** sustainable revenue, attempted only once retention is proven post-general-release.

@@ -12,6 +12,7 @@ import AdventureDetail from './pages/AdventureDetail.tsx';
 import AdventurerDetail from './pages/AdventurerDetail.tsx';
 import Transactions from './pages/Transactions.tsx';
 import Profile from './pages/Profile.tsx';
+import Wiki from './pages/Wiki.tsx';
 import { api } from './lib/api.ts';
 
 function AuthenticatedApp() {
@@ -62,6 +63,8 @@ function AuthenticatedApp() {
           <Route path="/adventurers/:id" element={<AdventurerDetail />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/wiki" element={<Wiki />} />
+          <Route path="/wiki/:slug" element={<Wiki />} />
         </Routes>
       </main>
     </div>

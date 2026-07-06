@@ -120,6 +120,30 @@ open to a small trusted player pool (Phase 0 below).
   invalidated React Query key `['market-adventurers']`, which matched nothing; the Adventurer
   Market page's real key is `['adventurers', 'market']`. Fixed to prefix-match `['adventurers']`,
   consistent with how every other handler in the file invalidates.
+- [x] Fix Redis pub/sub (2026-07-05) — while retesting the hire-adventurer race-condition
+  fix, found that a second player's market view never updated in real time no matter how
+  long they waited. Root cause turned out to be much bigger than that one test: **Redis
+  pub/sub had never successfully connected in production at all**. Fly logs showed
+  continuous `ECONNRESET`/`EPIPE`/"max retries per request limit" errors and
+  `Redis/SSE init failed: Error: Connection is closed` — meaning `sseHub.start()` never
+  even ran, so *no* SSE event of any kind (market GC/daily-reset broadcasts included, not
+  just the new hire/fire/accept/bid publishes below) had ever been delivered. Cause: the
+  Upstash Redis instance was set up using its **REST** connection details instead of
+  **TCP** — this app uses `ioredis` (a TCP-protocol client) for persistent pub/sub
+  subscriptions, which Upstash's REST API fundamentally cannot support (it's a stateless
+  HTTP request/response interface, incompatible with a subscriber that needs to receive
+  asynchronously pushed messages). Fixed by resetting the `REDIS_URL` Fly secret to
+  Upstash's TCP connection string using the TLS scheme (`rediss://`, not `redis://` —
+  Upstash's TCP endpoint requires TLS, and connecting without it produces this exact
+  `ECONNRESET`/retry-limit error signature). Verified via Fly logs (`[redis] Connected`,
+  `[sse-hub] Listening on Redis channels`, no further errors) and a real two-browser test:
+  the market now updates within about a second when another player acts, not just on
+  reload.
+- [x] Publish `market_update` on hire/fire/contract-accept/contract-bid (2026-07-05) — these
+  direct player actions never broadcast anything before; only the periodic
+  `marketGC`/`dailyReset` workers did, so another player's market view had no guaranteed
+  refresh window at all after someone else acted (this is what surfaced the Redis bug
+  above). Now publishes the same way `marketGC`/`dailyReset` already do.
 
 **Minor cleanup — complete (2026-07-04):**
 - [x] Deleted unused `packages/frontend/src/data/mockData.ts` (confirmed zero references).
@@ -181,8 +205,25 @@ open to a small trusted player pool (Phase 0 below).
   adventurer in the Dashboard roster — `AdventurerCard`'s compact variant gained an
   optional `onClick`, with the existing "Release" button calling `stopPropagation()` so it
   doesn't also trigger navigation. Unit-tested and verified end-to-end in a real browser.
-- Wiki/documentation pages for races, classes, characteristics (from original TODO.md,
-  Aesthetics/UX).
+- [x] Wiki/documentation pages for heritages, vocations, characteristics (2026-07-05) —
+  freeform CMS-style pages rather than structured per-category content, and edited via
+  `pnpm db:studio` directly rather than an in-app editor, both deliberate scope calls to
+  avoid building throwaway admin scaffolding ahead of the future Admin/Moderator roles
+  feature (Gate phase). New `WikiPage` Prisma model (`slug`, `title`, `body`, `order`) +
+  `GET /api/v1/wiki` (index) and `GET /api/v1/wiki/:slug` routes, both behind `requireAuth`,
+  no dedicated service/test layer (matches the existing simple-Prisma-query convention of
+  `routes/player.ts`'s `/me` and `routes/transactions.ts`). `Wiki.tsx` at `/wiki` and
+  `/wiki/:slug`, two-column layout (page nav + content), renders body Markdown via
+  `react-markdown` + `remark-gfm` (GFM needed specifically for the Vocations page's table —
+  core CommonMark alone rendered it as literal pipe characters, caught in browser testing).
+  Starter content (Heritages, Vocations, Characteristics) seeded via a new standalone
+  `prisma/seedWiki.ts` script (`pnpm db:seed:wiki`), deliberately split out of the main
+  `prisma/seed.ts` since that script also wipes/regenerates the live adventurer/contract
+  market pool — unsafe to ever run against production. `seedWiki` only creates missing
+  slugs, so re-running it never clobbers content later edited via Prisma Studio, and it's
+  intended to be run once against the production `DATABASE_URL` after the `wiki_pages`
+  table exists there (created automatically by the `release_command`'s `prisma migrate
+  deploy`, but not seeded automatically). Verified end-to-end in a real browser.
 - New player onboarding (2026-07-05) — a first-login page prompting for a user handle and
   guild name. This replaces the current silent behavior in `routes/auth.ts`, which
   auto-generates `username` from Clerk profile data with no prompt at all today, and needs

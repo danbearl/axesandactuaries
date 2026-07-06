@@ -96,6 +96,10 @@ export const api = {
     list: (limit = 50, offset = 0) =>
       request<TransactionsResponse>(`/transactions?limit=${limit}&offset=${offset}`),
   },
+  wiki: {
+    list: () => request<{ pages: WikiPageSummary[] }>('/wiki'),
+    get: (slug: string) => request<{ page: WikiPageResponse }>(`/wiki/${slug}`),
+  },
 };
 
 // ── Response types (mirror the DB shapes returned by the API) ─────────────────
@@ -242,4 +246,17 @@ export interface AdventurerDetailResponse {
     failed: number;
   };
   recent: AdventurerHistoryEntry[];
+}
+
+export interface WikiPageSummary {
+  id: string;
+  slug: string;
+  title: string;
+  order: number;
+}
+
+export interface WikiPageResponse extends WikiPageSummary {
+  body: string;
+  createdAt: string;
+  updatedAt: string;
 }

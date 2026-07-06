@@ -212,3 +212,17 @@ model Transaction {
 
   @@map("transactions")
 }
+
+// Freeform wiki/documentation content. No in-app editor yet — edited directly
+// via `pnpm db:studio` until Admin/Moderator roles exist to gate one safely.
+model WikiPage {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  body      String
+  order     Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("wiki_pages")
+}

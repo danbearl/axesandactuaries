@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import { generateAdventurerPool } from '@axes-actuaries/types';
+import { seedWiki } from './seedWiki.ts';
 
 const prisma = new PrismaClient();
 
@@ -138,6 +139,9 @@ async function seed() {
   });
 
   console.log(`  ✓ Created ${CONTRACT_TEMPLATES.length} contracts`);
+
+  await seedWiki(prisma);
+
   console.log('Done.');
 }
 

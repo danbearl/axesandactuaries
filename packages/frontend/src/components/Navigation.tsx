@@ -111,6 +111,12 @@ export default function Navigation({ player }: Props) {
             Ledger
           </NavLink>
         </li>
+        <li>
+          <NavLink to="/wiki" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            <span className="nav-icon">📖</span>
+            Wiki
+          </NavLink>
+        </li>
       </ul>
 
       <div className="nav-footer">

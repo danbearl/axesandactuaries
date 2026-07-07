@@ -261,7 +261,7 @@ export default function Admin() {
           >
             {seedContractsMutation.isPending ? 'Seeding…' : 'Seed Contracts'}
           </button>
-          <span className="label">5 errand, 8 standard, 5 dangerous, 2 legendary</span>
+          <span className="label">5 errand, 8 standard, dangerous/legendary topped up to target</span>
           {seedContractsMutation.isSuccess && (
             <span className="currency positive">Added {seedContractsMutation.data.added}.</span>
           )}

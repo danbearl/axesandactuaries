@@ -200,7 +200,7 @@ export interface ContractResponse {
   durationHours: number;
   status: string;
   awardedTo: string | null;
-  bidDeadline: string;
+  bidDeadline: string | null;
   expiresAt: string;
   deployBy: string | null;
   createdAt: string;

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { BIDDING_MARKET_TARGET } from '@axes-actuaries/types';
 import { prisma } from '../src/lib/prisma.js';
 import { runMarketGC } from '../src/workers/marketGC.js';
 import { createPlayer, createAdventurer, createContract } from './fixtures.js';
@@ -53,35 +54,31 @@ describe('runMarketGC', () => {
     expect(updated.status).toBe('expired');
   });
 
-  it('expires a never-bid bidding-tier contract once its bid deadline passes, without waiting for expiresAt', async () => {
-    // A dangerous/legendary contract that never received a single bid never leaves
-    // 'available' status (only a first bid transitions it to 'bidding'), so it would
-    // otherwise be stranded on the market until the much later expiresAt cleanup instead of
-    // disappearing when its bid window actually closes.
+  it('leaves a never-bid bidding-tier contract on the market indefinitely, with no bidDeadline set', async () => {
+    // A dangerous/legendary contract with no bids yet has no clock running at all (see
+    // BID_WINDOW_HOURS) — it should never be touched by the bid-award sweep, only by its
+    // much longer backstop expiresAt (covered separately below).
     const contract = await createContract({
-      tier: 'legendary', status: 'available',
-      bidDeadline: past(1000), expiresAt: future(24 * 60 * 60 * 1000),
-    });
-
-    await runMarketGC();
-
-    const updated = await prisma.contract.findUniqueOrThrow({ where: { id: contract.id } });
-    expect(updated.status).toBe('expired');
-  });
-
-  it('does not early-expire a never-accepted errand/standard contract at its (irrelevant) bid deadline', async () => {
-    // Every generated contract gets a bidDeadline regardless of tier, but it only means
-    // anything for dangerous/legendary — errand/standard contracts should still live until
-    // expiresAt even after their bidDeadline has technically passed.
-    const contract = await createContract({
-      tier: 'standard', status: 'available',
-      bidDeadline: past(1000), expiresAt: future(24 * 60 * 60 * 1000),
+      tier: 'legendary', status: 'available', bidDeadline: null,
+      expiresAt: future(90 * 60 * 60 * 1000),
     });
 
     await runMarketGC();
 
     const updated = await prisma.contract.findUniqueOrThrow({ where: { id: contract.id } });
     expect(updated.status).toBe('available');
+    expect(updated.bidDeadline).toBeNull();
+  });
+
+  it('expires a never-bid bidding-tier contract once its backstop expiresAt passes', async () => {
+    const contract = await createContract({
+      tier: 'legendary', status: 'available', bidDeadline: null, expiresAt: past(1000),
+    });
+
+    await runMarketGC();
+
+    const updated = await prisma.contract.findUniqueOrThrow({ where: { id: contract.id } });
+    expect(updated.status).toBe('expired');
   });
 
   it('expires available contracts past their expiresAt', async () => {
@@ -106,6 +103,45 @@ describe('runMarketGC', () => {
     expect(bidding.status).toBe('bidding');
     expect(available.status).toBe('available');
     expect(awarded.status).toBe('awarded');
+  });
+
+  it('tops up dangerous/legendary contracts to their standing target from an empty market', async () => {
+    await runMarketGC();
+
+    const dangerousCount = await prisma.contract.count({
+      where: { tier: 'dangerous', status: { in: ['available', 'bidding'] } },
+    });
+    const legendaryCount = await prisma.contract.count({
+      where: { tier: 'legendary', status: { in: ['available', 'bidding'] } },
+    });
+    expect(dangerousCount).toBe(BIDDING_MARKET_TARGET.dangerous);
+    expect(legendaryCount).toBe(BIDDING_MARKET_TARGET.legendary);
+  });
+
+  it('does not add more bidding-tier contracts once the standing target is already met', async () => {
+    for (let i = 0; i < BIDDING_MARKET_TARGET.legendary; i++) {
+      await createContract({ tier: 'legendary', status: 'available', bidDeadline: null });
+    }
+
+    await runMarketGC();
+
+    const legendaryCount = await prisma.contract.count({
+      where: { tier: 'legendary', status: { in: ['available', 'bidding'] } },
+    });
+    expect(legendaryCount).toBe(BIDDING_MARKET_TARGET.legendary);
+  });
+
+  it('counts bidding-status contracts toward the standing target, not just available ones', async () => {
+    // A contract that already has a bid still occupies a market slot until it resolves —
+    // replenishment shouldn't add a fresh one on top of it and overshoot the target.
+    await createContract({ tier: 'legendary', status: 'bidding', bidDeadline: future(60 * 60 * 1000) });
+
+    await runMarketGC();
+
+    const legendaryCount = await prisma.contract.count({
+      where: { tier: 'legendary', status: { in: ['available', 'bidding'] } },
+    });
+    expect(legendaryCount).toBe(BIDDING_MARKET_TARGET.legendary);
   });
 
   it('fails an awarded contract whose deploy-by deadline passed, applying its penalty', async () => {

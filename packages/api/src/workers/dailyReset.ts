@@ -54,6 +54,8 @@ export async function runDailyReset(): Promise<void> {
     Math.ceil(playerCount * DAILY_ADVENTURERS_PER_PLAYER),
   );
 
+  // seedContracts only covers errand/standard — dangerous/legendary are maintained by
+  // marketGC's reactive standing-target top-up instead (see BIDDING_MARKET_TARGET).
   const [adventurersAdded, contractsAdded] = await Promise.all([
     seedAdventurers(adventurerCount, now),
     seedContracts(now),

@@ -5,6 +5,7 @@ import {
   BIDDING_CONTRACT_TIERS,
   CONTRACT_TIER_REPUTATION_REQUIREMENTS,
   DIRECT_ACCEPT_DEPLOY_HOURS,
+  BID_WINDOW_HOURS,
 } from '@axes-actuaries/types';
 import type { ContractTier } from '@axes-actuaries/types';
 import { getBootstrapStatus, WELFARE_COOLDOWN_HOURS, WELFARE_CONTRACT, claimWelfareContract } from '../services/bootstrap.js';
@@ -149,7 +150,9 @@ router.post('/:id/bid', requireAuth, async (req, res) => {
     res.status(409).json({ error: 'Contract is no longer accepting bids' });
     return;
   }
-  if (new Date(contract.bidDeadline) <= new Date()) {
+  // Null bidDeadline means no bid has landed yet — the contract has no clock running at all
+  // (see BID_WINDOW_HOURS), so only a *set* deadline in the past should reject a bid.
+  if (contract.bidDeadline && new Date(contract.bidDeadline) <= new Date()) {
     res.status(409).json({ error: 'The bidding window for this contract has closed' });
     return;
   }
@@ -165,17 +168,23 @@ router.post('/:id/bid', requireAuth, async (req, res) => {
     return;
   }
 
-  // Upsert bid + transition contract to 'bidding' on first bid (idempotent).
+  // Upsert bid + transition contract to 'bidding' on first bid (idempotent). The first bid
+  // is also what starts the countdown — everyone gets the same full BID_WINDOW_HOURS to
+  // counter-bid regardless of when the first bid happened to land. Gated on status:'available'
+  // so a second/third bid on an already-'bidding' contract is a no-op here and never resets
+  // the clock.
   await prisma.$transaction(async (tx) => {
     await tx.contractBid.upsert({
       where:  { contractId_playerId: { contractId: id, playerId: req.playerId } },
       create: { contractId: id, playerId: req.playerId },
       update: {},
     });
-    // Safe to run even if contract is already 'bidding' — updateMany is a no-op then.
     await tx.contract.updateMany({
       where: { id, status: 'available' },
-      data:  { status: 'bidding' },
+      data:  {
+        status:      'bidding',
+        bidDeadline: new Date(Date.now() + BID_WINDOW_HOURS * 60 * 60 * 1000),
+      },
     });
   });
 

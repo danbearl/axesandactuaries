@@ -1,5 +1,5 @@
 import type { ContractTier, Stat, StatBlock, Vocation } from './game.js';
-import { STATS, VOCATIONS, VOCATION_STAT_PRIORITY } from './game.js';
+import { STATS, VOCATIONS, VOCATION_STAT_PRIORITY, BIDDING_CONTRACT_TIERS } from './game.js';
 
 // ── Utility ───────────────────────────────────────────────────────────────────
 
@@ -23,6 +23,26 @@ const pick = <T>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.len
 //   the hoarding risk to "at most a day," not forever.
 export const DIRECT_ACCEPT_DEPLOY_HOURS = 3;
 export const BID_AWARD_DEPLOY_HOURS = 24;
+
+// ── Market lifecycle ─────────────────────────────────────────────────────────
+// Direct-accept tiers (errand/standard) and bidding tiers (dangerous/legendary) age off the
+// market very differently — see workers/marketGC.ts and routes/contracts.ts for how these
+// are actually applied.
+//
+// Direct-accept: a fixed clock from creation. Simple, since there's no auction to wait out.
+export const DIRECT_ACCEPT_CONTRACT_EXPIRY_HOURS = 48;
+//
+// Bidding: no clock at all until the *first* bid lands — a contract nobody has bid on yet
+// shouldn't vanish from the market just because time passed, otherwise the market goes
+// through daily windows with zero dangerous/legendary contracts available at all. Once a
+// first bid lands, everyone gets a fair, full window to counter-bid before it resolves to
+// the highest-reputation bidder.
+export const BID_WINDOW_HOURS = 4;
+// Backstop for a contract that never receives a single bid — without this, an unpopular
+// contract would occupy its market slot forever, since nothing else ever prompts its
+// removal. Deliberately generous (days, not hours) since replenishment is reactive (see
+// BIDDING_MARKET_TARGET below), so a longer backstop doesn't reintroduce an empty-market gap.
+export const BIDDING_CONTRACT_BACKSTOP_EXPIRY_HOURS = 96;
 
 // ── Tier Configuration ────────────────────────────────────────────────────────
 
@@ -230,7 +250,9 @@ export interface GeneratedContract {
   penaltyGold:       number;
   penaltyReputation: number;
   durationHours:     number;
-  bidDeadline:       Date;
+  // Null for every freshly-generated contract, including bidding tiers — only set once a
+  // first bid actually lands (routes/contracts.ts), never at generation time.
+  bidDeadline:       Date | null;
   expiresAt:         Date;
 }
 
@@ -261,8 +283,11 @@ export function generateContract(tier: ContractTier, now = new Date()): Generate
   const requiredPower = randInt(cfg.powerRange[0], cfg.powerRange[1]);
   const durationHours = randInt(cfg.durationRange[0], cfg.durationRange[1]);
 
-  const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-  const bidDeadline = new Date(now.getTime() + 20 * 60 * 60 * 1000);
+  const isBiddingTier = BIDDING_CONTRACT_TIERS.includes(tier);
+  const expiresAt = new Date(now.getTime() + (
+    isBiddingTier ? BIDDING_CONTRACT_BACKSTOP_EXPIRY_HOURS : DIRECT_ACCEPT_CONTRACT_EXPIRY_HOURS
+  ) * 60 * 60 * 1000);
+  const bidDeadline = null;
 
   const requiredVocation = Math.random() < reqCfg.vocationChance ? pick(VOCATIONS) : undefined;
 
@@ -341,17 +366,26 @@ export function estimateSuccessChance(
   return Math.max(MIN_SUCCESS_CHANCE, Math.min(MAX_SUCCESS_CHANCE, raw));
 }
 
-// Default distribution: 5 errand, 8 standard, 5 dangerous, 2 legendary
-const DAILY_CONTRACT_COUNTS: Record<ContractTier, number> = {
-  errand:    5,
-  standard:  8,
+// Direct-accept tiers only: a fixed once-daily batch, added on top of whatever's already on
+// the market (contracts age off individually via DIRECT_ACCEPT_CONTRACT_EXPIRY_HOURS, so this
+// never needs to be target-aware the way the bidding tiers do — see BIDDING_MARKET_TARGET).
+const DAILY_CONTRACT_COUNTS: Record<'errand' | 'standard', number> = {
+  errand:   5,
+  standard: 8,
+};
+
+// Bidding tiers only: a standing target maintained continuously by workers/marketGC.ts
+// (checked every 15 minutes, topped up whenever a contract resolves or backstop-expires)
+// rather than a once-daily add — since these contracts don't age off on a fixed clock, a flat
+// daily add would let the market grow unbounded over multiple days instead of holding steady.
+export const BIDDING_MARKET_TARGET: Record<'dangerous' | 'legendary', number> = {
   dangerous: 5,
   legendary: 2,
 };
 
 export function generateDailyContracts(now = new Date()): GeneratedContract[] {
   const contracts: GeneratedContract[] = [];
-  for (const [tier, count] of Object.entries(DAILY_CONTRACT_COUNTS) as [ContractTier, number][]) {
+  for (const [tier, count] of Object.entries(DAILY_CONTRACT_COUNTS) as ['errand' | 'standard', number][]) {
     for (let i = 0; i < count; i++) {
       contracts.push(generateContract(tier, now));
     }

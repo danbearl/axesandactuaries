@@ -58,7 +58,8 @@ export async function createContract(overrides: Partial<Contract> = {}): Promise
       penaltyReputation: 1,
       durationHours: 8,
       status: 'available',
-      bidDeadline: new Date(now.getTime() + 20 * 60 * 60 * 1000),
+      // Matches real generation: null until a first bid lands (see routes/contracts.ts).
+      bidDeadline: null,
       expiresAt: new Date(now.getTime() + 48 * 60 * 60 * 1000),
       ...overrides,
     },

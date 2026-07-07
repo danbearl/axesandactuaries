@@ -1,24 +1,19 @@
-import type { ContractTier } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { publish, CHANNELS } from '../lib/redis.js';
-import { BID_AWARD_DEPLOY_HOURS, BIDDING_CONTRACT_TIERS } from '@axes-actuaries/types';
+import { BID_AWARD_DEPLOY_HOURS } from '@axes-actuaries/types';
+import { replenishBiddingMarket } from '../services/marketSeeding.js';
 
 // Runs every 15 minutes.
 export async function runMarketGC(): Promise<void> {
   const now = new Date();
 
-  // Award bidding contracts whose bid deadline has passed. Also catches bidding-tier
-  // contracts that never received a single bid — those never leave 'available' status
-  // (only a first bid transitions a contract to 'bidding'), so without this they'd be
-  // stranded on the market until the much later `expiresAt` cleanup below instead of
-  // disappearing when their bid window actually closes.
+  // Award bidding contracts whose post-first-bid window has passed. A contract with no bids
+  // at all has bidDeadline still null (only a first bid sets it — see routes/contracts.ts),
+  // so it's never matched here; it stays on the market until either it gets a bid or its
+  // much longer backstop expiresAt is hit (below).
   // Winner = highest reputation; earliest bid breaks ties.
   const biddingExpired = await prisma.contract.findMany({
-    where: {
-      status:      { in: ['available', 'bidding'] },
-      tier:        { in: BIDDING_CONTRACT_TIERS as ContractTier[] },
-      bidDeadline: { lt: now },
-    },
+    where: { status: 'bidding', bidDeadline: { lt: now } },
     include: {
       bids: {
         include: { player: { select: { id: true, reputation: true } } },
@@ -61,11 +56,18 @@ export async function runMarketGC(): Promise<void> {
     }
   }
 
-  // Expire available contracts past their expiry date.
+  // Expire available contracts past their expiry date. For bidding tiers this is a backstop
+  // for contracts that never received a single bid (see BIDDING_CONTRACT_BACKSTOP_EXPIRY_HOURS);
+  // for direct-accept tiers it's the only expiry mechanism they have.
   const marketExpired = await prisma.contract.updateMany({
     where: { status: 'available', expiresAt: { lt: now } },
     data:  { status: 'expired' },
   });
+
+  // Top up dangerous/legendary back to their standing target — runs after the awarding/expiry
+  // passes above so it sees an up-to-date count, not one still including contracts this same
+  // tick just resolved.
+  const replenished = await replenishBiddingMarket(now);
 
   // Fail awarded contracts whose deploy-by deadline passed without a party ever being sent
   // — otherwise a player could accept/win contracts indefinitely without committing to
@@ -138,16 +140,18 @@ export async function runMarketGC(): Promise<void> {
   });
   const recoveredCount = recoveredEmployed.count + recoveredUnemployed.count;
 
-  const total = awarded + bidExpiredCount + marketExpired.count + deployMissed.length + recoveredCount;
+  const total = awarded + bidExpiredCount + marketExpired.count + replenished + deployMissed.length + recoveredCount;
   if (total > 0) {
     console.log(
       `[market-gc] Awarded ${awarded} bid contract(s), expired ${bidExpiredCount + marketExpired.count} contract(s), ` +
-      `failed ${deployMissed.length} contract(s) for missed deploy-by, recovered ${recoveredCount} adventurer(s)`,
+      `replenished ${replenished} bidding-tier contract(s), failed ${deployMissed.length} contract(s) for missed ` +
+      `deploy-by, recovered ${recoveredCount} adventurer(s)`,
     );
     publish(CHANNELS.market, 'market_update', {
       type:      'gc',
       awarded,
       contracts: bidExpiredCount + marketExpired.count,
+      replenished,
       deployMissed: deployMissed.length,
       recovered: recoveredCount,
     }).catch(() => {});

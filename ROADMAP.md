@@ -670,6 +670,58 @@ open to a small trusted player pool (Phase 0 below).
   (never-bid bidding-tier contract expires at its bid deadline without waiting for
   `expiresAt`; a never-accepted errand/standard contract is *not* early-expired at its
   otherwise-irrelevant bid deadline).
+- [x] Redesigned bidding-tier market lifecycle to close a daily empty-market gap
+  (2026-07-07, **supersedes the point-fix above**) — the previous fix stopped contracts from
+  lingering past their deadline, but exposed the actual underlying problem: with a fixed 20h
+  `bidDeadline` and a once-daily replenishment batch at 00:00 UTC, there was a guaranteed
+  ~4-hour window every day with *zero* dangerous/legendary contracts on the market at all
+  (20h < 24h refresh cycle). The user also flagged a fairness issue with any fixed
+  from-creation deadline: a bid placed minutes before it closes leaves other players no real
+  chance to counter-bid.
+  - **Bidding tiers no longer have a deadline at creation.** `Contract.bidDeadline` is now
+    nullable and stays `null` until a contract's *first* bid lands — an unbid contract simply
+    never disappears from the market on its own, closing the gap entirely. The first bid
+    starts a fixed **4-hour** counter-bid window (`BID_WINDOW_HOURS`), guaranteeing everyone
+    gets the same full window to counter-bid regardless of when that first bid happened to
+    land — resolving the fairness issue directly, since only the *first* bid sets the
+    deadline; later bids on the same contract don't reset it.
+  - **Standing target replaces the once-daily batch for dangerous/legendary.** `workers/
+    marketGC.ts` now also runs `replenishBiddingMarket()` on its existing 15-minute cycle,
+    topping up each bidding tier to a constant target (`BIDDING_MARKET_TARGET`: 5 dangerous,
+    2 legendary — same numbers as the old daily batch, now a floor instead of an addition) by
+    counting contracts still `available` or `bidding`. This is what actually prevents the
+    gap — a bid-triggered timer alone doesn't help if nothing replaces a contract once it's
+    won. `generateDailyContracts()`/`seedContracts()` (still run once daily) now only cover
+    errand/standard, which keep their original fixed-batch-plus-`expiresAt` model unchanged,
+    since direct-accept contracts don't have this gap problem (nothing gates them on an
+    auction resolving).
+  - **Backstop expiry for contracts nobody ever bids on.** Without *some* eventual expiry, an
+    unpopular contract would occupy its standing-target slot forever, since replenishment
+    only tops up a shortfall, it doesn't evict. Bidding-tier contracts get a deliberately
+    generous `expiresAt` of **96 hours** (`BIDDING_CONTRACT_BACKSTOP_EXPIRY_HOURS`, vs. 48h
+    for direct-accept) — long enough not to recreate the original gap given replenishment is
+    now reactive, but still guarantees eventual rotation. Reuses the *existing* generic
+    `status:'available', expiresAt < now` sweep in `marketGC.ts` with no special-casing
+    needed — it already runs for every tier, and now just sees a different `expiresAt` value
+    depending on which tier generated the contract.
+  - This is a straight simplification of the point-fix's `biddingExpired` query — the
+    `tier`/`status:'available'` widening added there becomes unreachable under the new model
+    (an `'available'` bidding-tier contract's `bidDeadline` is always `null` now, never a
+    past timestamp), so the query reverts to its original, simpler `status:'bidding'` form.
+  - Frontend: `ContractCard.tsx` shows "Open for bidding" instead of a countdown when
+    `bidDeadline` is `null`. Admin's "Seed Contracts" button now also calls
+    `replenishBiddingMarket()` alongside the errand/standard batch, since the old copy ("5
+    errand, 8 standard, 5 dangerous, 2 legendary") was describing a batch that no longer
+    exists for the bidding tiers.
+  - Test-covered in `packages/types/src/contracts.test.ts` (generated contracts leave
+    `bidDeadline` null and pick the correct tier-dependent `expiresAt`; the daily batch no
+    longer includes bidding tiers) and `test/marketGC.test.ts` (never-bid contracts sit
+    untouched indefinitely until their backstop expiresAt; standing-target top-up from an
+    empty market, no over-adding once at target, bidding-status contracts count toward the
+    target same as available ones). No route-level test for "first bid sets the 4h window" —
+    this codebase has no HTTP integration tests anywhere yet (existing, documented gap), so
+    that specific behavior needs a real browser check: place a bid, confirm the card switches
+    from "Open for bidding" to a live "Bid closes" countdown.
 - [x] "Accept for Later" for direct-accept contracts (2026-07-07) — the deploy-by system
   above assumed a player could accept an errand/standard contract without immediately
   assigning a party, but there was actually no way to do that: the only "Accept" button

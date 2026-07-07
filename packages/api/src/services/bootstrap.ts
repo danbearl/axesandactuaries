@@ -104,7 +104,9 @@ export async function claimWelfareContract(playerId: string) {
         ...WELFARE_CONTRACT,
         status:      'awarded',
         awardedTo:   playerId,
-        bidDeadline: expiresAt,
+        // Welfare contracts go straight to 'awarded', skipping 'available'/'bidding'
+        // entirely — bidDeadline is meaningless here, same as any other direct-accept award.
+        bidDeadline: null,
         expiresAt,
         deployBy,
       },

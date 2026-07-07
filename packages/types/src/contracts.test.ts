@@ -3,7 +3,10 @@ import {
   generateContract, generateDailyContracts, CONTRACT_TIER_CONFIG,
   countUnmetRequirements, estimateSuccessChance,
   MIN_SUCCESS_CHANCE, MAX_SUCCESS_CHANCE, REQUIREMENT_PENALTY_PER_UNMET,
+  DIRECT_ACCEPT_CONTRACT_EXPIRY_HOURS, BIDDING_CONTRACT_BACKSTOP_EXPIRY_HOURS,
+  BIDDING_MARKET_TARGET,
 } from './contracts.js';
+import { BIDDING_CONTRACT_TIERS } from './game.js';
 import type { ContractTier } from './game.js';
 
 const TIERS: ContractTier[] = ['errand', 'standard', 'dangerous', 'legendary'];
@@ -28,8 +31,14 @@ describe('generateContract', () => {
       expect(contract.reputationReward).toBe(cfg.reputationReward);
       expect(contract.penaltyReputation).toBe(cfg.penaltyReputation);
 
-      expect(contract.bidDeadline.getTime()).toBe(now.getTime() + 20 * 60 * 60 * 1000);
-      expect(contract.expiresAt.getTime()).toBe(now.getTime() + 48 * 60 * 60 * 1000);
+      // No deadline until a first bid lands — see routes/contracts.ts.
+      expect(contract.bidDeadline).toBeNull();
+
+      const isBiddingTier = BIDDING_CONTRACT_TIERS.includes(tier);
+      const expectedExpiryHours = isBiddingTier
+        ? BIDDING_CONTRACT_BACKSTOP_EXPIRY_HOURS
+        : DIRECT_ACCEPT_CONTRACT_EXPIRY_HOURS;
+      expect(contract.expiresAt.getTime()).toBe(now.getTime() + expectedExpiryHours * 60 * 60 * 1000);
     });
   }
 });
@@ -140,7 +149,10 @@ describe('estimateSuccessChance', () => {
 });
 
 describe('generateDailyContracts', () => {
-  it('produces the expected tier distribution', () => {
+  it('produces only errand/standard contracts — bidding tiers use a standing target instead', () => {
+    // Dangerous/legendary don't age off on a fixed clock (see BID_WINDOW_HOURS), so a flat
+    // daily add would let the market grow unbounded over multiple days; they're maintained
+    // by workers/marketGC.ts's reactive top-up against BIDDING_MARKET_TARGET instead.
     const contracts = generateDailyContracts(new Date());
     const counts = contracts.reduce<Record<string, number>>((acc, c) => {
       acc[c.tier] = (acc[c.tier] ?? 0) + 1;
@@ -149,8 +161,15 @@ describe('generateDailyContracts', () => {
 
     expect(counts.errand).toBe(5);
     expect(counts.standard).toBe(8);
-    expect(counts.dangerous).toBe(5);
-    expect(counts.legendary).toBe(2);
-    expect(contracts).toHaveLength(20);
+    expect(counts.dangerous).toBeUndefined();
+    expect(counts.legendary).toBeUndefined();
+    expect(contracts).toHaveLength(13);
+  });
+});
+
+describe('BIDDING_MARKET_TARGET', () => {
+  it('defines a standing target for both bidding tiers', () => {
+    expect(BIDDING_MARKET_TARGET.dangerous).toBe(5);
+    expect(BIDDING_MARKET_TARGET.legendary).toBe(2);
   });
 });

@@ -42,7 +42,9 @@ export default function ContractCard({ contract: c, onAccept, onAcceptOnly, onBi
             <span className={`badge badge-tier-${c.tier}`}>{c.tier}</span>
             {isBidding ? (
               <>
-                <span className="label">Bid closes {formatTimeLeft(c.bidDeadline)}</span>
+                <span className="label">
+                  {c.bidDeadline ? `Bid closes ${formatTimeLeft(c.bidDeadline)}` : 'Open for bidding'}
+                </span>
                 {c.bidCount !== undefined && c.bidCount > 0 && (
                   <span className="label" style={{ color: 'var(--gold)' }}>
                     {c.bidCount} bid{c.bidCount !== 1 ? 's' : ''}

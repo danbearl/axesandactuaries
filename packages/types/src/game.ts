@@ -133,7 +133,7 @@ export interface Contract {
   durationHours:       number;
   status:              ContractStatus;
   awardedTo?:          string;
-  bidDeadline:         string; // ISO timestamp — deadline for bidding window
+  bidDeadline:         string | null; // ISO timestamp — null until a first bid starts the countdown
   expiresAt:           string; // ISO timestamp — contract removed from market if never taken
   bidCount?:           number; // populated on market listings; number of bids placed
   hasBid?:             boolean; // populated on market listings; whether current player has bid

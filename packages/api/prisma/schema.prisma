@@ -142,7 +142,11 @@ model Contract {
   durationHours     Int            @map("duration_hours")
   status            ContractStatus @default(available)
   awardedTo         String?        @map("awarded_to")
-  bidDeadline       DateTime       @map("bid_deadline")
+  // Null until a contract's first bid lands, at which point it's set to give everyone a
+  // fair, full window to counter-bid (see BID_WINDOW_HOURS) — a bidding-tier contract with
+  // no bids yet has no deadline at all, so it never disappears from the market just from
+  // time passing. Direct-accept tiers (errand/standard) never use this field.
+  bidDeadline       DateTime?      @map("bid_deadline")
   expiresAt         DateTime       @map("expires_at")
   // Deadline to deploy a party once awarded — set the instant a contract transitions to
   // 'awarded' (direct accept, bid win, or welfare claim). Missing it counts as a failed

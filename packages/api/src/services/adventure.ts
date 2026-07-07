@@ -1,5 +1,8 @@
 import { prisma } from '../lib/prisma.js';
-import { levelForXp, XP_PER_GOLD, MAX_LEVEL, computeDailyWage } from '@axes-actuaries/types';
+import {
+  levelForXp, XP_PER_GOLD, MAX_LEVEL, computeDailyWage,
+  countUnmetRequirements, estimateSuccessChance,
+} from '@axes-actuaries/types';
 import type { StatBlock } from '@axes-actuaries/types';
 import { publish, CHANNELS } from '../lib/redis.js';
 import { ClaimConflictError } from '../lib/errors.js';
@@ -45,7 +48,7 @@ export async function startAdventure(
   return prisma.$transaction(async (tx) => {
     const claimedContract = await tx.contract.updateMany({
       where: { id: contractId, awardedTo: playerId, status: 'awarded' },
-      data: { status: 'in_progress' },
+      data: { status: 'in_progress', deployBy: null },
     });
     if (claimedContract.count === 0) {
       throw new ClaimConflictError('Contract is not awarded to you or is not in awarded status');
@@ -131,9 +134,19 @@ export async function resolveAdventure(
     adventure.playerId,
   );
 
+  const unmetRequirements = countUnmetRequirements(
+    {
+      requiredStats:    adventure.contract.requiredStats as Partial<StatBlock>,
+      requiredVocation: adventure.contract.requiredVocation,
+    },
+    adventure.adventurers.map((aa) => ({
+      vocation: aa.adventurer.vocation,
+      stats:    aa.adventurer.stats as Partial<StatBlock>,
+    })),
+  );
+
   const outcomeRoll = Math.random();
-  const ratio = partyPower / adventure.contract.requiredPower;
-  const successChance = Math.min(0.9, 0.3 + ratio * 0.5);
+  const successChance = estimateSuccessChance(partyPower, adventure.contract.requiredPower, unmetRequirements);
   const success = opts?.forceOutcome ? opts.forceOutcome === 'success' : outcomeRoll < successChance;
 
   const infirmaryLevel = (

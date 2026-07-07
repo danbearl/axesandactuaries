@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api.ts';
-import type { Adventurer } from '@axes-actuaries/types';
+import { countUnmetRequirements, estimateSuccessChance, type Adventurer } from '@axes-actuaries/types';
 import AdventurerCard from '../components/AdventurerCard.tsx';
 import './AdventureDetail.css';
 
@@ -49,8 +49,8 @@ export default function AdventureDetail() {
   const { contract } = adventure;
   const party = adventure.adventurers.map(aa => aa.adventurer);
   const partyPower = party.reduce((s, a) => s + a.powerRating, 0);
-  const ratio = partyPower / contract.requiredPower;
-  const successChance = Math.min(90, Math.round((0.3 + ratio * 0.5) * 100));
+  const unmetRequirements = countUnmetRequirements(contract, party);
+  const successChance = Math.round(estimateSuccessChance(partyPower, contract.requiredPower, unmetRequirements) * 100);
 
   const total = new Date(adventure.completesAt).getTime() - new Date(adventure.startsAt).getTime();
   const elapsed = Date.now() - new Date(adventure.startsAt).getTime();
@@ -145,6 +145,12 @@ export default function AdventureDetail() {
                   <span className="label">Party Power</span>
                   <span className="value">{partyPower} vs. {contract.requiredPower} required</span>
                 </div>
+                {unmetRequirements > 0 && (
+                  <div className="detail-stat">
+                    <span className="label">Missing Requirements</span>
+                    <span className="value text-warning">{unmetRequirements}</span>
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -1,4 +1,5 @@
-import type { ContractTier } from './game.js';
+import type { ContractTier, Stat, StatBlock, Vocation } from './game.js';
+import { STATS, VOCATIONS, VOCATION_STAT_PRIORITY } from './game.js';
 
 // ── Utility ───────────────────────────────────────────────────────────────────
 
@@ -6,6 +7,22 @@ const randInt = (min: number, max: number): number =>
   Math.floor(Math.random() * (max - min + 1)) + min;
 
 const pick = <T>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
+// ── Deploy-by deadlines ─────────────────────────────────────────────────────────
+// An awarded contract that never gets a party deployed is treated as failed (same
+// penaltyGold/penaltyReputation as an actually-failed adventure) once its deploy-by
+// deadline passes — otherwise a player could accept/win contracts indefinitely without
+// ever committing to them, denying them to everyone else with zero cost.
+//
+// Two different windows, because *who* controls the award moment differs:
+// - Direct accept and welfare claims are player-initiated — the player is already at the
+//   keyboard when they act, so a short clock starting immediately is fair.
+// - Bid awards are decided by the market-GC sweep at an unpredictable time, entirely
+//   outside the winner's control — a short clock could expire while they're asleep. A full
+//   day guarantees at least one waking window regardless of timezone, while still bounding
+//   the hoarding risk to "at most a day," not forever.
+export const DIRECT_ACCEPT_DEPLOY_HOURS = 3;
+export const BID_AWARD_DEPLOY_HOURS = 24;
 
 // ── Tier Configuration ────────────────────────────────────────────────────────
 
@@ -206,7 +223,8 @@ export interface GeneratedContract {
   description:       string;
   tier:              ContractTier;
   requiredPower:     number;
-  requiredStats:     Record<string, never>; // reserved for Phase 5
+  requiredStats:     Partial<StatBlock>;
+  requiredVocation?: Vocation;
   rewardGold:        number;
   reputationReward:  number;
   penaltyGold:       number;
@@ -216,9 +234,27 @@ export interface GeneratedContract {
   expiresAt:         Date;
 }
 
+// Odds of rolling a stat/vocation requirement, and the stat threshold used, scaled by tier
+// so higher-stakes contracts ask more of a party's composition. These are soft requirements
+// (see estimateSuccessChance below) — never a hard gate on accepting/deploying, consistent
+// with how requiredPower itself only ever affects odds, never blocks an attempt outright.
+interface RequirementConfig {
+  statChance:     number;
+  statThreshold:  number;
+  vocationChance: number;
+}
+
+const REQUIREMENT_CONFIG: Record<ContractTier, RequirementConfig> = {
+  errand:    { statChance: 0,   statThreshold: 0,  vocationChance: 0 },
+  standard:  { statChance: 0.4, statThreshold: 12, vocationChance: 0 },
+  dangerous: { statChance: 1,   statThreshold: 14, vocationChance: 0.5 },
+  legendary: { statChance: 1,   statThreshold: 16, vocationChance: 0.8 },
+};
+
 export function generateContract(tier: ContractTier, now = new Date()): GeneratedContract {
   const cfg = CONTRACT_TIER_CONFIG[tier];
   const template = pick(TEMPLATES[tier]);
+  const reqCfg = REQUIREMENT_CONFIG[tier];
 
   const rewardGold = randInt(cfg.rewardRange[0], cfg.rewardRange[1]);
   const penaltyGold = Math.round(rewardGold * cfg.penaltyMultiplier);
@@ -228,12 +264,26 @@ export function generateContract(tier: ContractTier, now = new Date()): Generate
   const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
   const bidDeadline = new Date(now.getTime() + 20 * 60 * 60 * 1000);
 
+  const requiredVocation = Math.random() < reqCfg.vocationChance ? pick(VOCATIONS) : undefined;
+
+  let requiredStats: Partial<StatBlock> = {};
+  if (Math.random() < reqCfg.statChance) {
+    // When a vocation is also required, bias the stat toward that vocation's top-2
+    // priority stats so the pairing reads coherently ("needs an Arcanist with Attunement"),
+    // rather than an unrelated stat on an unrelated vocation.
+    const stat: Stat = requiredVocation
+      ? pick(VOCATION_STAT_PRIORITY[requiredVocation].slice(0, 2) as Stat[])
+      : pick(STATS);
+    requiredStats = { [stat]: reqCfg.statThreshold };
+  }
+
   return {
     title:             template.title,
     description:       template.description,
     tier,
     requiredPower,
-    requiredStats:     {},
+    requiredStats,
+    requiredVocation,
     rewardGold,
     reputationReward:  cfg.reputationReward,
     penaltyGold,
@@ -242,6 +292,53 @@ export function generateContract(tier: ContractTier, now = new Date()): Generate
     bidDeadline,
     expiresAt,
   };
+}
+
+// ── Requirements & success chance ──────────────────────────────────────────────
+// Shared by both the API (resolveAdventure, the real roll) and the frontend (live
+// success-chance previews in the deploy modals), so the estimate a player sees before
+// deploying always matches what actually happens.
+
+export const REQUIREMENT_PENALTY_PER_UNMET = 0.05;
+export const MIN_SUCCESS_CHANCE = 0.3;
+export const MAX_SUCCESS_CHANCE = 0.9;
+
+// Counts how many of a contract's stat/vocation requirements no party member satisfies.
+// A requirement is met if *any* single party member meets it alone — the party doesn't
+// need one member covering every requirement simultaneously. `requiredVocation`/`vocation`
+// are plain `string` rather than the narrower `Vocation` type — this only ever does a `===`
+// comparison, and keeping it loose avoids forcing a cast at every call site bridging from
+// API response shapes (which type these fields as plain strings).
+export function countUnmetRequirements(
+  contract: { requiredStats: Partial<StatBlock>; requiredVocation?: string | null },
+  party: Array<{ vocation: string; stats: Partial<StatBlock> }>,
+): number {
+  let unmet = 0;
+
+  if (contract.requiredVocation) {
+    const hasVocation = party.some((a) => a.vocation === contract.requiredVocation);
+    if (!hasVocation) unmet++;
+  }
+
+  for (const [stat, threshold] of Object.entries(contract.requiredStats)) {
+    if (threshold === undefined) continue;
+    const meetsStat = party.some((a) => (a.stats[stat as Stat] ?? 0) >= threshold);
+    if (!meetsStat) unmet++;
+  }
+
+  return unmet;
+}
+
+// Returns a 0–1 success chance. `unmetRequirements` defaults to 0 so existing callers that
+// haven't been updated yet still get sensible behavior.
+export function estimateSuccessChance(
+  partyPower: number,
+  requiredPower: number,
+  unmetRequirements = 0,
+): number {
+  const ratio = requiredPower > 0 ? partyPower / requiredPower : 1;
+  const raw = MIN_SUCCESS_CHANCE + ratio * 0.5 - unmetRequirements * REQUIREMENT_PENALTY_PER_UNMET;
+  return Math.max(MIN_SUCCESS_CHANCE, Math.min(MAX_SUCCESS_CHANCE, raw));
 }
 
 // Default distribution: 5 errand, 8 standard, 5 dangerous, 2 legendary

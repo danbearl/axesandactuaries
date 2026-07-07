@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type ContractResponse, type AdventurerResponse } from '../lib/api.ts';
 import type { Contract } from '@axes-actuaries/types';
-import { BIDDING_CONTRACT_TIERS, CONTRACT_TIER_REPUTATION_REQUIREMENTS } from '@axes-actuaries/types';
+import {
+  BIDDING_CONTRACT_TIERS, CONTRACT_TIER_REPUTATION_REQUIREMENTS,
+  countUnmetRequirements, estimateSuccessChance,
+} from '@axes-actuaries/types';
 import ContractCard from '../components/ContractCard.tsx';
 import './ContractMarket.css';
 
@@ -65,6 +68,20 @@ export default function ContractMarket() {
       setError(null);
       setDeployingContract(contract);
       queryClient.invalidateQueries({ queryKey: ['contracts', 'market'] });
+    },
+    onError: (err) => setError(err instanceof Error ? err.message : 'Failed to accept contract'),
+  });
+
+  // "Accept for Later" — accepts without opening the party-assignment modal, so the
+  // contract just sits in 'awarded' status until the player deploys it from the Dashboard's
+  // "Contracts Awaiting Deployment" section (subject to the same deploy-by deadline as any
+  // other awarded contract).
+  const acceptOnlyMutation = useMutation({
+    mutationFn: (contractId: string) => api.contracts.accept(contractId),
+    onSuccess: () => {
+      setError(null);
+      queryClient.invalidateQueries({ queryKey: ['contracts', 'market'] });
+      queryClient.invalidateQueries({ queryKey: ['contracts', 'mine'] });
     },
     onError: (err) => setError(err instanceof Error ? err.message : 'Failed to accept contract'),
   });
@@ -219,6 +236,12 @@ export default function ContractMarket() {
                       setError(null);
                     }
                   : undefined}
+                onAcceptOnly={!isBiddingTier && hasRep && !acceptOnlyMutation.isPending
+                  ? (e) => {
+                      (e as React.MouseEvent).stopPropagation();
+                      acceptOnlyMutation.mutate(contract.id);
+                    }
+                  : undefined}
                 onBid={isBiddingTier && hasRep && !bidMutation.isPending
                   ? (e) => {
                       (e as React.MouseEvent).stopPropagation();
@@ -279,14 +302,17 @@ export default function ContractMarket() {
             {selectedAdventurerIds.length > 0 && (() => {
               const party = hiredAdventurers.filter(a => selectedAdventurerIds.includes(a.id));
               const partyPower = party.reduce((s, a) => s + a.powerRating, 0);
-              const ratio = partyPower / deployingContract.requiredPower;
-              const chance = Math.min(90, Math.round((0.3 + ratio * 0.5) * 100));
+              const unmetRequirements = countUnmetRequirements(deployingContract, party);
+              const chance = Math.round(estimateSuccessChance(partyPower, deployingContract.requiredPower, unmetRequirements) * 100);
               return (
                 <div className="panel panel-sm" style={{ marginBottom: '1rem' }}>
                   <span className="label">Party Power: </span>
                   <span className="value">{partyPower}</span>
                   <span className="label"> vs. {deployingContract.requiredPower} required · </span>
                   <span className="value">~{chance}% success</span>
+                  {unmetRequirements > 0 && (
+                    <span className="label"> (missing {unmetRequirements} preferred requirement{unmetRequirements > 1 ? 's' : ''})</span>
+                  )}
                 </div>
               );
             })()}

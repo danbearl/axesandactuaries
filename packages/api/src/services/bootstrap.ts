@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import type { PrismaClient } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
-import { generateAdventurer } from '@axes-actuaries/types';
+import { generateAdventurer, DIRECT_ACCEPT_DEPLOY_HOURS } from '@axes-actuaries/types';
 import { ClaimConflictError } from '../lib/errors.js';
 
 export const WELFARE_COOLDOWN_HOURS = 48;
@@ -85,6 +85,7 @@ export async function claimWelfareContract(playerId: string) {
   const now            = new Date();
   const cooldownCutoff = new Date(now.getTime() - WELFARE_COOLDOWN_HOURS * 60 * 60 * 1000);
   const expiresAt      = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const deployBy       = new Date(now.getTime() + DIRECT_ACCEPT_DEPLOY_HOURS * 60 * 60 * 1000);
 
   return prisma.$transaction(async (tx) => {
     const claimed = await tx.player.updateMany({
@@ -105,6 +106,7 @@ export async function claimWelfareContract(playerId: string) {
         awardedTo:   playerId,
         bidDeadline: expiresAt,
         expiresAt,
+        deployBy,
       },
     });
   });

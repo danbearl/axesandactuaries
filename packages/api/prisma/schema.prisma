@@ -61,6 +61,7 @@ enum TransactionReason {
   debt_forgiven
   starting_gold
   admin_adjustment
+  contract_abandoned
 }
 
 // ── Models ────────────────────────────────────────────────────────────────────
@@ -127,6 +128,7 @@ model Contract {
   tier              ContractTier
   requiredPower     Int            @map("required_power")
   requiredStats     Json           @map("required_stats")
+  requiredVocation  String?        @map("required_vocation")
   rewardGold        Int            @map("reward_gold")
   reputationReward  Int            @map("reputation_reward")
   penaltyGold       Int            @map("penalty_gold")
@@ -136,12 +138,18 @@ model Contract {
   awardedTo         String?        @map("awarded_to")
   bidDeadline       DateTime       @map("bid_deadline")
   expiresAt         DateTime       @map("expires_at")
+  // Deadline to deploy a party once awarded — set the instant a contract transitions to
+  // 'awarded' (direct accept, bid win, or welfare claim). Missing it counts as a failed
+  // contract (same penaltyGold/penaltyReputation as an actually-failed adventure), so an
+  // awarded-but-abandoned contract can't sit unclaimed forever. Null until awarded.
+  deployBy          DateTime?      @map("deploy_by")
   createdAt         DateTime       @default(now()) @map("created_at")
 
   adventures Adventure[]
   bids       ContractBid[]
 
   @@index([status, bidDeadline])
+  @@index([status, deployBy])
   @@map("contracts")
 }
 

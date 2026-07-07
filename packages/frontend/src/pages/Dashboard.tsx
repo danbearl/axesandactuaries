@@ -5,7 +5,8 @@ import { api, type ContractResponse, type AdventurerResponse } from '../lib/api.
 import AdventurerCard from '../components/AdventurerCard.tsx';
 import AdventureTimer from '../components/AdventureTimer.tsx';
 import DailyResetTimer from '../components/DailyResetTimer.tsx';
-import { computeRosterCap, type Adventurer } from '@axes-actuaries/types';
+import DeployByCountdown from '../components/DeployByCountdown.tsx';
+import { computeRosterCap, countUnmetRequirements, estimateSuccessChance, type Adventurer } from '@axes-actuaries/types';
 import './Dashboard.css';
 
 export default function Dashboard() {
@@ -134,7 +135,8 @@ export default function Dashboard() {
             <span className="label">{pendingContracts.length} bid-won contract{pendingContracts.length !== 1 ? 's' : ''}</span>
           </div>
           <p className="label" style={{ marginBottom: '0.75rem' }}>
-            You won these contracts through competitive bidding. Assign a party to deploy them before they expire.
+            Assign a party before the deploy-by deadline — missing it fails the contract with
+            its normal gold/reputation penalty.
           </p>
           <div className="flex-col gap-sm">
             {pendingContracts.map(c => (
@@ -142,6 +144,7 @@ export default function Dashboard() {
                 <div>
                   <div className="value">{c.title}</div>
                   <div className="label">{c.tier} · {c.rewardGold.toLocaleString()} gp · Power {c.requiredPower}</div>
+                  {c.deployBy && <DeployByCountdown deployBy={c.deployBy} />}
                 </div>
                 <button
                   className="btn btn-primary btn-sm"
@@ -293,14 +296,17 @@ export default function Dashboard() {
             {selectedAdventurerIds.length > 0 && (() => {
               const party      = hiredAdventurers.filter(a => selectedAdventurerIds.includes(a.id));
               const partyPower = party.reduce((s, a) => s + a.powerRating, 0);
-              const ratio      = partyPower / deployingContract.requiredPower;
-              const chance     = Math.min(90, Math.round((0.3 + ratio * 0.5) * 100));
+              const unmetRequirements = countUnmetRequirements(deployingContract, party);
+              const chance     = Math.round(estimateSuccessChance(partyPower, deployingContract.requiredPower, unmetRequirements) * 100);
               return (
                 <div className="panel panel-sm" style={{ marginBottom: '1rem' }}>
                   <span className="label">Party Power: </span>
                   <span className="value">{partyPower}</span>
                   <span className="label"> vs. {deployingContract.requiredPower} required · </span>
                   <span className="value">~{chance}% success</span>
+                  {unmetRequirements > 0 && (
+                    <span className="label"> (missing {unmetRequirements} preferred requirement{unmetRequirements > 1 ? 's' : ''})</span>
+                  )}
                 </div>
               );
             })()}

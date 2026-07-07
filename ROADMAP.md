@@ -510,8 +510,99 @@ open to a small trusted player pool (Phase 0 below).
   on 2026-07-06) — no design work done yet; needs its own scoping pass before
   implementation.
 - Adventurer equipment system (from original TODO.md, Game Mechanics).
-- Contract class/stat requirements — a `requiredStats` field already exists as a stub in
-  `packages/types/src/contracts.ts` marked "reserved for Phase 5."
+- [x] Contract class/stat requirements (2026-07-06) — the `requiredStats` field (previously
+  a stub, always `{}`) is now populated at generation time, alongside a new
+  `requiredVocation` field (new nullable `Contract.requiredVocation` column). Two design
+  options were on the table: hard-blocking party assignment vs. a soft success-chance
+  penalty. Went with the soft penalty — found a strong consistency argument first:
+  `requiredPower`, the existing analogous requirement, was never a hard gate either
+  (`startAdventure` never checks party power at all; it only ever fed into the probabilistic
+  success-chance formula), so making stat/vocation a hard gate would've been an inconsistent
+  new mechanic sitting next to the one it's most analogous to. Also consistent with this
+  session's running theme of eliminating "effectively locked out" scenarios (the reputation
+  floor and dead-adventurer-resurrection fixes above).
+  - **Generation** (`packages/types/src/contracts.ts`): scales by tier — errand never rolls
+    a requirement; standard has a 40% chance of one stat requirement (threshold 12); dangerous
+    always has one stat requirement (14) plus a 50% chance of also requiring a vocation;
+    legendary always has a stat requirement (16) plus an 80% chance of a vocation. When both
+    roll together, the stat is biased toward the required vocation's top-2 priority stats
+    (`VOCATION_STAT_PRIORITY`) so the pairing reads coherently (e.g. "needs an Arcanist with
+    strong Attunement") rather than two unrelated asks.
+  - **Resolution** (`services/adventure.ts`): a requirement is met if *any single* party
+    member satisfies it alone — the party doesn't need one adventurer covering everything.
+    Each unmet requirement costs 5% success chance (`REQUIREMENT_PENALTY_PER_UNMET`), and the
+    result is still clamped to the existing 30–90% range — requirements can make a mismatched
+    party's odds worse, but never push them below the same floor every contract already has.
+  - **Consolidation**: while wiring this in, noticed the success-chance formula
+    (`Math.min(90, Math.round((0.3 + ratio * 0.5) * 100))`) was independently duplicated in
+    four places (`resolveAdventure`, `Dashboard.tsx`, `ContractMarket.tsx`,
+    `AdventureDetail.tsx`) — extracted a shared `estimateSuccessChance()` +
+    `countUnmetRequirements()` into `packages/types`, used by all four, so the live
+    success-chance preview a player sees before deploying always matches what actually
+    happens, and any future formula tweak only needs to happen once.
+  - **UI**: `ContractCard.tsx` already had display code for `requiredStats` ready and
+    waiting (built when the field was still an unused stub) — just needed a
+    `requiredVocation` badge added alongside it. Relabeled both from "Required" to
+    "Preferred" to correctly communicate these are soft, not hard, gates. Deploy-modal
+    previews (Dashboard, Contract Board) now show a "missing N preferred requirement(s)"
+    note when applicable.
+  - Test-covered in `packages/types/src/contracts.test.ts` (generation odds per tier,
+    `countUnmetRequirements` edge cases, `estimateSuccessChance` clamping) and
+    `test/adventure.test.ts` (an integration test proving an unmet requirement actually
+    flips a specific outcome roll from success to failure). Verified end-to-end in a real
+    browser.
+- [x] Fixed unbounded awarded-contract hoarding (2026-07-07) — flagged during a design
+  conversation about bid-abuse potential: a player who accepted or won a contract could
+  simply never deploy a party, and nothing ever reclaimed it — `expireOldContracts` only
+  ever checked `status: 'available'`, never `'awarded'`. A high-reputation player could have
+  bid on (or, worse, directly accepted — no reputation gate at all there) every
+  dangerous/legendary contract in the market and sat on all of them indefinitely, denying
+  them to everyone else at zero cost. New `Contract.deployBy` field, set the instant a
+  contract is awarded (direct accept, bid win, or welfare claim) and cleared once a party
+  actually deploys (`startAdventure`). Missing it fails the contract with the same
+  `penaltyGold`/`penaltyReputation` it would've incurred from an actually-failed adventure —
+  0 for welfare contracts, which are explicitly penalty-free, so this still clears them out
+  of limbo without punishing a bootstrap safety net. New `contract_abandoned` transaction
+  reason (added to both the Prisma enum and the `packages/types` TS union together, having
+  learned that lesson the hard way earlier this session) for the ledger; a `$0` penalty
+  doesn't get a ledger line at all, matching the existing convention of not logging no-op
+  transactions.
+  - **Two different deploy-by windows**, resolving a real fairness tension raised during
+    design: direct-accept and welfare claims are player-initiated (the player is already at
+    the keyboard when they act), so a short **3-hour** window is fair. Bid awards are decided
+    by the market-GC sweep at a time entirely outside the winner's control — a short window
+    risked expiring while a winner slept through no fault of their own — so bid-awarded
+    contracts get a full **24-hour** window instead, guaranteeing at least one waking window
+    regardless of timezone while still bounding the hoarding risk to "at most a day" rather
+    than forever. Considered and rejected scrapping bidding entirely in favor of this
+    differentiated-window approach, which keeps the competitive "highest reputation wins"
+    mechanic intact.
+  - New `workers/marketGC.ts` sweep (extending the existing 15-minute cycle rather than a
+    new worker) finds `awarded` contracts past `deployBy`, fails them, applies the penalty,
+    and pushes a new `contract_expired` SSE event (`useSSE.ts` invalidates `contracts/mine`,
+    `player`, and `transactions` on receipt).
+  - New `components/DeployByCountdown.tsx` (same live-countdown pattern as
+    `DailyResetTimer`/`InjuryStatus`/`RestStatus`) shown per-contract in the Dashboard's
+    "Contracts Awaiting Deployment" section, turning red under an hour remaining. Also fixed
+    that section's copy, which said "You won these contracts through competitive bidding"
+    even though it already listed direct-accept contracts too — a pre-existing inaccuracy
+    predating this change, caught while in the area.
+  - Test-covered in `test/marketGC.test.ts` (deploy-by set correctly on bid-award, penalty
+    applied on miss, zero-penalty contracts skip the ledger line, not-yet-due contracts left
+    alone) and `test/bootstrap.test.ts` (welfare claims get the short window). Verified
+    end-to-end in a real browser.
+- [x] "Accept for Later" for direct-accept contracts (2026-07-07) — the deploy-by system
+  above assumed a player could accept an errand/standard contract without immediately
+  assigning a party, but there was actually no way to do that: the only "Accept" button
+  opened the party-selection modal immediately, chaining accept and deploy into one forced
+  flow. New second button on `ContractCard.tsx`, "Accept for Later" (secondary style,
+  next to the existing primary "Accept & Assign Party"), calling the accept endpoint
+  directly with no modal — the contract just becomes `awarded` and shows up in the
+  Dashboard's "Contracts Awaiting Deployment" section (with its deploy-by countdown) to
+  deploy whenever convenient, same as a bid-won contract already did. Backend needed no
+  changes — `POST /contracts/:id/accept` was already a standalone endpoint; the frontend
+  had just never exposed calling it without immediately chaining to deploy. Verified
+  end-to-end in a real browser.
 - Dorm-space-based adventurer limits; party size limits (from original TODO.md, Game
   Mechanics).
 - Deeper personality-stat effects (2026-07-05, concepts captured — needs game-design

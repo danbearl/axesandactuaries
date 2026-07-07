@@ -20,6 +20,10 @@ describe('runMarketGC', () => {
     const updated = await prisma.contract.findUniqueOrThrow({ where: { id: contract.id } });
     expect(updated.status).toBe('awarded');
     expect(updated.awardedTo).toBe(highRep.id);
+    // Bid-award timing is outside the winner's control (could land during their sleep), so
+    // it gets the longer 24h deploy-by window, not the short player-initiated one.
+    expect(updated.deployBy).not.toBeNull();
+    expect(updated.deployBy!.getTime()).toBeGreaterThan(Date.now() + 20 * 60 * 60 * 1000);
   });
 
   it('breaks reputation ties by earliest bid', async () => {
@@ -61,13 +65,60 @@ describe('runMarketGC', () => {
   it('leaves contracts alone that are not yet due', async () => {
     const biddingContract = await createContract({ tier: 'dangerous', status: 'bidding', bidDeadline: future(60 * 60 * 1000) });
     const availableContract = await createContract({ status: 'available', expiresAt: future(60 * 60 * 1000) });
+    const awardedContract = await createContract({ status: 'awarded', deployBy: future(60 * 60 * 1000) });
 
     await runMarketGC();
 
     const bidding = await prisma.contract.findUniqueOrThrow({ where: { id: biddingContract.id } });
     const available = await prisma.contract.findUniqueOrThrow({ where: { id: availableContract.id } });
+    const awarded = await prisma.contract.findUniqueOrThrow({ where: { id: awardedContract.id } });
     expect(bidding.status).toBe('bidding');
     expect(available.status).toBe('available');
+    expect(awarded.status).toBe('awarded');
+  });
+
+  it('fails an awarded contract whose deploy-by deadline passed, applying its penalty', async () => {
+    const player = await createPlayer({ gold: 500, reputation: 20 });
+    const contract = await createContract({
+      status: 'awarded',
+      awardedTo: player.id,
+      deployBy: past(1000),
+      penaltyGold: 90,
+      penaltyReputation: 5,
+    });
+
+    await runMarketGC();
+
+    const updatedContract = await prisma.contract.findUniqueOrThrow({ where: { id: contract.id } });
+    expect(updatedContract.status).toBe('failed');
+
+    const updatedPlayer = await prisma.player.findUniqueOrThrow({ where: { id: player.id } });
+    expect(updatedPlayer.gold).toBe(500 - 90);
+    expect(updatedPlayer.reputation).toBe(20 - 5);
+
+    const tx = await prisma.transaction.findFirstOrThrow({ where: { playerId: player.id } });
+    expect(tx.reason).toBe('contract_abandoned');
+    expect(tx.amount).toBe(-90);
+  });
+
+  it('does not create a ledger entry when the missed contract has no gold penalty', async () => {
+    // Matches welfare contracts, which are explicitly penalty-free.
+    const player = await createPlayer({ gold: 500, reputation: 20 });
+    const contract = await createContract({
+      status: 'awarded',
+      awardedTo: player.id,
+      deployBy: past(1000),
+      penaltyGold: 0,
+      penaltyReputation: 0,
+    });
+
+    await runMarketGC();
+
+    const updatedContract = await prisma.contract.findUniqueOrThrow({ where: { id: contract.id } });
+    expect(updatedContract.status).toBe('failed');
+
+    const txCount = await prisma.transaction.count({ where: { playerId: player.id } });
+    expect(txCount).toBe(0);
   });
 
   it('returns a still-employed recovered adventurer to duty', async () => {

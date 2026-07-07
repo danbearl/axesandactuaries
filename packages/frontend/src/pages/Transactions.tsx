@@ -12,6 +12,7 @@ const REASON_LABELS: Record<string, string> = {
   penalty:              'Penalty',
   starting_gold:        'Starting Capital',
   admin_adjustment:     'Admin Adjustment',
+  contract_abandoned:   'Contract Not Deployed',
 };
 
 export default function Transactions() {

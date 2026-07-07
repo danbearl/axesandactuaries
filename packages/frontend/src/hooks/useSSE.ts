@@ -43,6 +43,13 @@ export function useSSE() {
         void queryClient.invalidateQueries({ queryKey: ['contracts', 'market'] });
       });
 
+      // Fired when the Market GC fails a contract for missing its deploy-by deadline.
+      es.addEventListener('contract_expired', () => {
+        void queryClient.invalidateQueries({ queryKey: ['contracts', 'mine'] });
+        void queryClient.invalidateQueries({ queryKey: ['player'] });
+        void queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      });
+
       es.onerror = () => {
         es?.close();
         es = null;

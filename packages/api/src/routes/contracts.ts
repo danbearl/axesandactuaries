@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import {
   BIDDING_CONTRACT_TIERS,
   CONTRACT_TIER_REPUTATION_REQUIREMENTS,
+  DIRECT_ACCEPT_DEPLOY_HOURS,
 } from '@axes-actuaries/types';
 import type { ContractTier } from '@axes-actuaries/types';
 import { getBootstrapStatus, WELFARE_COOLDOWN_HOURS, WELFARE_CONTRACT, claimWelfareContract } from '../services/bootstrap.js';
@@ -112,9 +113,10 @@ router.post('/:id/accept', requireAuth, async (req, res) => {
   }
 
   // Atomic claim: only one player can win when multiple race for the same contract.
+  const deployBy = new Date(Date.now() + DIRECT_ACCEPT_DEPLOY_HOURS * 60 * 60 * 1000);
   const claimed = await prisma.contract.updateMany({
     where: { id, status: 'available' },
-    data:  { status: 'awarded', awardedTo: req.playerId },
+    data:  { status: 'awarded', awardedTo: req.playerId, deployBy },
   });
   if (claimed.count === 0) {
     res.status(409).json({ error: 'Contract was just taken by another player' });

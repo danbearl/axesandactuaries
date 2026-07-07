@@ -5,6 +5,7 @@ import './ContractCard.css';
 interface Props {
   contract: Contract;
   onAccept?: (e: React.MouseEvent) => void;
+  onAcceptOnly?: (e: React.MouseEvent) => void;
   onBid?: (e: React.MouseEvent) => void;
   expanded?: boolean;
   playerRep?: number;
@@ -25,7 +26,7 @@ const formatDuration = (hours: number): string => {
   return h > 0 ? `${d}d ${h}h` : `${d}d`;
 };
 
-export default function ContractCard({ contract: c, onAccept, onBid, expanded, playerRep }: Props) {
+export default function ContractCard({ contract: c, onAccept, onAcceptOnly, onBid, expanded, playerRep }: Props) {
   const hasStatReqs  = Object.keys(c.requiredStats).length > 0;
   const isBidding    = BIDDING_CONTRACT_TIERS.includes(c.tier as 'dangerous' | 'legendary');
   const repRequired  = CONTRACT_TIER_REPUTATION_REQUIREMENTS[c.tier as keyof typeof CONTRACT_TIER_REPUTATION_REQUIREMENTS] ?? 0;
@@ -80,11 +81,19 @@ export default function ContractCard({ contract: c, onAccept, onBid, expanded, p
           )}
           {hasStatReqs && (
             <div className="cc-stat">
-              <span className="label">Required Stats</span>
+              <span className="label">Preferred Stats</span>
               <div className="flex gap-xs" style={{ flexWrap: 'wrap' }}>
                 {(Object.entries(c.requiredStats) as [string, number][]).map(([stat, val]) => (
                   <span key={stat} className="cc-req-badge">{stat} {val}+</span>
                 ))}
+              </div>
+            </div>
+          )}
+          {c.requiredVocation && (
+            <div className="cc-stat">
+              <span className="label">Preferred Vocation</span>
+              <div className="flex gap-xs" style={{ flexWrap: 'wrap' }}>
+                <span className="cc-req-badge">{c.requiredVocation}</span>
               </div>
             </div>
           )}
@@ -106,7 +115,7 @@ export default function ContractCard({ contract: c, onAccept, onBid, expanded, p
         </div>
       </div>
 
-      {(onAccept || onBid || repBlocked) && (
+      {(onAccept || onAcceptOnly || onBid || repBlocked) && (
         <div className="cc-actions">
           {repBlocked && (
             <span className="label" style={{ fontSize: '0.75rem', color: 'var(--danger)' }}>
@@ -119,6 +128,11 @@ export default function ContractCard({ contract: c, onAccept, onBid, expanded, p
               onClick={(e) => { e.stopPropagation(); onBid(e); }}
             >
               {c.hasBid ? 'Update Bid' : 'Place Bid'}
+            </button>
+          )}
+          {onAcceptOnly && !repBlocked && (
+            <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); onAcceptOnly(e); }}>
+              Accept for Later
             </button>
           )}
           {onAccept && !repBlocked && (

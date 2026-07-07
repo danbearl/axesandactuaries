@@ -222,6 +222,47 @@ describe('resolveAdventure', () => {
     expect(report.recoveryHours).toBe(36); // Math.floor(0.5 * 48) + 12
   });
 
+  it('lowers success chance for an unmet contract requirement, changing the outcome', async () => {
+    // ratio 1.0 -> base successChance 0.8; one unmet requirement -> 0.75. A roll of 0.77
+    // would succeed under the old formula but fail once the requirement penalty applies.
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.77) // outcomeRoll
+      .mockReturnValueOnce(0.99); // injuryRoll — no injury, keep this test focused
+
+    const player = await createPlayer({ gold: 500, reputation: 10 });
+    const adventurer = await createAdventurer({
+      employerId: player.id,
+      status: 'on_adventure',
+      vocation: 'Sellsword',
+      powerRating: 50,
+      experience: 0,
+      level: 1,
+    });
+    const contract = await createContract({
+      requiredPower: 50,
+      requiredVocation: 'Arcanist', // adventurer is a Sellsword — unmet
+      rewardGold: 300, reputationReward: 3, penaltyGold: 90, penaltyReputation: 1,
+      status: 'in_progress',
+    });
+    const adventure = await prisma.adventure.create({
+      data: {
+        contractId: contract.id,
+        playerId: player.id,
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        completesAt: new Date(Date.now() - 1000),
+        status: 'in_progress',
+      },
+    });
+    await prisma.adventureAdventurer.create({
+      data: { adventureId: adventure.id, adventurerId: adventurer.id },
+    });
+
+    await resolveAdventure(adventure.id);
+
+    const updatedAdventure = await prisma.adventure.findUniqueOrThrow({ where: { id: adventure.id } });
+    expect(updatedAdventure.status).toBe('failed');
+  });
+
   it('is idempotent — resolving an already-resolved adventure does nothing further', async () => {
     vi.spyOn(Math, 'random').mockReturnValueOnce(0.1).mockReturnValueOnce(0.5);
 

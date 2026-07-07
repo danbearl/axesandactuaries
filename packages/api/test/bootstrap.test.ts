@@ -83,6 +83,11 @@ describe('claimWelfareContract', () => {
     const contract = await claimWelfareContract(player.id);
     expect(contract.awardedTo).toBe(player.id);
     expect(contract.status).toBe('awarded');
+    // Welfare is player-initiated (like direct accept), so it gets the short deploy-by
+    // window (3h), not the longer one reserved for unpredictable bid-award timing.
+    expect(contract.deployBy).not.toBeNull();
+    expect(contract.deployBy!.getTime()).toBeLessThanOrEqual(Date.now() + 3 * 60 * 60 * 1000);
+    expect(contract.deployBy!.getTime()).toBeGreaterThan(Date.now() + 2 * 60 * 60 * 1000);
 
     const updatedPlayer = await prisma.player.findUniqueOrThrow({ where: { id: player.id } });
     expect(updatedPlayer.lastWelfareAt).not.toBeNull();

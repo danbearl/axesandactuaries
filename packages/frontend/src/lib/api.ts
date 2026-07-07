@@ -185,6 +185,7 @@ export interface ContractResponse {
   tier: string;
   requiredPower: number;
   requiredStats: Record<string, number>;
+  requiredVocation: string | null;
   rewardGold: number;
   reputationReward: number;
   penaltyGold: number;
@@ -194,6 +195,7 @@ export interface ContractResponse {
   awardedTo: string | null;
   bidDeadline: string;
   expiresAt: string;
+  deployBy: string | null;
   createdAt: string;
   bidCount?: number;
   hasBid?: boolean;

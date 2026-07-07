@@ -125,6 +125,7 @@ export interface Contract {
   tier:                ContractTier;
   requiredPower:       number;
   requiredStats:       Partial<StatBlock>;
+  requiredVocation?:   Vocation;
   rewardGold:          number;
   reputationReward:    number;
   penaltyGold:         number;
@@ -270,7 +271,8 @@ export type TransactionReason =
   | 'penalty'
   | 'debt_forgiven'
   | 'starting_gold'
-  | 'admin_adjustment';
+  | 'admin_adjustment'
+  | 'contract_abandoned';
 
 export interface Transaction {
   id:          string;

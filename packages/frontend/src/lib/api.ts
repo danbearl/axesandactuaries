@@ -270,11 +270,18 @@ export interface TransactionsResponse {
   offset: number;
 }
 
+export interface CohesionPairResponse {
+  adventurerLowId: string;
+  adventurerHighId: string;
+  cohesion: number;
+}
+
 export interface PlayerMeResponse {
   player: PlayerResponse;
   adventurers: AdventurerResponse[];
   properties: PropertyResponse[];
   adventures: AdventureResponse[];
+  cohesionPairs: CohesionPairResponse[];
 }
 
 export interface PlayerProfileStats {
@@ -298,6 +305,17 @@ export interface AdventurerHistoryEntry {
   createdAt: string;
 }
 
+export interface AdventurerAffinity {
+  adventurer: {
+    id: string;
+    name: string;
+    vocation: string;
+    level: number;
+    status: string;
+  };
+  cohesion: number;
+}
+
 export interface AdventurerDetailResponse {
   adventurer: AdventurerResponse;
   stats: {
@@ -306,6 +324,7 @@ export interface AdventurerDetailResponse {
     failed: number;
   };
   recent: AdventurerHistoryEntry[];
+  affinities: AdventurerAffinity[];
 }
 
 export interface WikiPageSummary {

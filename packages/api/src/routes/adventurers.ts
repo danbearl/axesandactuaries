@@ -42,7 +42,26 @@ router.get('/:id', requireAuth, async (req, res) => {
   }
 
   const history = await getAdventurerHistory(id);
-  res.json({ adventurer, ...history });
+
+  // Affinity list: every other adventurer this one has ever adventured with, regardless of
+  // whether that adventurer is still employed (or even still alive) — see COHESION_* in
+  // @axes-actuaries/types. Sorted strongest-bond first.
+  const [cohesionAsLow, cohesionAsHigh] = await Promise.all([
+    prisma.adventurerCohesion.findMany({
+      where: { adventurerLowId: id },
+      include: { adventurerHigh: { select: { id: true, name: true, vocation: true, level: true, status: true } } },
+    }),
+    prisma.adventurerCohesion.findMany({
+      where: { adventurerHighId: id },
+      include: { adventurerLow: { select: { id: true, name: true, vocation: true, level: true, status: true } } },
+    }),
+  ]);
+  const affinities = [
+    ...cohesionAsLow.map((c) => ({ adventurer: c.adventurerHigh, cohesion: c.cohesion })),
+    ...cohesionAsHigh.map((c) => ({ adventurer: c.adventurerLow, cohesion: c.cohesion })),
+  ].sort((a, b) => b.cohesion - a.cohesion);
+
+  res.json({ adventurer, ...history, affinities });
 });
 
 // POST /api/v1/adventurers/:id/hire

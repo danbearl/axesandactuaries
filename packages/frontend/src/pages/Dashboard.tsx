@@ -7,6 +7,7 @@ import AdventureTimer from '../components/AdventureTimer.tsx';
 import DailyResetTimer from '../components/DailyResetTimer.tsx';
 import DeployByCountdown from '../components/DeployByCountdown.tsx';
 import { computeRosterCap, countUnmetRequirements, estimateSuccessChance, type Adventurer } from '@axes-actuaries/types';
+import { partyCohesionBonus } from '../lib/cohesion.ts';
 import './Dashboard.css';
 
 export default function Dashboard() {
@@ -295,7 +296,9 @@ export default function Dashboard() {
 
             {selectedAdventurerIds.length > 0 && (() => {
               const party      = hiredAdventurers.filter(a => selectedAdventurerIds.includes(a.id));
-              const partyPower = party.reduce((s, a) => s + a.powerRating, 0);
+              const basePower  = party.reduce((s, a) => s + a.powerRating, 0);
+              const cohesionBonus = partyCohesionBonus(selectedAdventurerIds, data.cohesionPairs);
+              const partyPower = Math.round(basePower * (1 + cohesionBonus));
               const unmetRequirements = countUnmetRequirements(deployingContract, party);
               const chance     = Math.round(estimateSuccessChance(partyPower, deployingContract.requiredPower, unmetRequirements) * 100);
               return (
@@ -304,6 +307,9 @@ export default function Dashboard() {
                   <span className="value">{partyPower}</span>
                   <span className="label"> vs. {deployingContract.requiredPower} required · </span>
                   <span className="value">~{chance}% success</span>
+                  {cohesionBonus > 0 && (
+                    <span className="label"> · +{Math.round(cohesionBonus * 100)}% cohesion bonus</span>
+                  )}
                   {unmetRequirements > 0 && (
                     <span className="label"> (missing {unmetRequirements} preferred requirement{unmetRequirements > 1 ? 's' : ''})</span>
                   )}

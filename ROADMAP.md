@@ -687,19 +687,110 @@ open to a small trusted player pool (Phase 0 below).
     payment, resting adventurers excluded from idle accrual) and `test/adventure.test.ts`
     (tier-mismatch penalty applied/not-applied, `daysIdle` reset on deployment, XP scaling).
     Verified end-to-end in a real browser.
-- Deeper personality-stat effects for Disposition and Temperament (2026-07-05, concepts
-  captured — needs game-design refinement before implementation, not ready to build as-is):
-  - **Disposition** — proposed to drive a new **party cohesion/affinity** mechanic:
-    adventurers frequently partied together build affinity over time, and high-affinity
-    parties perform better (exact bonus — success chance? party power? — needs design).
-    Disposition would govern how quickly that affinity builds (amiable adventurers bond
-    faster than gruff ones). This is the largest of the four — it requires tracking
-    historical party composition over time, which doesn't exist in any form today.
-  - **Temperament** — wasn't even in the original TODO.md's personality-effects list,
-    despite already existing as a rolled stat. Proposed to drive risk-taking behavior during
-    contract execution: higher temperament trades safety for upside, e.g. higher potential
-    reward at higher failure risk, or higher success chance at higher injury risk (the
-    user's own examples — the exact trade-off curve is explicitly open, needs refinement).
+- [x] Party cohesion / Disposition affinity (2026-07-07): pairs of adventurers who complete a
+  contract together build affinity over time, and a party's average affinity grants a small,
+  capped bonus to its total power — the last of the four personality traits (after Loyalty,
+  Ambition, Temperament) to get a real mechanic.
+  - New `AdventurerCohesion` join table: one row per **unordered pair** of adventurers, keyed
+    by `(adventurerLowId, adventurerHighId)` with the pair's two IDs always sorted
+    lexicographically before every read or write. Chose this over storing two rows per pair
+    (A→B and B→A) to avoid dual-write inconsistency risk, and over computing cohesion on the
+    fly from `AdventureAdventurer` history (counting shared past adventures at read-time)
+    because the bonus needs to be read on every party-assembly interaction but only written
+    once per contract resolution — precomputing at write-time is the right trade given the
+    read:write ratio. No row exists until a pair has adventured together at least once; an
+    empty query result *is* "0 cohesion," not a missing/error case.
+  - Cohesion increases by `5 + dispositionA + dispositionB` (7–15 per shared contract,
+    depending on both members' Disposition, 1–5 each) every time a pair completes a contract
+    together, clamped at 100. Confirmed with the user: accrues **regardless of success or
+    failure** — shared hardship on a loss still counts as time spent together, and (more
+    importantly) gating it on success-only would have made an already-successful party's
+    power compound further, the same rich-get-richer pattern the roster cap and other
+    anti-snowball mechanics have deliberately avoided elsewhere in this codebase.
+  - Party bonus is `50% * (average cohesion across every pair in the party) / 100`, so 0-50%
+    of the party's total power (base power rating + Training Hall bonus). A party's average
+    is computed over **every possible pair**, not just pairs with an existing row — a
+    brand-new member with zero affinity to the rest of the party dilutes the average rather
+    than being excluded from it. Tuned up from an initial 0-10% after the user tried it and
+    wanted the effect to be *felt* — specifically, wanted losing a high-cohesion party member
+    (injury, death, being fired) to noticeably hurt the remaining party's odds, not be a
+    rounding error. `COHESION_MAX_POWER_BONUS` is the single constant controlling this scale.
+  - Cohesion also **decays**: every cohesion pair loses a flat 1 point per day in the daily
+    reset worker (`decayCohesion()` in `workers/dailyReset.ts`, alongside the existing
+    adventurer/contract expiry sweeps), and any pair that decays to 0 or below has its row
+    deleted outright rather than lingering at 0 — consistent with "no row = 0 cohesion"
+    already being the table's contract. Negligible for a pair still adventuring together
+    regularly (each shared contract adds 7-15 vs. -1/day), but erodes a maxed-out pair back
+    to nothing after a few months of inactivity, so cohesion reflects an active working
+    relationship rather than a permanent unlock. `COHESION_DAILY_DECAY` is the tunable.
+  - New shared pure functions in `packages/types/src/game.ts`: `computeCohesionIncrement`,
+    `computeCohesionBonus` — the latter used both server-side (`computePartyPower` in
+    `services/adventure.ts`, feeding the real success-chance roll) and client-side (new
+    `lib/cohesion.ts` helper in the frontend), so the bonus shown during party assembly on
+    the Dashboard and Contract Market always matches what resolution actually uses.
+  - **Existing gap found, left alone**: `computePartyPower` already silently adds a Training
+    Hall property bonus that none of the three frontend party-power previews (Dashboard,
+    Contract Market, Adventure Detail) reflect — a pre-existing divergence, not something
+    this change introduced. Cohesion needed real frontend visibility (unlike the training
+    hall bonus) since the user explicitly wanted it surfacing during party assembly, so
+    `/player/me` now returns the roster's full pairwise cohesion set once per load and the
+    frontend computes the bonus for whatever party is currently selected without a
+    round-trip per checkbox toggle. `AdventureDetail.tsx` (a read-only view of an
+    already-committed party, not an assembly step) was deliberately left out of scope,
+    consistent with that existing gap.
+  - Adventurer profile page (`AdventurerDetail.tsx`) gained a "Party Affinity" section
+    listing every adventurer this one has ever adventured with and their current affinity
+    percentage — sourced from `/adventurers/:id`'s new `affinities` field, which includes
+    partners regardless of whether they're still employed (or even still alive), since the
+    relationship itself is what's being shown, not current roster membership.
+  - Test-covered in `packages/types/src/game.test.ts` (increment math, bonus averaging
+    including the zero-fill-for-never-partnered-pairs behavior) and
+    `packages/api/test/adventure.test.ts` (accrual on both success and failure, clamping at
+    100, and a pre-existing max-cohesion pair flipping a contract's outcome via the power
+    bonus). `decayCohesion()` itself has no direct test — `workers/dailyReset.ts` has no
+    existing test file at all, and its sibling functions (`expireOldAdventurers`,
+    `expireOldContracts`) are equally untested today, so this follows existing precedent
+    rather than introducing a new testing pattern for one function in isolation.
+- [x] Temperament risk/reward trade-off (2026-07-07): higher-temperament adventurers are
+  individually rolled per party member in `resolveAdventure` for a reckless gamble — a
+  chance, on a *successful* contract only, to bump that contract's gold reward, but also a
+  flat additive bump to their own injury chance regardless of whether the contract succeeds
+  or fails (recklessness carries risk either way, unlike the reward bonus which only pays out
+  on a win). Both scale linearly with the adventurer's `personality.temperament` (1-5):
+  - **Bonus-reward roll**: 5% chance per temperament point (5%-25%) to trigger, checked
+    independently for *each* party member. Each trigger adds +10% of the contract's base
+    gold reward, stacking additively across the party — a full 4-person party of temperament
+    5 adventurers could in theory stack up to +40% (unlikely all four roll, but possible).
+    Reflected in the ledger transaction's description (`+X gp reckless bonus`) and folded
+    directly into the existing `goldDelta` used everywhere downstream (player balance, ledger
+    amount, SSE `adventure_completed` push) — no new field needed since the total already
+    includes it.
+  - **Injury-chance bump**: +2% per temperament point (+2%-+10%), added on top of the
+    existing success/failure base injury rate *after* the infirmary reduction and floor are
+    applied — i.e., it isn't itself subject to the `MIN_SUCCESS_INJURY_CHANCE`/
+    `MIN_FAILURE_INJURY_CHANCE` floors, since recklessness is additional risk layered on
+    whatever the base already is, not a substitute floor.
+  - Confirmed with the user: gold-only bonus (not XP or reputation), and the proposed
+    5%/point — +10%/trigger — +2%/point magnitudes as a starting balance, adjustable later
+    from real play data.
+  - New constants in `packages/types/src/game.ts`: `TEMPERAMENT_BONUS_CHANCE_PER_POINT`,
+    `TEMPERAMENT_BONUS_GOLD_PER_TRIGGER`, `TEMPERAMENT_INJURY_BONUS_PER_POINT`. No schema
+    migration required — `personality.temperament` already existed as part of the `Json`
+    blob, unused until now.
+  - **Test-suite ripple effect**: inserting a new `Math.random()` call into
+    `resolveAdventure`'s per-adventurer loop (the bonus-reward roll, consumed whenever the
+    contract succeeds) shifted the sequence for several existing `adventure.test.ts` tests
+    built on chained `.mockReturnValueOnce(...)` calls calibrated to the old, smaller call
+    count. Audited every test in the file call-by-call rather than just running the suite and
+    reacting to failures, since a queue running dry silently falls through to *real*
+    `Math.random()` rather than throwing — that would have made affected tests intermittently
+    flaky (occasionally failing an exact-gold-amount assertion) instead of reliably red.
+    Fixed by adding the extra mocked value to each affected sequence (`resolves a successful
+    adventure...`, `is idempotent...`, `can injure (but rarely kill)...`). Tests using
+    `success: false` outcomes were unaffected, since the bonus roll is gated on
+    `success && ...` and short-circuits. Added two new dedicated tests exercising the
+    mechanic directly: a triggered reckless-bonus payout and a temperament-driven injury that
+    wouldn't have occurred at the base rate.
 
 ## Beta Phase 3 — Player Customization
 **Goal:** players have meaningful ways to express/personalize their guild once retention is

@@ -86,7 +86,8 @@ describe('resolveAdventure', () => {
   it('resolves a successful adventure: pays reward, grants xp and reputation', async () => {
     vi.spyOn(Math, 'random')
       .mockReturnValueOnce(0.1)  // outcomeRoll — well below successChance (0.8)
-      .mockReturnValueOnce(0.5); // injuryRoll — well above the success-path injury chance (0.08)
+      .mockReturnValueOnce(0.5)  // injuryRoll — well above the success-path injury chance (0.08)
+      .mockReturnValueOnce(0.99); // reckless-bonus roll — above temperament 3's 15% chance, no bonus
 
     const { player, adventurer, contract, adventure } = await seedAdventure({
       playerGold: 500, playerReputation: 10,
@@ -193,10 +194,84 @@ describe('resolveAdventure', () => {
     expect(updated.experience).toBe(36);
   });
 
+  it('can trigger a reckless-bonus gold payout on a successful adventure with high temperament', async () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.01) // outcomeRoll — unused, forceOutcome overrides it
+      .mockReturnValueOnce(0.5)  // injuryRoll — above temperament 5's bumped injury chance (0.18), no injury
+      .mockReturnValueOnce(0.1); // reckless-bonus roll — below temperament 5's 25% chance, triggers
+
+    const player = await createPlayer({ gold: 500 });
+    const adventurer = await createAdventurer({
+      employerId: player.id, status: 'on_adventure', powerRating: 50, experience: 0, level: 1,
+      personality: { loyalty: 3, ambition: 3, temperament: 5, disposition: 3 }, // max temperament -> 25% bonus chance
+    });
+    const contract = await createContract({
+      requiredPower: 50, rewardGold: 300, reputationReward: 3,
+      penaltyGold: 90, penaltyReputation: 1, status: 'in_progress',
+    });
+    const adventure = await prisma.adventure.create({
+      data: {
+        contractId: contract.id, playerId: player.id,
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        completesAt: new Date(Date.now() - 1000),
+        status: 'in_progress',
+      },
+    });
+    await prisma.adventureAdventurer.create({
+      data: { adventureId: adventure.id, adventurerId: adventurer.id },
+    });
+
+    await resolveAdventure(adventure.id, { forceOutcome: 'success' });
+
+    // base reward 300 + 10% reckless bonus = 330
+    const updatedPlayer = await prisma.player.findUniqueOrThrow({ where: { id: player.id } });
+    expect(updatedPlayer.gold).toBe(500 + 330);
+
+    const tx = await prisma.transaction.findFirstOrThrow({ where: { playerId: player.id } });
+    expect(tx.amount).toBe(330);
+    expect(tx.description).toContain('reckless bonus');
+  });
+
+  it('raises injury chance with higher temperament, even on a successful adventure', async () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.01) // outcomeRoll — unused, forceOutcome overrides it
+      .mockReturnValueOnce(0.12) // injuryRoll — above the base success injury chance (0.08), below temperament 5's bumped chance (0.18)
+      .mockReturnValueOnce(0.5)  // recovery-hours roll — value not asserted
+      .mockReturnValueOnce(0.99); // reckless-bonus roll — no bonus, keep this test focused
+
+    const player = await createPlayer({ gold: 500 });
+    const adventurer = await createAdventurer({
+      employerId: player.id, status: 'on_adventure', powerRating: 50, experience: 0, level: 1,
+      personality: { loyalty: 3, ambition: 3, temperament: 5, disposition: 3 }, // max temperament -> +10% injury chance
+    });
+    const contract = await createContract({
+      requiredPower: 50, rewardGold: 300, reputationReward: 3,
+      penaltyGold: 90, penaltyReputation: 1, status: 'in_progress',
+    });
+    const adventure = await prisma.adventure.create({
+      data: {
+        contractId: contract.id, playerId: player.id,
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        completesAt: new Date(Date.now() - 1000),
+        status: 'in_progress',
+      },
+    });
+    await prisma.adventureAdventurer.create({
+      data: { adventureId: adventure.id, adventurerId: adventurer.id },
+    });
+
+    await resolveAdventure(adventure.id, { forceOutcome: 'success' });
+
+    const updatedAdv = await prisma.adventurer.findUniqueOrThrow({ where: { id: adventurer.id } });
+    expect(updatedAdv.status).toBe('injured');
+  });
+
   it('can injure (but rarely kill) an adventurer even on a successful adventure', async () => {
     vi.spyOn(Math, 'random')
       .mockReturnValueOnce(0.01)  // outcomeRoll — success
-      .mockReturnValueOnce(0.05); // injuryRoll — below the 0.08 success-path injury chance, above the death cutoff (0.02)
+      .mockReturnValueOnce(0.05)  // injuryRoll — below the temperament-3-bumped injury chance (0.14), above the death cutoff
+      .mockReturnValueOnce(0.5)   // recovery-hours roll — value not asserted
+      .mockReturnValueOnce(0.99); // reckless-bonus roll — no bonus, keep this test focused
 
     const { adventurer, adventure } = await seedAdventure({
       requiredPower: 50, adventurerPowerRating: 50,
@@ -299,8 +374,127 @@ describe('resolveAdventure', () => {
     expect(updatedAdventure.status).toBe('failed');
   });
 
+  it('builds cohesion between party members after adventuring together, regardless of outcome', async () => {
+    vi.spyOn(Math, 'random').mockImplementation(() => 0.99); // never injured, always fails outcomeRoll
+
+    const player = await createPlayer({ gold: 500 });
+    const a1 = await createAdventurer({
+      employerId: player.id, status: 'on_adventure', powerRating: 10,
+      personality: { loyalty: 3, ambition: 3, temperament: 3, disposition: 2 },
+    });
+    const a2 = await createAdventurer({
+      employerId: player.id, status: 'on_adventure', powerRating: 10,
+      personality: { loyalty: 3, ambition: 3, temperament: 3, disposition: 4 },
+    });
+    const contract = await createContract({ requiredPower: 1000, status: 'in_progress' }); // guarantees failure
+    const adventure = await prisma.adventure.create({
+      data: {
+        contractId: contract.id, playerId: player.id,
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        completesAt: new Date(Date.now() - 1000),
+        status: 'in_progress',
+      },
+    });
+    await prisma.adventureAdventurer.createMany({
+      data: [
+        { adventureId: adventure.id, adventurerId: a1.id },
+        { adventureId: adventure.id, adventurerId: a2.id },
+      ],
+    });
+
+    await resolveAdventure(adventure.id);
+
+    const updatedAdventure = await prisma.adventure.findUniqueOrThrow({ where: { id: adventure.id } });
+    expect(updatedAdventure.status).toBe('failed'); // confirms this accrued despite a loss, not a win
+
+    const [lowId, highId] = [a1.id, a2.id].sort();
+    const row = await prisma.adventurerCohesion.findUniqueOrThrow({
+      where: { adventurerLowId_adventurerHighId: { adventurerLowId: lowId, adventurerHighId: highId } },
+    });
+    expect(row.cohesion).toBe(11); // 5 base + disposition 2 + disposition 4
+  });
+
+  it('clamps cohesion at 100 rather than overflowing', async () => {
+    vi.spyOn(Math, 'random').mockImplementation(() => 0.01); // guarantees success, never injured
+
+    const player = await createPlayer({ gold: 500 });
+    const a1 = await createAdventurer({
+      employerId: player.id, status: 'on_adventure', powerRating: 50,
+      personality: { loyalty: 3, ambition: 3, temperament: 3, disposition: 5 },
+    });
+    const a2 = await createAdventurer({
+      employerId: player.id, status: 'on_adventure', powerRating: 50,
+      personality: { loyalty: 3, ambition: 3, temperament: 3, disposition: 5 },
+    });
+    const [lowId, highId] = [a1.id, a2.id].sort();
+    await prisma.adventurerCohesion.create({
+      data: { adventurerLowId: lowId, adventurerHighId: highId, cohesion: 95 },
+    });
+
+    const contract = await createContract({ requiredPower: 1, status: 'in_progress' }); // guarantees success
+    const adventure = await prisma.adventure.create({
+      data: {
+        contractId: contract.id, playerId: player.id,
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        completesAt: new Date(Date.now() - 1000),
+        status: 'in_progress',
+      },
+    });
+    await prisma.adventureAdventurer.createMany({
+      data: [
+        { adventureId: adventure.id, adventurerId: a1.id },
+        { adventureId: adventure.id, adventurerId: a2.id },
+      ],
+    });
+
+    await resolveAdventure(adventure.id);
+
+    const row = await prisma.adventurerCohesion.findUniqueOrThrow({
+      where: { adventurerLowId_adventurerHighId: { adventurerLowId: lowId, adventurerHighId: highId } },
+    });
+    expect(row.cohesion).toBe(100); // 95 + 15 (max disposition pair) would be 110, clamped to 100
+  });
+
+  it('raises party power via pre-existing cohesion, changing the outcome', async () => {
+    // ratio 0.5 -> base successChance 0.55. Full cohesion (100) -> +50% power -> ratio 0.75
+    // -> 0.675. A roll of 0.6 fails at 0.55 but succeeds once the cohesion bonus applies.
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0.6).mockReturnValue(0.99);
+
+    const player = await createPlayer({ gold: 500 });
+    const a1 = await createAdventurer({ employerId: player.id, status: 'on_adventure', powerRating: 50 });
+    const a2 = await createAdventurer({ employerId: player.id, status: 'on_adventure', powerRating: 50 });
+    const [lowId, highId] = [a1.id, a2.id].sort();
+    await prisma.adventurerCohesion.create({
+      data: { adventurerLowId: lowId, adventurerHighId: highId, cohesion: 100 },
+    });
+
+    const contract = await createContract({ requiredPower: 200, status: 'in_progress' });
+    const adventure = await prisma.adventure.create({
+      data: {
+        contractId: contract.id, playerId: player.id,
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        completesAt: new Date(Date.now() - 1000),
+        status: 'in_progress',
+      },
+    });
+    await prisma.adventureAdventurer.createMany({
+      data: [
+        { adventureId: adventure.id, adventurerId: a1.id },
+        { adventureId: adventure.id, adventurerId: a2.id },
+      ],
+    });
+
+    await resolveAdventure(adventure.id);
+
+    const updatedAdventure = await prisma.adventure.findUniqueOrThrow({ where: { id: adventure.id } });
+    expect(updatedAdventure.status).toBe('completed');
+  });
+
   it('is idempotent — resolving an already-resolved adventure does nothing further', async () => {
-    vi.spyOn(Math, 'random').mockReturnValueOnce(0.1).mockReturnValueOnce(0.5);
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.1)  // outcomeRoll — success
+      .mockReturnValueOnce(0.5)  // injuryRoll — no injury
+      .mockReturnValueOnce(0.99); // reckless-bonus roll — no bonus
 
     const { player, adventure } = await seedAdventure({
       playerGold: 500, adventurerPowerRating: 50, requiredPower: 50,

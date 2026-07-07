@@ -120,6 +120,8 @@ model Adventurer {
 
   employer    Player?               @relation(fields: [employerId], references: [id])
   adventures  AdventureAdventurer[]
+  cohesionAsLow  AdventurerCohesion[] @relation("CohesionLow")
+  cohesionAsHigh AdventurerCohesion[] @relation("CohesionHigh")
 
   @@index([status, employerId])
   @@map("adventurers")
@@ -207,6 +209,25 @@ model AdventureAdventurer {
 
   @@id([adventureId, adventurerId])
   @@map("adventure_adventurers")
+}
+
+// Party cohesion between two adventurers, built up by completing contracts together
+// (see COHESION_* in @axes-actuaries/types). One row per unordered pair — no row means
+// the pair has never adventured together. To avoid ambiguity about direction, every
+// read/write sorts the pair's two IDs first and always stores the lexicographically lower
+// one as adventurerLowId; there is deliberately no query helper that accepts an unordered
+// pair; callers must sort before touching this table.
+model AdventurerCohesion {
+  adventurerLowId  String @map("adventurer_low_id")
+  adventurerHighId String @map("adventurer_high_id")
+  cohesion         Int    @default(0)
+
+  adventurerLow  Adventurer @relation("CohesionLow", fields: [adventurerLowId], references: [id])
+  adventurerHigh Adventurer @relation("CohesionHigh", fields: [adventurerHighId], references: [id])
+
+  @@id([adventurerLowId, adventurerHighId])
+  @@index([adventurerHighId])
+  @@map("adventurer_cohesion")
 }
 
 model Property {

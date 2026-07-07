@@ -3,6 +3,9 @@ import {
   levelForXp, XP_PER_GOLD, MAX_LEVEL, computeDailyWage,
   countUnmetRequirements, estimateSuccessChance,
   isTierBelowTolerance, computeAmbitionXpMultiplier, AMBITION_LOYALTY_CHANCE_PER_POINT,
+  TEMPERAMENT_BONUS_CHANCE_PER_POINT, TEMPERAMENT_BONUS_GOLD_PER_TRIGGER,
+  TEMPERAMENT_INJURY_BONUS_PER_POINT,
+  computeCohesionBonus, computeCohesionIncrement, COHESION_MAX,
 } from '@axes-actuaries/types';
 import type { StatBlock, ContractTier } from '@axes-actuaries/types';
 import { publish, CHANNELS } from '../lib/redis.js';
@@ -108,14 +111,51 @@ export async function startAdventure(
   });
 }
 
-// Returns the party's effective combined power, including property bonuses.
+// Every unordered pair from a list, e.g. pairs([a,b,c]) -> [[a,b],[a,c],[b,c]].
+function pairs<T>(items: T[]): [T, T][] {
+  const result: [T, T][] = [];
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      result.push([items[i], items[j]]);
+    }
+  }
+  return result;
+}
+
+// AdventurerCohesion rows are keyed by (low, high) with the pair's IDs sorted
+// lexicographically — every read/write in this file must sort before touching the table.
+function pairKey(a: string, b: string): string {
+  return a < b ? `${a}:${b}` : `${b}:${a}`;
+}
+
+// Fractional power bonus (0 to COHESION_MAX_POWER_BONUS) from the party's average pairwise
+// cohesion — see COHESION_* in @axes-actuaries/types. Missing rows (a pair that's never
+// adventured together) count as 0 rather than being excluded from the average.
+async function computePartyCohesionBonus(adventurerIds: string[]): Promise<number> {
+  const idPairs = pairs(adventurerIds);
+  if (idPairs.length === 0) return 0;
+
+  const rows = await prisma.adventurerCohesion.findMany({
+    where: {
+      adventurerLowId:  { in: adventurerIds },
+      adventurerHighId: { in: adventurerIds },
+    },
+  });
+  const cohesionByPair = new Map(rows.map((r) => [pairKey(r.adventurerLowId, r.adventurerHighId), r.cohesion]));
+
+  const values = idPairs.map(([a, b]) => cohesionByPair.get(pairKey(a, b)) ?? 0);
+  return computeCohesionBonus(values);
+}
+
+// Returns the party's effective combined power, including property and cohesion bonuses.
 async function computePartyPower(
   adventurerIds: string[],
   playerId: string,
 ): Promise<number> {
-  const [adventurers, properties] = await Promise.all([
+  const [adventurers, properties, cohesionBonus] = await Promise.all([
     prisma.adventurer.findMany({ where: { id: { in: adventurerIds } } }),
     prisma.property.findMany({ where: { playerId } }),
+    computePartyCohesionBonus(adventurerIds),
   ]);
 
   const basePower = adventurers.reduce((sum, a) => sum + a.powerRating, 0);
@@ -127,7 +167,7 @@ async function computePartyPower(
       return sum + (bonus.powerRatingBonus ?? 0) * p.level;
     }, 0);
 
-  return basePower + trainingBonus;
+  return Math.round((basePower + trainingBonus) * (1 + cohesionBonus));
 }
 
 // Resolves an in-progress adventure whose completesAt has passed.
@@ -194,23 +234,33 @@ export async function resolveAdventure(
     });
 
     const partySize = adventure.adventurers.length;
+    // Temperament trade-off: each party member independently rolls a chance (on success
+    // only) to bump the contract's gold reward, stacking additively across the party.
+    let bonusGoldMultiplier = 0;
 
     for (const aa of adventure.adventurers) {
       const adv = aa.adventurer;
       const injuryRoll = Math.random();
+      const temperament = (adv.personality as { temperament: number }).temperament;
 
       const baseInjuryChance = success ? SUCCESS_INJURY_CHANCE : FAILURE_INJURY_CHANCE;
       const minInjuryChance = success ? MIN_SUCCESS_INJURY_CHANCE : MIN_FAILURE_INJURY_CHANCE;
+      // Recklessness carries risk regardless of outcome — the temperament bump applies on
+      // top of the success/failure base rate rather than being subject to its own floor.
       const injuryChance = Math.max(
         minInjuryChance,
         baseInjuryChance - infirmaryLevel * INFIRMARY_INJURY_REDUCTION_PER_LEVEL,
-      );
+      ) + temperament * TEMPERAMENT_INJURY_BONUS_PER_POINT;
       const injured = injuryRoll < injuryChance;
       const dead = injured && injuryRoll < injuryChance * DEATH_SHARE_OF_INJURY;
       const recoveryHours = injured && !dead ? Math.floor(Math.random() * 48) + 12 : 0;
       const restHours = !injured && !dead
         ? Math.ceil(adventure.contract.durationHours * REST_HOURS_FRACTION_OF_DURATION)
         : 0;
+
+      if (success && Math.random() < temperament * TEMPERAMENT_BONUS_CHANCE_PER_POINT) {
+        bonusGoldMultiplier += TEMPERAMENT_BONUS_GOLD_PER_TRIGGER;
+      }
 
       // XP split evenly across the party — a full contract's XP going to *every*
       // member regardless of party size rewarded stuffing parties just to multi-level.
@@ -261,8 +311,43 @@ export async function resolveAdventure(
       });
     }
 
-    const goldDelta = success ? adventure.contract.rewardGold : -adventure.contract.penaltyGold;
-    const repDelta  = success ? adventure.contract.reputationReward : -adventure.contract.penaltyReputation;
+    // Cohesion (Disposition): every pair of party members builds affinity from adventuring
+    // together, regardless of whether the contract succeeds — see COHESION_* in
+    // @axes-actuaries/types. One upsert per pair, clamped at COHESION_MAX.
+    const partyMemberIds = adventure.adventurers.map((aa) => aa.adventurerId);
+    if (partyMemberIds.length >= 2) {
+      const cohesionRows = await tx.adventurerCohesion.findMany({
+        where: {
+          adventurerLowId:  { in: partyMemberIds },
+          adventurerHighId: { in: partyMemberIds },
+        },
+      });
+      const cohesionByPair = new Map(cohesionRows.map((r) => [pairKey(r.adventurerLowId, r.adventurerHighId), r.cohesion]));
+
+      for (const [aa1, aa2] of pairs(adventure.adventurers)) {
+        const [low, high] = aa1.adventurerId < aa2.adventurerId ? [aa1, aa2] : [aa2, aa1];
+        const dispositionLow  = (low.adventurer.personality as { disposition: number }).disposition;
+        const dispositionHigh = (high.adventurer.personality as { disposition: number }).disposition;
+        const increment = computeCohesionIncrement(dispositionLow, dispositionHigh);
+        const current = cohesionByPair.get(pairKey(low.adventurerId, high.adventurerId)) ?? 0;
+        const newCohesion = Math.min(COHESION_MAX, current + increment);
+
+        await tx.adventurerCohesion.upsert({
+          where: {
+            adventurerLowId_adventurerHighId: {
+              adventurerLowId:  low.adventurerId,
+              adventurerHighId: high.adventurerId,
+            },
+          },
+          create: { adventurerLowId: low.adventurerId, adventurerHighId: high.adventurerId, cohesion: newCohesion },
+          update: { cohesion: newCohesion },
+        });
+      }
+    }
+
+    const bonusGold = success ? Math.round(adventure.contract.rewardGold * bonusGoldMultiplier) : 0;
+    const goldDelta  = success ? adventure.contract.rewardGold + bonusGold : -adventure.contract.penaltyGold;
+    const repDelta   = success ? adventure.contract.reputationReward : -adventure.contract.penaltyReputation;
 
     await tx.player.update({
       where: { id: adventure.playerId },
@@ -278,7 +363,7 @@ export async function resolveAdventure(
         amount:      goldDelta,
         reason:      success ? 'contract_payment' : 'penalty',
         description: success
-          ? `Completed: ${adventure.contract.title}`
+          ? `Completed: ${adventure.contract.title}${bonusGold > 0 ? ` (+${bonusGold} gp reckless bonus)` : ''}`
           : `Failed: ${adventure.contract.title}`,
         referenceId: adventure.contractId,
       },

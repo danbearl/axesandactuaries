@@ -44,7 +44,19 @@ router.get('/me', requireAuth, async (req, res) => {
     }),
   ]);
 
-  res.json({ player, adventurers, properties, adventures });
+  // Roster-wide cohesion, so the frontend can preview the party-cohesion power bonus for
+  // any candidate party locally as adventurers are added/removed, without a round-trip per
+  // selection change (see COHESION_* in @axes-actuaries/types).
+  const rosterIds = adventurers.map((a) => a.id);
+  const cohesionPairs = rosterIds.length < 2 ? [] : await prisma.adventurerCohesion.findMany({
+    where: {
+      adventurerLowId:  { in: rosterIds },
+      adventurerHighId: { in: rosterIds },
+    },
+    select: { adventurerLowId: true, adventurerHighId: true, cohesion: true },
+  });
+
+  res.json({ player, adventurers, properties, adventures, cohesionPairs });
 });
 
 // GET /api/v1/player/profile

@@ -117,7 +117,7 @@ export default function AdventurerDetail() {
     );
   }
 
-  const { adventurer, stats, recent } = data;
+  const { adventurer, stats, recent, affinities } = data;
 
   const currentLevelXp = XP_TO_LEVEL[adventurer.level] ?? 0;
   const nextLevelXp = XP_TO_LEVEL[adventurer.level + 1] as number | undefined;
@@ -209,6 +209,26 @@ export default function AdventurerDetail() {
                 <span className={`badge badge-status-${entry.status}`}>
                   {STATUS_LABELS[entry.status] ?? entry.status}
                 </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="panel mt-md">
+        <h2>Party Affinity</h2>
+        <hr className="divider" />
+        {affinities.length === 0 ? (
+          <div className="empty-state">Hasn't adventured alongside anyone yet.</div>
+        ) : (
+          <div className="flex-col gap-sm mt-md">
+            {affinities.map(({ adventurer: other, cohesion }) => (
+              <div key={other.id} className="property-row">
+                <div>
+                  <div className="value">{other.name}</div>
+                  <div className="label">{other.vocation} · Lv.{other.level}</div>
+                </div>
+                <span className="value">{cohesion}%</span>
               </div>
             ))}
           </div>

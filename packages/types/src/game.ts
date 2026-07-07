@@ -301,6 +301,67 @@ export const AMBITION_LOYALTY_CHANCE_PER_POINT = 0.08;
 // punished.
 export const IDLE_LOYALTY_GRACE_DAYS = 2;
 
+// ── Temperament ───────────────────────────────────────────────────────────────
+// Second personality trait with a real trade-off: higher Temperament means a reckless
+// adventurer, individually rolled per party member in resolveAdventure. Trades safety for
+// upside — more likely to come home with a bonus, but also more likely to get hurt, on
+// both a successful and a failed contract.
+
+// Chance (per adventurer, only on a successful contract) that their own recklessness
+// bumps the contract's gold reward. 5% per temperament point: temperament 1 -> 5%,
+// temperament 5 -> 25%. Multiple party members can each trigger independently, stacking.
+export const TEMPERAMENT_BONUS_CHANCE_PER_POINT = 0.05;
+
+// Gold bonus added to the contract's reward per adventurer who triggers it, as a fraction
+// of the base reward (stacks additively across the party).
+export const TEMPERAMENT_BONUS_GOLD_PER_TRIGGER = 0.10;
+
+// Additive bump to that adventurer's own injury chance per temperament point, applied on
+// top of the existing success/failure base injury rate — recklessness carries risk
+// regardless of outcome. 2% per point: up to +10% at temperament 5.
+export const TEMPERAMENT_INJURY_BONUS_PER_POINT = 0.02;
+
+// ── Cohesion (Disposition) ───────────────────────────────────────────────────
+// Third personality trait with a real trade-off: pairs of adventurers who complete a
+// contract together build affinity over time, and a party's average affinity grants a
+// small, capped bonus to its total power. Unlike Temperament's bonus roll, this accrues
+// regardless of whether the contract succeeds or fails — deliberately not gated on
+// success, both because shared hardship on a loss still counts as time spent together and
+// to avoid a compounding loop where already-successful parties get progressively stronger.
+
+// Cohesion between any two adventurers is stored 0-100 and clamped at the ceiling.
+export const COHESION_MAX = 100;
+
+// Flat amount every shared contract adds, plus the sum of both adventurers' Disposition
+// (1-5 each), so the increment ranges 7 (disposition 1+1) to 15 (disposition 5+5) per
+// shared contract.
+export const COHESION_BASE_INCREMENT = 5;
+
+export function computeCohesionIncrement(dispositionA: number, dispositionB: number): number {
+  return COHESION_BASE_INCREMENT + dispositionA + dispositionB;
+}
+
+// Party power bonus at maximum cohesion (100 average across all party pairs) — a party
+// that has never worked together gets none; full affinity across the board caps at +50%.
+// Deliberately large: losing a high-cohesion member (injury, death, being fired) should be
+// felt as a real hit to the party's remaining strength, not a rounding error.
+export const COHESION_MAX_POWER_BONUS = 0.50;
+
+// Given the pairwise cohesion values (0-100) among the members of a candidate or actual
+// party, returns the fractional power bonus (0 to COHESION_MAX_POWER_BONUS). A party of
+// one, or a party whose members have never adventured together, has no pairs and no bonus.
+export function computeCohesionBonus(pairwiseCohesion: number[]): number {
+  if (pairwiseCohesion.length === 0) return 0;
+  const avg = pairwiseCohesion.reduce((sum, c) => sum + c, 0) / pairwiseCohesion.length;
+  return (avg / COHESION_MAX) * COHESION_MAX_POWER_BONUS;
+}
+
+// Flat daily erosion applied to every cohesion pair (see workers/dailyReset.ts) — a pair
+// that stops adventuring together drifts back toward 0 over time. Negligible day-to-day for
+// a pair still working together regularly (each shared contract adds 7-15, versus -1/day),
+// but erodes a maxed-out pair (100) to nothing over a few months of inactivity.
+export const COHESION_DAILY_DECAY = 1;
+
 // ── Transaction ───────────────────────────────────────────────────────────────
 
 export type TransactionReason =

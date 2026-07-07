@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import { collectDailyWages, chargePropertyMaintenance } from '../services/economy.js';
 import { seedAdventurers, seedContracts } from '../services/marketSeeding.js';
 import { publish, CHANNELS } from '../lib/redis.js';
+import { COHESION_DAILY_DECAY } from '@axes-actuaries/types';
 
 const DAILY_ADVENTURER_MIN        = 15;
 const DAILY_ADVENTURERS_PER_PLAYER = 3;
@@ -27,6 +28,7 @@ export async function runDailyReset(): Promise<void> {
   await Promise.all([
     expireOldAdventurers(now),
     expireOldContracts(now),
+    decayCohesion(),
   ]);
 
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -88,5 +90,21 @@ async function expireOldContracts(now: Date): Promise<void> {
   });
   if (result.count > 0) {
     console.log(`[daily-reset] Expired ${result.count} old contract(s)`);
+  }
+}
+
+// Flat daily erosion of party cohesion (see COHESION_DAILY_DECAY in @axes-actuaries/types).
+// Decrement-then-delete rather than a single floored update, since Prisma's typed API has
+// no expression for "decrement, but not below 0" — and a row at 0 is redundant with having
+// no row at all (both mean "never adventured together" to every reader of this table).
+async function decayCohesion(): Promise<void> {
+  await prisma.adventurerCohesion.updateMany({
+    data: { cohesion: { decrement: COHESION_DAILY_DECAY } },
+  });
+  const pruned = await prisma.adventurerCohesion.deleteMany({
+    where: { cohesion: { lte: 0 } },
+  });
+  if (pruned.count > 0) {
+    console.log(`[daily-reset] Fully decayed ${pruned.count} cohesion pair(s)`);
   }
 }

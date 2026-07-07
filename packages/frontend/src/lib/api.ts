@@ -106,6 +106,11 @@ export const api = {
   wiki: {
     list: () => request<{ pages: WikiPageSummary[] }>('/wiki'),
     get: (slug: string) => request<{ page: WikiPageResponse }>(`/wiki/${slug}`),
+    create: (data: { slug: string; title: string; body: string; order?: number }) =>
+      request<{ page: WikiPageResponse }>('/wiki', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<{ slug: string; title: string; body: string; order: number }>) =>
+      request<{ page: WikiPageResponse }>(`/wiki/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    remove: (id: string) => request<{ success: true }>(`/wiki/${id}`, { method: 'DELETE' }),
   },
   admin: {
     players: () => request<{ players: AdminPlayerSummary[] }>('/admin/players'),

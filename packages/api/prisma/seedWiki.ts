@@ -52,14 +52,12 @@ An adventurer's title changes automatically as they level up — it's purely cos
 **Might, Finesse, Grit, Cunning, Attunement, Influence** — each rolled between 5 and 20. An adventurer's vocation determines which three stats tend to roll highest. Stats (averaged, scaled by level) determine an adventurer's Power Rating, which is what actually matters for taking on contracts.
 
 ## Personality
-Personality traits are rated 1–5 and currently have the following effects:
+Personality traits are rated 1–5 and each carries a real gameplay trade-off:
 
-- **Loyalty** *(Mercenary → Steadfast)* — the only trait with a direct gameplay effect today. Low loyalty combined with unpaid wages sharply increases the chance an adventurer quits; loyalty recovers slowly when wages are paid on time.
-- **Ambition** *(Content → Obsessed)* — rolled and displayed, no gameplay effect yet.
-- **Temperament** *(Cautious → Reckless)* — rolled and displayed, no gameplay effect yet.
-- **Disposition** *(Gruff → Amiable)* — rolled and displayed, no gameplay effect yet.
-
-Deeper effects for Ambition, Temperament, and Disposition are planned — see the development roadmap.`,
+- **Loyalty** *(Mercenary → Steadfast)* — Low loyalty sharply increases the chance an adventurer quits when they don't receive expected payment or are underutilized by the player; loyalty recovers slowly when wages are paid on time.
+- **Ambition** *(Content → Obsessed)* — Ambitious adventurers gain experience faster from successful contracts, but expect work that matches their growing skill. Repeatedly sending one on contracts beneath their ability, or leaving them idle too long between jobs, risks souring their loyalty — the more ambitious, the faster and more severely it sours.
+- **Temperament** *(Cautious → Reckless)* — Reckless adventurers take risks in the field: a chance to bring back extra reward from a successful contract, but also a higher chance of injury regardless of how the contract turns out. Cautious adventurers trade that upside for a safer track record.
+- **Disposition** *(Gruff → Amiable)* — Adventurers who complete contracts together build camaraderie over time, and a well-bonded party performs better as a whole. Amiable adventurers build that bond faster than gruff ones — and it fades if the pair stops adventuring together.`,
   },
 ];
 

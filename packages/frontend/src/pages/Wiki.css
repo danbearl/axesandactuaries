@@ -50,3 +50,54 @@
   color:       var(--ink-light);
   font-size:   0.75rem;
 }
+
+.wiki-editor .admin-field {
+  display:        flex;
+  flex-direction: column;
+  gap:            0.35rem;
+}
+
+.wiki-editor .admin-field-row {
+  display: flex;
+  gap:     1rem;
+  flex-wrap: wrap;
+}
+.wiki-editor .admin-field-narrow { max-width: 120px; }
+
+.wiki-editor .admin-field input,
+.wiki-editor .admin-field textarea {
+  font-family:   var(--font-body);
+  font-size:     0.95rem;
+  padding:       0.5rem 0.65rem;
+  border:        1px solid var(--parchment-dark);
+  border-radius: var(--radius);
+  background:    var(--parchment);
+  color:         var(--ink);
+}
+.wiki-editor .admin-field input:focus,
+.wiki-editor .admin-field textarea:focus {
+  outline:      none;
+  border-color: var(--gold-dark);
+}
+
+.wiki-editor-textarea {
+  font-family: var(--font-mono, monospace);
+  resize:      vertical;
+}
+
+.wiki-editor-preview {
+  border:        1px solid var(--parchment-dark);
+  border-radius: var(--radius);
+  padding:       0.75rem 1rem;
+}
+
+.admin-actions {
+  display:     flex;
+  align-items: center;
+  gap:         0.75rem;
+}
+
+.admin-error {
+  color:     var(--crimson);
+  font-size: 0.85rem;
+}

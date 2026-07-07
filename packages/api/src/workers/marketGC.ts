@@ -1,15 +1,24 @@
+import type { ContractTier } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { publish, CHANNELS } from '../lib/redis.js';
-import { BID_AWARD_DEPLOY_HOURS } from '@axes-actuaries/types';
+import { BID_AWARD_DEPLOY_HOURS, BIDDING_CONTRACT_TIERS } from '@axes-actuaries/types';
 
 // Runs every 15 minutes.
 export async function runMarketGC(): Promise<void> {
   const now = new Date();
 
-  // Award bidding contracts whose bid deadline has passed.
+  // Award bidding contracts whose bid deadline has passed. Also catches bidding-tier
+  // contracts that never received a single bid — those never leave 'available' status
+  // (only a first bid transitions a contract to 'bidding'), so without this they'd be
+  // stranded on the market until the much later `expiresAt` cleanup below instead of
+  // disappearing when their bid window actually closes.
   // Winner = highest reputation; earliest bid breaks ties.
   const biddingExpired = await prisma.contract.findMany({
-    where: { status: 'bidding', bidDeadline: { lt: now } },
+    where: {
+      status:      { in: ['available', 'bidding'] },
+      tier:        { in: BIDDING_CONTRACT_TIERS as ContractTier[] },
+      bidDeadline: { lt: now },
+    },
     include: {
       bids: {
         include: { player: { select: { id: true, reputation: true } } },

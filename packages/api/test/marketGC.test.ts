@@ -53,6 +53,37 @@ describe('runMarketGC', () => {
     expect(updated.status).toBe('expired');
   });
 
+  it('expires a never-bid bidding-tier contract once its bid deadline passes, without waiting for expiresAt', async () => {
+    // A dangerous/legendary contract that never received a single bid never leaves
+    // 'available' status (only a first bid transitions it to 'bidding'), so it would
+    // otherwise be stranded on the market until the much later expiresAt cleanup instead of
+    // disappearing when its bid window actually closes.
+    const contract = await createContract({
+      tier: 'legendary', status: 'available',
+      bidDeadline: past(1000), expiresAt: future(24 * 60 * 60 * 1000),
+    });
+
+    await runMarketGC();
+
+    const updated = await prisma.contract.findUniqueOrThrow({ where: { id: contract.id } });
+    expect(updated.status).toBe('expired');
+  });
+
+  it('does not early-expire a never-accepted errand/standard contract at its (irrelevant) bid deadline', async () => {
+    // Every generated contract gets a bidDeadline regardless of tier, but it only means
+    // anything for dangerous/legendary — errand/standard contracts should still live until
+    // expiresAt even after their bidDeadline has technically passed.
+    const contract = await createContract({
+      tier: 'standard', status: 'available',
+      bidDeadline: past(1000), expiresAt: future(24 * 60 * 60 * 1000),
+    });
+
+    await runMarketGC();
+
+    const updated = await prisma.contract.findUniqueOrThrow({ where: { id: contract.id } });
+    expect(updated.status).toBe('available');
+  });
+
   it('expires available contracts past their expiresAt', async () => {
     const contract = await createContract({ status: 'available', expiresAt: past(1000) });
 

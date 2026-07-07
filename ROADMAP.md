@@ -224,6 +224,30 @@ open to a small trusted player pool (Phase 0 below).
   intended to be run once against the production `DATABASE_URL` after the `wiki_pages`
   table exists there (created automatically by the `release_command`'s `prisma migrate
   deploy`, but not seeded automatically). Verified end-to-end in a real browser.
+- [x] In-app wiki CRUD for admins (2026-07-07) — the original wiki entry above deliberately
+  deferred an in-app editor until Admin/Moderator roles existed; `isAdmin`/`requireAdmin`
+  already exist (built for the testing-tools `/admin` page), so this closes that gap without
+  waiting for the full Gate-phase Admin/Moderator feature. No schema change — `WikiPage`
+  already had everything needed. New `POST /api/v1/wiki`, `PATCH /api/v1/wiki/:id`,
+  `DELETE /api/v1/wiki/:id` routes, all gated by `requireAdmin` (the existing `GET` routes
+  stay open to any authenticated player); slug uniqueness checked manually before
+  create/update (matching the existing username-uniqueness pattern in `player.ts`'s
+  onboarding route) rather than catching a Prisma unique-constraint error. `DELETE` returns
+  a JSON body (`{ success: true }`) rather than a bare 204 — the frontend's shared `request()`
+  helper always calls `res.json()` on success, and this is the first `DELETE` route in the
+  API, so there was no existing precedent either way.
+  - Editing happens in-place on `/wiki` itself rather than as a new section on the `/admin`
+    page — that page is explicitly scoped to "testing tools, not for regular gameplay use,"
+    and keeping content wiki content management there would mean editing a page from a
+    different screen than the one showing it. Admins viewing any page now see Edit/Delete
+    buttons next to the title, and a "+ New Page" button in the nav sidebar; both open the
+    same `WikiEditor` form (title/slug/nav order/Markdown body) with a live preview rendered
+    through the same `react-markdown`/`remark-gfm` pipeline as the real page, so what an
+    admin sees while editing matches what every player sees after saving.
+  - No route-level test coverage — this codebase has no HTTP/route integration tests
+    anywhere yet (a known, already-documented gap; see Post-Beta Infrastructure Maturity),
+    so this follows existing precedent rather than introducing a new test paradigm for one
+    feature in isolation.
 - [x] New player onboarding (2026-07-06) — a first-login page prompting for a user handle
   and guild name. New nullable `guildName` field on `Player`; its absence is what gates the
   app into the onboarding form (in `App.tsx`, checked right after `player.me()` loads,
@@ -629,6 +653,23 @@ open to a small trusted player pool (Phase 0 below).
     applied on miss, zero-penalty contracts skip the ledger line, not-yet-due contracts left
     alone) and `test/bootstrap.test.ts` (welfare claims get the short window). Verified
     end-to-end in a real browser.
+- [x] Fixed never-bid dangerous/legendary contracts stranded on the market past their bid
+  deadline (2026-07-07) — found from a user report: contracts showing "Bid closes Expired"
+  (the frontend's client-side countdown, keyed on `bidDeadline`) were still sitting in the
+  market and still acceptable, for up to 28 hours. Root cause: `runMarketGC`'s bid sweep only
+  ever looked at `status: 'bidding'`, and a contract only transitions from `'available'` to
+  `'bidding'` on its *first* bid — one that never received a single bid (e.g. because the
+  player lacks the reputation to bid on it at all) never leaves `'available'`, so it fell
+  through to the unrelated, much-later `expiresAt` cleanup (48h) instead of actually closing
+  when its 20h bid window did. Fixed by widening the bid sweep's query to also match
+  `'available'` contracts of the bidding tiers (`BIDDING_CONTRACT_TIERS`) once `bidDeadline`
+  passes — a contract with zero bids at that point already falls into the existing
+  no-bids-expire branch. Deliberately scoped by `tier` so errand/standard contracts (which
+  also get a `bidDeadline` value even though it's meaningless for them) are untouched and
+  continue to live until `expiresAt`, as intended. Test-covered in `test/marketGC.test.ts`
+  (never-bid bidding-tier contract expires at its bid deadline without waiting for
+  `expiresAt`; a never-accepted errand/standard contract is *not* early-expired at its
+  otherwise-irrelevant bid deadline).
 - [x] "Accept for Later" for direct-accept contracts (2026-07-07) — the deploy-by system
   above assumed a player could accept an errand/standard contract without immediately
   assigning a party, but there was actually no way to do that: the only "Accept" button

@@ -510,6 +510,20 @@ open to a small trusted player pool (Phase 0 below).
   on 2026-07-06) — no design work done yet; needs its own scoping pass before
   implementation.
 - Adventurer equipment system (from original TODO.md, Game Mechanics).
+- Adventurer traits/abilities (2026-07-07, user's idea, captured for later — no scoping
+  done) — non-stat tags or abilities adventurers earn as they level up, giving each one a
+  distinct bonus rather than just a bigger version of the same six stats. User's own
+  example: **Lucky** — a flat bonus % to contract success chance. Natural fit once scoped:
+  would plug directly into the `estimateSuccessChance()`/`countUnmetRequirements()`
+  machinery already built for the contract-requirements feature (adds another additive/
+  multiplicative term alongside the power ratio and requirement penalty), and "earned at
+  level-up" ties into the existing `levelForXp`/level-up recompute already happening in
+  `resolveAdventure`. Open questions for whenever this gets scoped for real: how many
+  traits can one adventurer hold at once; are they rolled randomly at each level-up or
+  chosen; do they only ever help (like the Lucky example) or can some be double-edged
+  (echoing the Temperament risk/reward idea already captured in the personality-stat-effects
+  item below); and whether trait pools should differ by vocation/heritage for flavor, or be
+  universal.
 - [x] Contract class/stat requirements (2026-07-06) — the `requiredStats` field (previously
   a stub, always `{}`) is now populated at generation time, alongside a new
   `requiredVocation` field (new nullable `Contract.requiredVocation` column). Two design
@@ -603,8 +617,6 @@ open to a small trusted player pool (Phase 0 below).
   changes — `POST /contracts/:id/accept` was already a standalone endpoint; the frontend
   had just never exposed calling it without immediately chaining to deploy. Verified
   end-to-end in a real browser.
-- Dorm-space-based adventurer limits; party size limits (from original TODO.md, Game
-  Mechanics).
 - Deeper personality-stat effects (2026-07-05, concepts captured — needs game-design
   refinement before implementation, not ready to build as-is) — granular mechanics for all
   four personality traits (`loyalty`, `ambition`, `temperament`, `disposition`). Currently
@@ -692,9 +704,6 @@ criteria fuzzy.
 - Legendary-contract story elements affecting the game world (from original TODO.md, Game
   Mechanics) — grouped here rather than Beta Phase 2 since "affecting the game world"
   presumes a persistent multi-region world state to affect.
-- Multi-region expansion beyond the initial single-region design, until the single-region
-  core game loop is proven with real players (from original TODO.md Won't Have — still
-  applies until this phase is reached).
 
 ## Post-Beta — Infrastructure Maturity
 **Goal:** the platform holds up under real scale and ongoing maintenance, not just a beta

@@ -43,6 +43,36 @@ describe('generateContract', () => {
   }
 });
 
+describe('generateContract procedural naming', () => {
+  for (const tier of TIERS) {
+    it(`generates a non-empty title and description for ${tier}`, () => {
+      const contract = generateContract(tier);
+      expect(contract.title.length).toBeGreaterThan(0);
+      expect(contract.description.length).toBeGreaterThan(0);
+    });
+
+    it(`produces a wide variety of ${tier} titles rather than a small fixed pool`, () => {
+      const titles = new Set<string>();
+      for (let i = 0; i < 60; i++) {
+        titles.add(generateContract(tier).title);
+      }
+      // The old fixed pool topped out at 10 per tier; procedural generation should clear
+      // that by a wide margin even over a modest sample, without asserting an exact count
+      // (which would make this test brittle against word-bank size changes).
+      expect(titles.size).toBeGreaterThan(15);
+    });
+
+    it(`does not repeat the same ${tier} title back-to-back`, () => {
+      let previous = generateContract(tier).title;
+      for (let i = 0; i < 20; i++) {
+        const next = generateContract(tier).title;
+        expect(next).not.toBe(previous);
+        previous = next;
+      }
+    });
+  }
+});
+
 describe('generateContract requirements', () => {
   it('never rolls a stat or vocation requirement for errand contracts', () => {
     for (let i = 0; i < 200; i++) {

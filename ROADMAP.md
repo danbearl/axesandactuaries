@@ -884,6 +884,60 @@ open to a small trusted player pool (Phase 0 below).
     `success && ...` and short-circuits. Added two new dedicated tests exercising the
     mechanic directly: a triggered reckless-bonus payout and a temperament-driven injury that
     wouldn't have occurred at the base rate.
+- [x] Procedural contract naming/descriptions (2026-07-07) — replaced the fixed pool of ~30
+  hand-written title/description pairs (`packages/types/src/contracts.ts`) with a word-bank
+  composition system, to stop the same handful of contracts from resurfacing constantly once
+  players had been through the pool a few times.
+  - A shared world of 18 named locations (reusing every proper noun already established
+    across the old fixed templates — Ironhaven, Duskfort, Ashveil, Greyspire, Coldmere,
+    Ironspire, etc. — plus new additions, so the game's existing "geography" stays
+    consistent) combines with tier-scoped "flavor" entries (the actual trouble/threat/quest
+    hook, escalating from mundane at errand to apocalyptic at legendary), tier-scoped
+    clients, and 2-3 sentence patterns per tier. Each flavor entry carries both a Title Case
+    `label` (for the contract title) and a lowercase `hook` fragment (for prose), so
+    interpolation never has to guess at capitalization or grammar — every generated
+    combination reads as a properly-formed sentence, not word-salad.
+  - This takes the previous ~7-10 fixed options per tier to on the order of 100-400+ unique
+    title combinations per tier (fewer for legendary, deliberately — kept to 2 patterns
+    instead of 3 so those still feel rarer and more singular than the other tiers).
+  - Recent-title dedup mirrors the existing pattern in `generator.ts` for adventurer names
+    (a rolling window of the last 20 titles, retried up to 5 times before accepting
+    whatever comes up) — not a hard uniqueness guarantee, but enough to stop the same exact
+    contract from resurfacing back-to-back given the much larger combinatorial pool.
+  - Zero changes needed anywhere outside `contracts.ts` — `GeneratedContract.title`/
+    `.description` kept the exact same shape, so the API routes, Prisma writes, and every
+    frontend consumer are unaffected. `prisma/seed.ts`'s own separate, hand-curated
+    `CONTRACT_TEMPLATES` (used only for one-time fresh-database bootstrapping, not the
+    ongoing market generation this change touches) was deliberately left alone.
+  - Test-covered in `packages/types/src/contracts.test.ts`: non-empty title/description for
+    every tier, a 60-sample generation producing well over the old fixed-pool size in unique
+    titles, and no back-to-back repeats across 20 consecutive generations per tier.
+- Contract narratives in the completion report (2026-07-07, captured — not yet built):
+  procedurally generate a short narrative paragraph for the "Party Report" section shown
+  once an adventure resolves (`AdventureDetail.tsx`, currently a plain per-adventurer table —
+  see `xpGained`/`injured`/`died` columns), rather than just the bare data table it is today.
+  The narrative should incorporate the actual adventurer names on the party, their vocations
+  and stats (so a Sellsword's beat reads differently from an Arcanist's), and any side
+  effects that occurred (injury, death) — the goal being that two completions of the same
+  contract with different parties or different outcomes read as genuinely different stories,
+  not a templated Mad Lib. Open questions to resolve when this gets scoped for real:
+  - Composition approach: likely the same word-bank-plus-pattern technique as the contract
+    naming work above, but keyed off *outcome data* (`AdventureAdventurer` rows) rather than
+    tier — needs per-vocation flavor text (a Sellsword's contribution described differently
+    from a Mender's) and outcome-branching (a clean success reads differently from a
+    success-with-injuries, which reads differently from a failure with a death).
+  - How much stat data actually surfaces in the prose vs. just informing which flavor text
+    gets picked (e.g. "his Might carried the line" only makes sense if Might was actually
+    the adventurer's standout stat) — needs a rule for picking which stat/vocation detail is
+    worth mentioning per adventurer, not surfacing all six stats verbatim.
+  - Party-size handling: a solo adventurer's narrative reads very differently from a
+    six-person party's — probably needs distinct structure rather than just repeating a
+    per-adventurer sentence six times.
+  - Where it's stored: computed fresh each time the report is viewed (cheap, always
+    consistent with current data) vs. generated once at resolution and persisted (stable
+    even if generation logic changes later, but needs a new column/table). Leans toward
+    persisting at resolution, matching how `AdventureAdventurer` already snapshots
+    per-adventurer outcomes at resolution time rather than deriving them live.
 
 ## Beta Phase 3 — Player Customization
 **Goal:** players have meaningful ways to express/personalize their guild once retention is

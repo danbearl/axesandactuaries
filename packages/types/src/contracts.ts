@@ -90,151 +90,212 @@ export const CONTRACT_TIER_CONFIG: Record<ContractTier, TierConfig> = {
   },
 };
 
-// ── Contract Templates ────────────────────────────────────────────────────────
+// ── Contract Templates (procedural) ─────────────────────────────────────────────
+// Titles/descriptions are composed from small word banks (a shared world of named
+// locations, plus tier-scoped "flavor" entries and clients) combined through a handful of
+// sentence patterns per tier, rather than picked from one fixed pool. This multiplies a
+// previous ~30-entry fixed pool into many hundreds of combinations per tier, and a rolling
+// recent-title dedup (mirroring generator.ts's adventurer-name history) keeps the same exact
+// combination from resurfacing back-to-back. Every flavor entry carries both a Title Case
+// `label` (for titles) and a lowercase `hook` fragment (for prose) so interpolation never
+// has to guess at capitalization or grammar.
 
-interface ContractTemplate {
+const CONTRACT_LOCATIONS = [
+  'Ironhaven', 'Duskfort', 'Ashveil', 'Thornwood', 'Greyspire', 'Ashfield Keep',
+  'Coldmere', 'Greyfen', 'Ironspire', 'Thornwall', 'Ironmoor', 'Blackmere',
+  'Ravenscar', 'Hollowfen', 'Wyrmwatch', 'Stonereach', 'Duskhollow', 'Grimwater',
+] as const;
+
+interface FlavorEntry {
+  label: string; // Title Case noun phrase — drops cleanly into a contract title
+  hook:  string; // lowercase noun phrase — drops cleanly into prose ("X is dealing with {hook}")
+}
+
+interface FlavorPattern {
+  title:       (flavor: FlavorEntry, location: string, client: string) => string;
+  description: (flavor: FlavorEntry, location: string, client: string) => string;
+}
+
+const capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+
+// ── Errand ──
+const ERRAND_FLAVORS: readonly FlavorEntry[] = [
+  { label: 'Vermin Infestation',    hook: 'a vermin infestation working through the storerooms' },
+  { label: 'Petty Theft',           hook: 'a string of petty thefts nobody has caught yet' },
+  { label: 'Silent Debtor',         hook: 'a debtor who has gone conveniently quiet' },
+  { label: 'Squatters',             hook: 'squatters holed up in an empty granary' },
+  { label: 'Stray Dog Pack',        hook: 'a stray dog pack menacing the market stalls' },
+  { label: 'Foul Well',             hook: 'a well that has gone foul overnight' },
+  { label: 'Harvest Troublemakers', hook: 'a knot of drunks causing trouble at the harvest fair' },
+  { label: 'Missing Pouch',         hook: 'a courier pouch that never arrived' },
+  { label: 'Overdue Shipment',      hook: 'a wagon shipment that never showed' },
+  { label: 'Crooked Game',          hook: 'a rigged game of chance fleecing the regulars' },
+];
+const ERRAND_CLIENTS = [
+  'a warehouse owner', 'a tavern keeper', 'a worried parent', 'the courier office',
+  'a local creditor', 'a market cooperative', 'a wagon driver', 'the neighborhood watch',
+] as const;
+const ERRAND_PATTERNS: readonly FlavorPattern[] = [
+  {
+    title:       (f, l) => `${f.label} Near ${l}`,
+    description: (f, l, c) => `${capitalize(c)} near ${l} is dealing with ${f.hook}. Nothing that calls for heroics — just a steady hand and a bit of follow-through.`,
+  },
+  {
+    title:       (f) => f.label,
+    description: (f, _l, c) => `${capitalize(c)} has ${f.hook} and needs it handled before it becomes a bigger problem.`,
+  },
+  {
+    title:       (f) => `Errand: ${f.label}`,
+    description: (f, l, c) => `Word from ${l} is that ${c} is contending with ${f.hook}. Simple work, decent pay.`,
+  },
+];
+
+// ── Standard ──
+const STANDARD_FLAVORS: readonly FlavorEntry[] = [
+  { label: 'Warg Pack',        hook: 'a warg pack that has decimated three flocks this month' },
+  { label: 'Bandit Ambush',    hook: 'bandits ambushing traders on the road' },
+  { label: 'Smuggling Ring',   hook: 'a smuggling ring moving contraband through the district' },
+  { label: 'Deserter Camp',    hook: 'armed deserters squatting in a fortified ruin' },
+  { label: 'Missing Caravan',  hook: 'a trade caravan that vanished without a trace' },
+  { label: 'Missing Healer',   hook: 'the only healer for three villages, gone missing' },
+  { label: 'Ledger Raid',      hook: 'a bandit raid that made off with irreplaceable ledgers' },
+  { label: 'Land Dispute',     hook: 'a land dispute between two farmsteading families turning violent' },
+  { label: 'Cave Threat',      hook: 'something driving miners out of a profitable vein' },
+  { label: 'Escort Risk',      hook: 'a lorekeeper who needs safe passage through contested roads' },
+];
+const STANDARD_CLIENTS = [
+  'a shepherd', 'a trading post', 'the town council', 'a caravan master',
+  'a lorekeeper', 'a mining guild', 'two feuding families', 'a village elder',
+] as const;
+const STANDARD_PATTERNS: readonly FlavorPattern[] = [
+  {
+    title:       (f, l) => `${f.label}: ${l}`,
+    description: (f, l, c) => `${l} has a problem with ${f.hook}. ${capitalize(c)} is offering solid pay for a party that can put it to rest.`,
+  },
+  {
+    title:       (f, l) => `${f.label} Near ${l}`,
+    description: (f, l, c) => `${capitalize(c)} near ${l} is dealing with ${f.hook} — no small task, but not beyond a capable party either.`,
+  },
+  {
+    title:       (f) => `Standard Contract: ${f.label}`,
+    description: (f, l, c) => `Reports from ${l} describe ${f.hook}. ${capitalize(c)} wants it resolved before it gets worse.`,
+  },
+];
+
+// ── Dangerous ──
+const DANGEROUS_FLAVORS: readonly FlavorEntry[] = [
+  { label: 'Wyvern',                hook: 'a territorial wyvern that has downed two merchant vessels' },
+  { label: 'Cultist Enclave',       hook: 'a cult conducting escalating rituals in the salt flats' },
+  { label: 'Vault Guardian',        hook: 'something inhuman guarding a half-submerged vault' },
+  { label: 'Blight',                hook: 'a spreading corruption killing everything it touches' },
+  { label: 'Siege Company',         hook: 'a mercenary company laying siege for tribute' },
+  { label: 'Rival Agents',          hook: 'agents of a rival lord operating in the shadows' },
+  { label: 'Guarded Ruin',          hook: 'whatever has kept every prior expedition out of a fallen keep\'s ruins' },
+  { label: 'Contested Passage',     hook: 'contested territory no diplomatic party has crossed safely' },
+];
+const DANGEROUS_CLIENTS = [
+  'a coalition of traders', 'the Crown', 'a besieged garrison',
+  'a scholars\' guild', 'a border lord', 'the merchant council',
+] as const;
+const DANGEROUS_PATTERNS: readonly FlavorPattern[] = [
+  {
+    title:       (f, l) => `${f.label} of ${l}`,
+    description: (f, l, c) => `${capitalize(c)} is offering a substantial bounty: ${f.hook}, centered on ${l}. Every previous attempt has failed.`,
+  },
+  {
+    title:       (_f, l) => `Breach ${l}`,
+    description: (f, l, c) => `${l} holds ${f.hook}. ${capitalize(c)} needs it dealt with — permanently.`,
+  },
+  {
+    title:       (f) => `Dangerous Contract: ${f.label}`,
+    description: (f, l, c) => `${capitalize(c)} has confirmed ${f.hook} near ${l}. This is not a job for the unprepared.`,
+  },
+];
+
+// ── Legendary ── (fewer patterns deliberately, so these still feel rare and singular)
+const LEGENDARY_FLAVORS: readonly FlavorEntry[] = [
+  { label: 'Ancient Rift',      hook: 'a rift that tore open weeks ago and has not stopped growing' },
+  { label: 'Risen Lichknight',  hook: 'a knight-commander who never stopped defending his post, even in death' },
+  { label: 'Awakened Horror',   hook: 'something ancient that has woken and is pulling ships off course from leagues away' },
+  { label: 'Archive Race',      hook: 'a repository of pre-Collapse knowledge that every faction wants first' },
+  { label: 'Brink of War',      hook: 'two great powers weeks from open war over disputed land' },
+  { label: 'World-Ending Threat', hook: 'a threat the scholars believe can be destroyed, if anyone can get close enough' },
+];
+const LEGENDARY_CLIENTS = [
+  'a neutral coalition', 'the last scholars who understand it',
+  'a desperate garrison', 'three converging factions', 'those who remember what it did the first time',
+] as const;
+const LEGENDARY_PATTERNS: readonly FlavorPattern[] = [
+  {
+    title:       (f, l) => `${f.label}: ${l}`,
+    description: (f, l, c) => `${capitalize(c)} say ${f.hook}. It is centered on ${l}. Nobody has come back from a serious attempt yet.`,
+  },
+  {
+    title:       (f) => `Legendary Contract: ${f.label}`,
+    description: (f, l, c) => `${l} is ground zero. ${capitalize(c)} say ${f.hook}. Whoever takes this will be remembered — one way or another.`,
+  },
+];
+
+interface TierFlavorPool {
+  flavors:  readonly FlavorEntry[];
+  clients:  readonly string[];
+  patterns: readonly FlavorPattern[];
+}
+
+const TIER_FLAVOR: Record<ContractTier, TierFlavorPool> = {
+  errand:    { flavors: ERRAND_FLAVORS,    clients: ERRAND_CLIENTS,    patterns: ERRAND_PATTERNS },
+  standard:  { flavors: STANDARD_FLAVORS,  clients: STANDARD_CLIENTS,  patterns: STANDARD_PATTERNS },
+  dangerous: { flavors: DANGEROUS_FLAVORS, clients: DANGEROUS_CLIENTS, patterns: DANGEROUS_PATTERNS },
+  legendary: { flavors: LEGENDARY_FLAVORS, clients: LEGENDARY_CLIENTS, patterns: LEGENDARY_PATTERNS },
+};
+
+interface ContractFlavor {
   title:       string;
   description: string;
 }
 
-const ERRAND_TEMPLATES: readonly ContractTemplate[] = [
-  {
-    title:       'Courier: Sealed Documents',
-    description: 'Deliver a sealed diplomatic pouch to a contact across the city. Discretion required; the contents are time-sensitive.',
-  },
-  {
-    title:       'Cellar Clearance',
-    description: 'A warehouse owner reports a vermin infestation making off with stored goods. Route them before the next shipment arrives.',
-  },
-  {
-    title:       'Scout the Mill Road',
-    description: 'Merchant caravans have been turning back from the old mill road citing "unsettling activity." Verify the route is passable.',
-  },
-  {
-    title:       'Recover Lost Cargo',
-    description: 'A wagon driver abandoned his load after a spooked horse. Retrieve the crates and return them to the guild depot.',
-  },
-  {
-    title:       'Drive Off River Bandits',
-    description: 'A pair of thugs has been shaking down river traders at the north crossing. Encourage them to relocate — permanently.',
-  },
-  {
-    title:       'Debt Collection',
-    description: 'A local creditor needs persuasive company when calling on a debtor who has been avoiding payment. Presence only — no violence unless provoked.',
-  },
-  {
-    title:       'Blocked Well Investigation',
-    description: 'A neighborhood well has gone foul and residents suspect something fell in. Investigate and clear it.',
-  },
-  {
-    title:       'Night Watch: Market District',
-    description: 'A merchant cooperative needs overnight guards for their stalls during the harvest festival. Straightforward watch duty.',
-  },
-];
+function renderContractFlavor(tier: ContractTier): ContractFlavor {
+  const location = pick(CONTRACT_LOCATIONS);
+  const { flavors, clients, patterns } = TIER_FLAVOR[tier];
+  const flavor = pick(flavors);
+  const client = pick(clients);
+  const pattern = pick(patterns);
+  return {
+    title:       pattern.title(flavor, location, client),
+    description: pattern.description(flavor, location, client),
+  };
+}
 
-const STANDARD_TEMPLATES: readonly ContractTemplate[] = [
-  {
-    title:       'Secure Shepherd\'s Pass',
-    description: 'Warg activity has disrupted the mountain pass, costing shepherds their flocks. Establish a deterrent patrol and eliminate the pack leader.',
-  },
-  {
-    title:       'Investigate the Missing Caravan',
-    description: 'A trade caravan out of Ironhaven vanished three days ago. Find out what happened and recover the crew if they still live.',
-  },
-  {
-    title:       'Hunt the Thornwood Pack',
-    description: 'A grey-furred predator and its kin have been stalking the southern farmsteads. Track them into Thornwood and remove the threat.',
-  },
-  {
-    title:       'Recover the Merchant\'s Ledgers',
-    description: 'Bandits raided a trading post and made off with irreplaceable record books. Retrieve them from their camp in the Ashveil foothills.',
-  },
-  {
-    title:       'Escort the Scholar to Duskfort',
-    description: 'A lorekeeper carrying sensitive research must reach Duskfort before the week\'s end. See her there safely.',
-  },
-  {
-    title:       'Clear Ashveil Caverns',
-    description: 'Miners refuse to return to a profitable vein after disappearances were reported. Clear the caverns of whatever lurks in the lower passages.',
-  },
-  {
-    title:       'Disrupt the Smuggling Ring',
-    description: 'Contraband is moving through the warehouse district. Identify the ringleader, seize the goods, and hand the evidence to the authorities.',
-  },
-  {
-    title:       'Find the Missing Mender',
-    description: 'The only healer serving three villages vanished on the road north. Locate her and determine whether foul play was involved.',
-  },
-  {
-    title:       'Patrol the Eastern Farmsteads',
-    description: 'Tension between two landholding families has turned violent. Maintain a visible deterrent presence through the harvest until tempers cool.',
-  },
-  {
-    title:       'Rout the Ironmoor Squatters',
-    description: 'An abandoned fortress has been occupied by armed deserters using it as a base for raids. Drive them out and hold the position until a garrison arrives.',
-  },
-];
+// Recent-title dedup — same rolling-history approach as generator.ts's adventurer names. Not
+// a hard uniqueness guarantee (retries a fixed number of times, then accepts whatever it
+// gets), but the word-bank combinatorics are large enough that this comfortably prevents the
+// same title from resurfacing back-to-back.
+const TITLE_HISTORY_SIZE = 20;
+const MAX_TITLE_RETRIES = 5;
+const titleHistory = new Set<string>();
+const titleHistoryOrder: string[] = [];
 
-const DANGEROUS_TEMPLATES: readonly ContractTemplate[] = [
-  {
-    title:       'Breach the Sunken Vault',
-    description: 'An ancient vault lies half-submerged beneath the flooded Greyfen. Its current occupants are not archaeological. Clear them out and document what\'s inside.',
-  },
-  {
-    title:       'Slay the Wyvern of Greyspire',
-    description: 'A territorial wyvern has claimed the Greyspire peak and downed two merchant vessels. A coalition of traders is offering a substantial bounty for its head.',
-  },
-  {
-    title:       'Retrieve the Loremark',
-    description: 'A powerful artifact was lost when Ashfield Keep fell. Intelligence places it in the ruins\' lower levels — now inhabited by something that has kept every prior expedition out.',
-  },
-  {
-    title:       'Neutralize the Cultist Enclave',
-    description: 'A Cinder-worshipping cult has been conducting rituals in the salt flats, and their activities are escalating. Dismantle the enclave before they complete whatever they\'re building toward.',
-  },
-  {
-    title:       'Escort the Crown Envoy',
-    description: 'A sensitive diplomatic mission requires armed escort through territory contested by two rival lords, both of whom would benefit from the envoy never arriving.',
-  },
-  {
-    title:       'Purge the Blighted Grove',
-    description: 'The Verdant Grove east of Thornwall has been corrupted — game dies within, travelers emerge sick, and the blight is spreading. Find the source and burn it out.',
-  },
-  {
-    title:       'Break the Siege at Thornwall',
-    description: 'A mercenary company has surrounded a small fortress and is demanding tribute. The defenders can hold two more days. Relieve them.',
-  },
-];
+function recordTitle(title: string): void {
+  if (titleHistory.has(title)) return;
+  titleHistory.add(title);
+  titleHistoryOrder.push(title);
+  if (titleHistoryOrder.length > TITLE_HISTORY_SIZE) {
+    titleHistory.delete(titleHistoryOrder.shift()!);
+  }
+}
 
-const LEGENDARY_TEMPLATES: readonly ContractTemplate[] = [
-  {
-    title:       'Seal the Rift Beneath Ironspire',
-    description: 'Something tore open beneath Ironspire Mine three weeks ago. Three excavation teams went in. None returned. What comes out at night is getting worse. Seal it.',
-  },
-  {
-    title:       'Recover the Jade Archive',
-    description: 'The Jade Archive — a repository of pre-Collapse knowledge — was rediscovered in the deep Ashveil. Multiple factions are converging on it. Reach it first, secure it, and get it out.',
-  },
-  {
-    title:       'Vanquish the Lichknight of Coldmere',
-    description: 'The knight-commander who held Coldmere Pass never stopped defending it — even after death. He\'s raised the garrison, and they\'ve stopped letting anyone through. Put him down for good.',
-  },
-  {
-    title:       'Negotiate the Ashfall Accord',
-    description: 'Two major powers are weeks from open war over disputed saltfields. A neutral party is requesting skilled mediators — with the kind of backup that encourages good-faith negotiation.',
-  },
-  {
-    title:       'The Sundering of Greyfen Spire',
-    description: 'Something ancient woke in Greyfen Spire and has begun pulling ships off course from fifty leagues away. Scholars believe it can be destroyed. Nobody has gotten close enough to try.',
-  },
-];
-
-const TEMPLATES: Record<ContractTier, readonly ContractTemplate[]> = {
-  errand:    ERRAND_TEMPLATES,
-  standard:  STANDARD_TEMPLATES,
-  dangerous: DANGEROUS_TEMPLATES,
-  legendary: LEGENDARY_TEMPLATES,
-};
+function generateContractFlavor(tier: ContractTier): ContractFlavor {
+  for (let i = 0; i < MAX_TITLE_RETRIES; i++) {
+    const flavor = renderContractFlavor(tier);
+    if (!titleHistory.has(flavor.title)) {
+      recordTitle(flavor.title);
+      return flavor;
+    }
+  }
+  const flavor = renderContractFlavor(tier);
+  recordTitle(flavor.title);
+  return flavor;
+}
 
 // ── Generator ─────────────────────────────────────────────────────────────────
 
@@ -275,7 +336,7 @@ const REQUIREMENT_CONFIG: Record<ContractTier, RequirementConfig> = {
 
 export function generateContract(tier: ContractTier, now = new Date()): GeneratedContract {
   const cfg = CONTRACT_TIER_CONFIG[tier];
-  const template = pick(TEMPLATES[tier]);
+  const template = generateContractFlavor(tier);
   const reqCfg = REQUIREMENT_CONFIG[tier];
 
   const rewardGold = randInt(cfg.rewardRange[0], cfg.rewardRange[1]);

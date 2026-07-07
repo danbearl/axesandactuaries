@@ -259,6 +259,48 @@ export function levelForXp(xp: number): number {
 // XP awarded per gold earned on a contract
 export const XP_PER_GOLD = 0.1;
 
+// ── Ambition / Loyalty ──────────────────────────────────────────────────────────
+// First personality trait with real gameplay effects beyond Loyalty's existing unpaid-wage
+// quit risk. High Ambition is a genuine trade-off: faster leveling, but a growing risk of
+// quitting (independent of pay) if the adventurer feels under-utilized — sent on contracts
+// beneath their level, or left idle too long. See services/economy.ts for how the resulting
+// loyaltyPenalty (shared with the existing wage-based accumulator) feeds a unified daily
+// quit-roll for every hired adventurer, not just unpaid ones.
+
+// XP multiplier from Ambition: +5% per point above 1, so ambition 1 (Content) gets none and
+// ambition 5 (Obsessed) gets +20%.
+export const AMBITION_XP_BONUS_PER_POINT = 0.05;
+
+export function computeAmbitionXpMultiplier(ambition: number): number {
+  return 1 + (ambition - 1) * AMBITION_XP_BONUS_PER_POINT;
+}
+
+// Minimum contract tier an adventurer's level will tolerate without feeling under-used.
+// Levels 1-2 take anything; 3-4 want standard+; 5-6 want dangerous+ (legendary is never a
+// floor — nothing should require the single best tier just to feel adequate).
+const TIER_ORDER: readonly ContractTier[] = ['errand', 'standard', 'dangerous', 'legendary'];
+
+export function minSatisfyingTier(level: number): ContractTier {
+  if (level <= 2) return 'errand';
+  if (level <= 4) return 'standard';
+  return 'dangerous';
+}
+
+export function isTierBelowTolerance(contractTier: ContractTier, adventurerLevel: number): boolean {
+  return TIER_ORDER.indexOf(contractTier) < TIER_ORDER.indexOf(minSatisfyingTier(adventurerLevel));
+}
+
+// Both the tier-mismatch and idle-neglect loyalty triggers use the same shape: an
+// ambition-scaled *chance* per trigger event to lose 1 loyalty point, rather than a
+// guaranteed hit — so a single unlucky assignment doesn't wreck a high-loyalty adventurer
+// outright. 8% per ambition point: ambition 1 -> 8% per trigger, ambition 5 -> 40%.
+export const AMBITION_LOYALTY_CHANCE_PER_POINT = 0.08;
+
+// Idle days (hired, not deployed, not injured/resting) before neglect can start costing
+// loyalty at all — a short grace period so normal day-to-day gaps between contracts aren't
+// punished.
+export const IDLE_LOYALTY_GRACE_DAYS = 2;
+
 // ── Transaction ───────────────────────────────────────────────────────────────
 
 export type TransactionReason =

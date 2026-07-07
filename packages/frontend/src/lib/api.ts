@@ -169,6 +169,8 @@ export interface AdventurerResponse {
   status: string;
   injuryRecoveryUntil: string | null;
   restUntil: string | null;
+  loyaltyPenalty: number;
+  daysIdle: number;
   employerId: string | null;
   height: string;
   build: string;

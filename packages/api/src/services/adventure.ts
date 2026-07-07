@@ -2,8 +2,9 @@ import { prisma } from '../lib/prisma.js';
 import {
   levelForXp, XP_PER_GOLD, MAX_LEVEL, computeDailyWage,
   countUnmetRequirements, estimateSuccessChance,
+  isTierBelowTolerance, computeAmbitionXpMultiplier, AMBITION_LOYALTY_CHANCE_PER_POINT,
 } from '@axes-actuaries/types';
-import type { StatBlock } from '@axes-actuaries/types';
+import type { StatBlock, ContractTier } from '@axes-actuaries/types';
 import { publish, CHANNELS } from '../lib/redis.js';
 import { ClaimConflictError } from '../lib/errors.js';
 
@@ -67,6 +68,27 @@ export async function startAdventure(
     });
     if (claimedAdventurers.count !== uniqueAdventurerIds.length) {
       throw new ClaimConflictError('One or more adventurers are unavailable or not in your employ');
+    }
+
+    // Ambition trade-off: sending an adventurer below their level's tolerance carries a
+    // chance of losing a loyalty point, scaled by ambition (never a guaranteed hit — see
+    // packages/types/src/game.ts). Also resets daysIdle now that they're back to work.
+    const deployedAdventurers = await tx.adventurer.findMany({
+      where: { id: { in: uniqueAdventurerIds } },
+    });
+    for (const adv of deployedAdventurers) {
+      const personality = adv.personality as { ambition: number };
+      const belowTolerance = isTierBelowTolerance(contract.tier as ContractTier, adv.level);
+      const lostLoyalty = belowTolerance
+        && Math.random() < personality.ambition * AMBITION_LOYALTY_CHANCE_PER_POINT;
+
+      await tx.adventurer.update({
+        where: { id: adv.id },
+        data: {
+          daysIdle:       0,
+          loyaltyPenalty: lostLoyalty ? { increment: 1 } : undefined,
+        },
+      });
     }
 
     const completesAt = new Date(Date.now() + contract.durationHours * 60 * 60 * 1000);
@@ -192,7 +214,11 @@ export async function resolveAdventure(
 
       // XP split evenly across the party — a full contract's XP going to *every*
       // member regardless of party size rewarded stuffing parties just to multi-level.
-      const xpGain = success ? Math.floor((adventure.contract.rewardGold * XP_PER_GOLD) / partySize) : 0;
+      // Ambition then scales each member's own share individually (the trade-off's upside).
+      const ambitionMultiplier = computeAmbitionXpMultiplier((adv.personality as { ambition: number }).ambition);
+      const xpGain = success
+        ? Math.floor((adventure.contract.rewardGold * XP_PER_GOLD / partySize) * ambitionMultiplier)
+        : 0;
       const newXp = adv.experience + xpGain;
       const newLevel = Math.min(MAX_LEVEL, levelForXp(newXp));
       const didLevelUp = newLevel > adv.level;

@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { XP_PER_GOLD } from '@axes-actuaries/types';
+import { XP_PER_GOLD, computeAmbitionXpMultiplier } from '@axes-actuaries/types';
+
+// The createAdventurer fixture defaults to ambition: 3, which now carries a real XP
+// multiplier (+5% per point above 1) — tests that don't override personality need to
+// account for it rather than assuming a bare XP_PER_GOLD split.
+const DEFAULT_AMBITION_MULTIPLIER = computeAmbitionXpMultiplier(3);
 import { prisma } from '../src/lib/prisma.js';
 import { resolveAdventure, startAdventure } from '../src/services/adventure.js';
 import { ClaimConflictError } from '../src/lib/errors.js';
@@ -109,7 +114,7 @@ describe('resolveAdventure', () => {
     const updatedAdv = await prisma.adventurer.findUniqueOrThrow({ where: { id: adventurer.id } });
     expect(updatedAdv.status).toBe('hired');
     expect(updatedAdv.injuryRecoveryUntil).toBeNull();
-    expect(updatedAdv.experience).toBe(Math.floor(300 * XP_PER_GOLD)); // sole party member gets the full share
+    expect(updatedAdv.experience).toBe(Math.floor(300 * XP_PER_GOLD * DEFAULT_AMBITION_MULTIPLIER)); // sole party member gets the full share
     // A clean, healthy return still costs downtime before redeployment (25% of the 8h contract).
     expect(updatedAdv.restUntil).not.toBeNull();
     expect(updatedAdv.restUntil!.getTime()).toBeGreaterThan(Date.now());
@@ -117,7 +122,7 @@ describe('resolveAdventure', () => {
     const report = await prisma.adventureAdventurer.findUniqueOrThrow({
       where: { adventureId_adventurerId: { adventureId: adventure.id, adventurerId: adventurer.id } },
     });
-    expect(report.xpGained).toBe(Math.floor(300 * XP_PER_GOLD));
+    expect(report.xpGained).toBe(Math.floor(300 * XP_PER_GOLD * DEFAULT_AMBITION_MULTIPLIER));
     expect(report.injured).toBe(false);
     expect(report.died).toBe(false);
     expect(report.recoveryHours).toBeNull();
@@ -150,11 +155,42 @@ describe('resolveAdventure', () => {
 
     await resolveAdventure(adventure.id, { forceOutcome: 'success' });
 
-    const expectedShare = Math.floor((300 * XP_PER_GOLD) / 2);
+    const expectedShare = Math.floor((300 * XP_PER_GOLD / 2) * DEFAULT_AMBITION_MULTIPLIER);
     const updated1 = await prisma.adventurer.findUniqueOrThrow({ where: { id: a1.id } });
     const updated2 = await prisma.adventurer.findUniqueOrThrow({ where: { id: a2.id } });
     expect(updated1.experience).toBe(expectedShare);
     expect(updated2.experience).toBe(expectedShare);
+  });
+
+  it('scales XP gain with ambition', async () => {
+    vi.spyOn(Math, 'random').mockImplementation(() => 0.99); // never injured
+
+    const player = await createPlayer({ gold: 500 });
+    const adventurer = await createAdventurer({
+      employerId: player.id, status: 'on_adventure', powerRating: 50, experience: 0, level: 1,
+      personality: { loyalty: 3, ambition: 5, temperament: 3, disposition: 3 }, // max ambition -> +20% XP
+    });
+    const contract = await createContract({
+      requiredPower: 50, rewardGold: 300, reputationReward: 3,
+      penaltyGold: 90, penaltyReputation: 1, status: 'in_progress',
+    });
+    const adventure = await prisma.adventure.create({
+      data: {
+        contractId: contract.id, playerId: player.id,
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        completesAt: new Date(Date.now() - 1000),
+        status: 'in_progress',
+      },
+    });
+    await prisma.adventureAdventurer.create({
+      data: { adventureId: adventure.id, adventurerId: adventurer.id },
+    });
+
+    await resolveAdventure(adventure.id, { forceOutcome: 'success' });
+
+    // base xp = 300 * 0.1 / 1 party member = 30; ambition 5 -> x1.2 = 36
+    const updated = await prisma.adventurer.findUniqueOrThrow({ where: { id: adventurer.id } });
+    expect(updated.experience).toBe(36);
   });
 
   it('can injure (but rarely kill) an adventurer even on a successful adventure', async () => {
@@ -366,5 +402,51 @@ describe('startAdventure', () => {
 
     const adventureCount = await prisma.adventure.count({ where: { contractId: contract.id } });
     expect(adventureCount).toBe(1);
+  });
+
+  it('rolls an ambition-scaled loyalty penalty when deployed below the adventurer\'s tolerance', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0); // force the mismatch roll to hit
+
+    const player = await createPlayer();
+    const adventurer = await createAdventurer({
+      employerId: player.id, status: 'hired', level: 6,
+      personality: { loyalty: 3, ambition: 5, temperament: 3, disposition: 3 },
+    });
+    // Level 6 only tolerates dangerous+ — an errand is well below tolerance.
+    const contract = await createContract({ status: 'awarded', awardedTo: player.id, tier: 'errand' });
+
+    await startAdventure(player.id, contract.id, [adventurer.id]);
+
+    const updated = await prisma.adventurer.findUniqueOrThrow({ where: { id: adventurer.id } });
+    expect(updated.loyaltyPenalty).toBe(1);
+  });
+
+  it('does not penalize loyalty when deployed within the adventurer\'s tolerance', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0); // would force it to hit if the check even ran
+
+    const player = await createPlayer();
+    const adventurer = await createAdventurer({
+      employerId: player.id, status: 'hired', level: 6,
+      personality: { loyalty: 3, ambition: 5, temperament: 3, disposition: 3 },
+    });
+    const contract = await createContract({ status: 'awarded', awardedTo: player.id, tier: 'legendary' });
+
+    await startAdventure(player.id, contract.id, [adventurer.id]);
+
+    const updated = await prisma.adventurer.findUniqueOrThrow({ where: { id: adventurer.id } });
+    expect(updated.loyaltyPenalty).toBe(0);
+  });
+
+  it('resets daysIdle to 0 on deployment', async () => {
+    const player = await createPlayer();
+    const adventurer = await createAdventurer({
+      employerId: player.id, status: 'hired', daysIdle: 5,
+    });
+    const contract = await createContract({ status: 'awarded', awardedTo: player.id });
+
+    await startAdventure(player.id, contract.id, [adventurer.id]);
+
+    const updated = await prisma.adventurer.findUniqueOrThrow({ where: { id: adventurer.id } });
+    expect(updated.daysIdle).toBe(0);
   });
 });

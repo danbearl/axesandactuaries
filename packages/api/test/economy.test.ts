@@ -49,6 +49,11 @@ describe('collectDailyWages', () => {
   });
 
   it('applies surplus gold to back wages after current wages are paid', async () => {
+    // Recovering from loyaltyPenalty: 5 to 4 still leaves a nonzero penalty, which now
+    // rolls a quit check under the unified loyalty system — pin it to never succeed so
+    // this test stays about back-wage repayment, not the quit roll.
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+
     const player = await createPlayer({ gold: 1000 });
     const adv = await createAdventurer({
       employerId: player.id, status: 'hired', dailyWage: 100,
@@ -110,6 +115,67 @@ describe('collectDailyWages', () => {
     expect(updatedAdv.status).toBe('on_adventure');
     expect(updatedAdv.daysUnpaid).toBe(6);
     expect(updatedAdv.wagesOwed).toBe(50);
+  });
+
+  it('does not accrue idle loyalty penalty within the grace period', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0); // would force the idle roll to hit if it ran at all
+
+    const player = await createPlayer({ gold: 1000 });
+    const adv = await createAdventurer({
+      employerId: player.id, status: 'hired', dailyWage: 50,
+      personality: { loyalty: 5, ambition: 5, temperament: 3, disposition: 3 },
+      daysIdle: 1, // will become 2 this cycle — still within the grace period (2)
+    });
+
+    await collectDailyWages();
+
+    const updatedAdv = await prisma.adventurer.findUniqueOrThrow({ where: { id: adv.id } });
+    expect(updatedAdv.daysIdle).toBe(2);
+    expect(updatedAdv.loyaltyPenalty).toBe(0);
+  });
+
+  it('can cause a fully-paid, high-ambition adventurer to quit purely from idle neglect', async () => {
+    // Loyalty is fully independent of payment — this adventurer is paid in full every cycle
+    // and still becomes a flight risk if left idle too long, matching the design goal.
+    vi.spyOn(Math, 'random').mockReturnValue(0); // idle-penalty roll and quit roll both hit
+
+    const player = await createPlayer({ gold: 1000, reputation: 100 });
+    const adv = await createAdventurer({
+      employerId: player.id, status: 'hired', level: 2, dailyWage: 50,
+      personality: { loyalty: 1, ambition: 5, temperament: 3, disposition: 3 },
+      daysIdle: 3, // past the 2-day grace period -> this cycle's idle roll applies
+    });
+
+    const [result] = await collectDailyWages();
+    expect(result.quit).toBe(1);
+
+    const updatedAdv = await prisma.adventurer.findUniqueOrThrow({ where: { id: adv.id } });
+    expect(updatedAdv.status).toBe('available');
+    expect(updatedAdv.employerId).toBeNull();
+
+    // Confirm they were actually paid this cycle (proving the quit wasn't wage-driven).
+    const wageTx = await prisma.transaction.findFirstOrThrow({
+      where: { playerId: player.id, reason: 'wage' },
+    });
+    expect(wageTx.amount).toBe(-50);
+  });
+
+  it('does not accrue idle penalty while an adventurer is resting off a prior mission', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0); // would force the idle roll to hit if it ran at all
+
+    const player = await createPlayer({ gold: 1000 });
+    const adv = await createAdventurer({
+      employerId: player.id, status: 'hired', dailyWage: 50,
+      personality: { loyalty: 5, ambition: 5, temperament: 3, disposition: 3 },
+      daysIdle: 5,
+      restUntil: new Date(Date.now() + 60 * 60 * 1000), // still resting
+    });
+
+    await collectDailyWages();
+
+    const updatedAdv = await prisma.adventurer.findUniqueOrThrow({ where: { id: adv.id } });
+    expect(updatedAdv.daysIdle).toBe(0);
+    expect(updatedAdv.loyaltyPenalty).toBe(0);
   });
 });
 

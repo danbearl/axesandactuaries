@@ -509,6 +509,30 @@ open to a small trusted player pool (Phase 0 below).
 - Achievements (from original TODO.md, Gamification, split off from the ranking item above
   on 2026-07-06) — no design work done yet; needs its own scoping pass before
   implementation.
+- Player news feed (2026-07-07, user's idea, captured for later — no scoping done) — a
+  private, per-player rolling feed of short, single-sentence events about their own guild
+  ("Clear the Millbrook Road completed successfully", "Kessa Vane left due to unpaid
+  wages") — distinct from both the Adventure Log (detailed per-adventure reports, already
+  built) and the Announcements/newsletter idea captured above (admin-authored, broadcast to
+  everyone) — this is terse, system-generated, and private to the one player it's about.
+  Natural fit once scoped: several of the exact moments this would cover already publish a
+  per-player SSE event that could double as the feed's source — `adventure_completed`
+  (`services/adventure.ts`), `contract_awarded`/`contract_expired` (`workers/marketGC.ts`),
+  `daily_summary` (`workers/dailyReset.ts`). SSE alone isn't enough on its own though — it's
+  ephemeral and missed entirely if the player is offline when it fires, so this needs real
+  persistence (a new table), with the existing SSE events just double-published to it rather
+  than the feed being SSE-derived at read time. Adventurer quits don't publish *any* SSE
+  event today (`services/economy.ts`'s quit logic only records a `debt_forgiven`
+  transaction) — would need a new publish call there too. The user's own example wording
+  implies the feed should state *why* an adventurer left (unpaid wages vs. lack of
+  opportunity), but the quit logic currently blends all loyalty sources (wages, idle
+  neglect, tier mismatch) into one shared `loyaltyPenalty` pool with no tracked "proximate
+  cause" — surfacing a specific reason would need at least a dominant-cause heuristic, if
+  not tracking cause explicitly. Open questions: how far back does the rolling feed go /
+  does it paginate (same shape as the Adventure Log); does it need a read/unread indicator
+  or nav badge (echoes the same open question already captured for Announcements); does it
+  live in its own nav tab or fold into an existing one (Dashboard sidebar, notification
+  bell icon).
 - Adventurer equipment system (from original TODO.md, Game Mechanics).
 - Adventurer traits/abilities (2026-07-07, user's idea, captured for later — no scoping
   done) — non-stat tags or abilities adventurers earn as they level up, giving each one a
@@ -617,23 +641,54 @@ open to a small trusted player pool (Phase 0 below).
   changes — `POST /contracts/:id/accept` was already a standalone endpoint; the frontend
   had just never exposed calling it without immediately chaining to deploy. Verified
   end-to-end in a real browser.
-- Deeper personality-stat effects (2026-07-05, concepts captured — needs game-design
-  refinement before implementation, not ready to build as-is) — granular mechanics for all
-  four personality traits (`loyalty`, `ambition`, `temperament`, `disposition`). Currently
-  only `loyalty` has any gameplay effect at all (unpaid-wage quit risk in
-  `services/economy.ts`); `ambition`, `temperament`, and `disposition` are rolled and
-  displayed but otherwise inert. Proposed direction for each, pending balance/formula
-  refinement:
-  - **Loyalty** — already factors into quit risk when wages go unpaid. Proposed extension:
-    combine with Ambition so **high Ambition + low Loyalty** creates an ongoing risk of the
-    adventurer voluntarily leaving for a better opportunity on the open market, independent
-    of whether they're actually being paid — a wealthy player could still lose an ambitious,
-    disloyal adventurer.
-  - **Ambition** — proposed to (1) accelerate XP gain, scaled by ambition; (2) interact with
-    Loyalty as above; (3) accrue a loyalty penalty against the current employer if a
-    high-ambition adventurer sits undeployed for extended periods, or is repeatedly sent on
-    contracts below their capability — under-using an ambitious adventurer should itself
-    raise defection risk over time, not just non-payment.
+- [x] Ambition/Loyalty trade-off mechanics (2026-07-07) — the first of the four personality
+  traits' concepts (captured 2026-07-05 below) to actually get built. High Ambition is now a
+  genuine trade-off, not just a rolled-and-displayed stat: faster leveling, but a growing,
+  pay-independent risk of quitting if the adventurer feels under-utilized. This required
+  restructuring the existing wage/quit-risk system in `services/economy.ts` rather than
+  bolting on something parallel to it — `Adventurer.loyaltyPenalty` (previously fed only by
+  unpaid wages) is now a shared pool fed by three independent sources, and the quit-check
+  (previously only rolled for adventurers unpaid *that specific cycle*) now runs daily for
+  *every* hired adventurer carrying any accumulated penalty, regardless of payment status —
+  otherwise a well-paid but neglected ambitious adventurer could never actually leave, which
+  was the whole point of the ask.
+  - **XP bonus**: `computeAmbitionXpMultiplier()` — +5% per ambition point above 1, so
+    ambition 1 (Content) gets none and ambition 5 (Obsessed) gets +20%, applied in
+    `resolveAdventure` on top of the existing per-party-member XP split.
+  - **Tier-mismatch penalty**: `minSatisfyingTier(level)`/`isTierBelowTolerance()` — levels
+    1–2 tolerate anything, 3–4 want standard+, 5–6 want dangerous+ (matches the user's own
+    two examples exactly: a level-3 adventurer minds an errand, a level-6 one is only
+    satisfied by dangerous/legendary). Checked once per deployment in `startAdventure`.
+  - **Idle-neglect penalty**: new `Adventurer.daysIdle` counter, incremented daily
+    (`collectDailyWages`) for anyone `hired`-but-undeployed (excludes `on_adventure`,
+    injured, and resting — none of those are neglect), reset to 0 on redeployment. A
+    2-day grace period (`IDLE_LOYALTY_GRACE_DAYS`) before it can cost anything at all.
+  - **Shared chance mechanism**: both new triggers use the same shape — an ambition-scaled
+    *chance* per trigger event to lose 1 loyalty point (`AMBITION_LOYALTY_CHANCE_PER_POINT`
+    = 8% per ambition point, so up to 40% at ambition 5), rather than a guaranteed hit, so a
+    single unlucky assignment doesn't wreck a high-loyalty adventurer outright. Confirmed
+    this pacing and the XP bonus size with the user before building rather than guessing.
+  - **Correctness catch during implementation**: the first draft would have made the unified
+    quit-check roll for *every* hired adventurer regardless of accumulated penalty, using
+    their raw `personality.loyalty` value — caught via the existing `economy.test.ts` suite,
+    where a test with no `Math.random` mock and a neutral-loyalty adventurer would have
+    started intermittently failing (a healthy, undamaged adventurer would've had a real
+    standing daily quit chance purely from a neutral personality score, which was never the
+    intent). Fixed by gating the quit-roll on `loyaltyPenalty > 0` — it's strictly a
+    consequence of mistreatment/neglect from an actual source, never ambient background risk.
+  - Also required pinning `Math.random` in one existing test that had a nonzero
+    `loyaltyPenalty` fixture value without expecting a quit roll to run against it — a real
+    gap the restructuring exposed, not a pre-existing bug.
+  - New "Loyalty" status panel on the adventurer profile page (`AdventurerDetail.tsx`,
+    matching the existing Injury/Rest panel treatment) shown whenever `loyaltyPenalty > 0` —
+    a static standing display rather than a countdown, since this is a daily-tick
+    probabilistic risk, not a fixed timer.
+  - Test-covered in `test/economy.test.ts` (grace period, idle-driven quit independent of
+    payment, resting adventurers excluded from idle accrual) and `test/adventure.test.ts`
+    (tier-mismatch penalty applied/not-applied, `daysIdle` reset on deployment, XP scaling).
+    Verified end-to-end in a real browser.
+- Deeper personality-stat effects for Disposition and Temperament (2026-07-05, concepts
+  captured — needs game-design refinement before implementation, not ready to build as-is):
   - **Disposition** — proposed to drive a new **party cohesion/affinity** mechanic:
     adventurers frequently partied together build affinity over time, and high-affinity
     parties perform better (exact bonus — success chance? party power? — needs design).

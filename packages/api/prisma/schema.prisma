@@ -107,6 +107,10 @@ model Adventurer {
   wagesOwed           Int              @default(0) @map("wages_owed")
   daysUnpaid          Int              @default(0) @map("days_unpaid")
   loyaltyPenalty      Int              @default(0) @map("loyalty_penalty")
+  // Consecutive days at 'hired' status without being deployed — feeds the ambition-driven
+  // idle loyalty decay (see services/economy.ts). Reset to 0 the instant they're deployed
+  // (startAdventure); does not accrue while on_adventure, injured, or resting.
+  daysIdle            Int              @default(0) @map("days_idle")
   height              String
   build               String
   complexion          String

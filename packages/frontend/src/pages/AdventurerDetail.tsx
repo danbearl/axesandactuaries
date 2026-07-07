@@ -70,6 +70,31 @@ function RestStatus({ restUntil }: { restUntil: string }) {
   );
 }
 
+const LOYALTY_LABELS = ['Mercenary', 'Unreliable', 'Neutral', 'Loyal', 'Steadfast'];
+
+// Loyalty isn't tracked as a live countdown like injury/rest — it's a daily-tick
+// probabilistic risk (unpaid wages, idle neglect, or under-tier deployments; see
+// services/economy.ts), so this just shows the current standing, not a timer.
+function LoyaltyStatus({ baseLoyalty, penalty }: { baseLoyalty: number; penalty: number }) {
+  const effectiveLoyalty = Math.max(1, baseLoyalty - penalty);
+  const atRisk = effectiveLoyalty <= 2;
+
+  return (
+    <div className="panel panel-sm" style={{ borderColor: atRisk ? 'var(--crimson)' : 'var(--gold)' }}>
+      <div className="flex items-center gap-sm">
+        <span className={`badge ${atRisk ? 'badge-status-injured' : 'badge-status-resting'}`}>
+          {LOYALTY_LABELS[effectiveLoyalty - 1]}
+        </span>
+        <span className="label">
+          {atRisk
+            ? 'At risk of leaving to find a better opportunity'
+            : 'Loyalty is holding, but has taken a hit'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function AdventurerDetail() {
   const { id } = useParams<{ id: string }>();
 
@@ -138,6 +163,10 @@ export default function AdventurerDetail() {
 
           {adventurer.status === 'hired' && adventurer.restUntil && new Date(adventurer.restUntil) > new Date() && (
             <RestStatus restUntil={adventurer.restUntil} />
+          )}
+
+          {adventurer.loyaltyPenalty > 0 && (
+            <LoyaltyStatus baseLoyalty={adventurer.personality.loyalty} penalty={adventurer.loyaltyPenalty} />
           )}
 
           <div className="panel">

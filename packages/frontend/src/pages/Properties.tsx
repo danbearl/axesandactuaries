@@ -34,7 +34,7 @@ const PROPERTY_CATALOG: {
     description: 'Medical facilities reduce injury recovery time. Essential for any guild that sends parties on dangerous contracts.',
     baseCost: 300,
     baseMaintenanceDaily: 18,
-    bonusSummary: '-25% injury recovery time per level',
+    bonusSummary: '-15% injury recovery time per level',
   },
   {
     type: 'library',

@@ -959,7 +959,47 @@ open to a small trusted player pool (Phase 0 below).
     scoped to roster capacity only, and give a *different* property (Library is the leading
     candidate, given its existing copy and dead `xpMultiplier: 1.2`) the real XP bonus, so the
     two don't functionally overlap once both are wired up.
-  - [ ] Training Hall, Infirmary, Library, Alchemy Lab, Armory — not yet reviewed/redesigned.
+  - [x] **Infirmary** (2026-07-08): switched from reducing injury *chance* to reducing
+    recovery *time*, matching its name, its existing frontend description ("reduce injury
+    recovery time"), and its own long-dead `injuryRecoveryRate` bonus field, which had never
+    been read by anything. Confirmed with the user: single-purpose (recovery time only), not
+    both — injury-chance reduction is retired from Infirmary rather than kept alongside the
+    new mechanic, consistent with the same "minimize functional overlap" principle from
+    Dormitory. It could resurface later on Training Hall (conditioning/prep preventing injury
+    in the first place would fit that property's existing theme) when that one gets its pass,
+    but that's an open question for then, not decided now.
+    - Recovery time formula: `recoveryHours = round(baseRoll * max(0.25, 1 - level *
+      injuryRecoveryRate))`, where `injuryRecoveryRate` (0.15 = 15%/level) is now read
+      directly off the property row rather than hardcoded in `adventure.ts` — matching the
+      existing pattern Training Hall's power bonus already uses (source of truth lives once,
+      in `routes/properties.ts`'s catalog, at build time), rather than the pattern Infirmary
+      itself used previously (a hardcoded constant that ignored whatever was actually stored
+      on the property). At the level-3 cap this is a 45% reduction; the 25% floor is a
+      forward-compatible safety valve that doesn't bind at today's level cap but guards the
+      formula if levels are ever raised.
+    - Removed `MIN_SUCCESS_INJURY_CHANCE`/`MIN_FAILURE_INJURY_CHANCE`/
+      `INFIRMARY_INJURY_REDUCTION_PER_LEVEL` from `adventure.ts` — all three existed solely to
+      support the old injury-chance-reduction floor, which no longer exists. Simplified
+      `injuryChance` to just `baseInjuryChance + temperament bump`, dropping a `Math.max()`
+      that had become a permanent no-op once the infirmary subtraction was removed (the base
+      injury-chance constants were already comfortably above their own floors).
+    - Preserved the exact `Math.random()` call structure (roll for recovery hours still only
+      happens inside the `injured && !dead` branch) specifically to avoid reshuffling the
+      mocked-value sequences in every other test in `adventure.test.ts` — a lesson carried
+      over from the Temperament work earlier this session, where a new unconditional call
+      broke several `mockReturnValueOnce` chains.
+    - Incidentally found and fixed while in the area: `Dashboard.tsx`'s built-property bonus
+      display formatted every numeric bonus as if it were an XP-style multiplier
+      (`(v-1)*100%`), which would have rendered a plain fraction like the new
+      `injuryRecoveryRate: 0.15` as a nonsensical "+0.15" and a flat `powerRatingBonus: 2` as
+      "+100%" (a pre-existing, unrelated display bug for Training Hall, not something this
+      change introduced). New `formatBonusValue()` helper distinguishes multiplier/fraction/
+      flat-count values properly. Also fixed a leftover empty-state string ("a dormitory
+      improves adventurer retention") that predated last turn's Dormitory scoping fix.
+    - Test-covered in `test/adventure.test.ts`: recovery hours reduced by the expected amount
+      at max infirmary level, and a regression guard confirming a roll that would have been
+      "safe" under the old chance-reduction formula still results in injury now.
+  - [ ] Training Hall, Library, Alchemy Lab, Armory — not yet reviewed/redesigned.
 
 ## Beta Phase 3 — Player Customization
 **Goal:** players have meaningful ways to express/personalize their guild once retention is

@@ -17,12 +17,9 @@ import { ClaimConflictError } from '../lib/errors.js';
 // only happen on failure, meaning zero risk at all once a party outscaled its targets.
 const FAILURE_INJURY_CHANCE = 0.4;
 const SUCCESS_INJURY_CHANCE = 0.08;
-const MIN_FAILURE_INJURY_CHANCE = 0.05;
-const MIN_SUCCESS_INJURY_CHANCE = 0.01;
-const INFIRMARY_INJURY_REDUCTION_PER_LEVEL = 0.08;
 // Share of injury-triggering rolls that are additionally fatal, expressed relative to
 // injuryChance (rather than a fixed roll cutoff) so it scales consistently whether the
-// base rate is the failure or success chance, or reduced by an infirmary.
+// base rate is the failure or success chance.
 const DEATH_SHARE_OF_INJURY = 0.25;
 
 // A healthy return still costs downtime before redeployment — a flat fraction of how
@@ -30,6 +27,13 @@ const DEATH_SHARE_OF_INJURY = 0.25;
 // roster snowball throughput with zero pacing cost. Injured adventurers already have
 // their own (longer) recovery window and don't need this stacked on top.
 const REST_HOURS_FRACTION_OF_DURATION = 0.25;
+
+// Infirmary property: shrinks recovery TIME (not injury chance — see ROADMAP for why that
+// split was made). The per-level rate lives on the property itself (bonus.injuryRecoveryRate,
+// set in routes/properties.ts) rather than a hardcoded constant here, matching how Training
+// Hall's power bonus is read. This floor keeps recovery from ever fully trivializing, even at
+// a hypothetical future level beyond today's level-3 cap.
+const INFIRMARY_RECOVERY_FLOOR_FRACTION = 0.25;
 
 // Assigns a party to an awarded contract, starting the adventure.
 //
@@ -211,11 +215,15 @@ export async function resolveAdventure(
   const successChance = estimateSuccessChance(partyPower, adventure.contract.requiredPower, unmetRequirements);
   const success = opts?.forceOutcome ? opts.forceOutcome === 'success' : outcomeRoll < successChance;
 
-  const infirmaryLevel = (
-    await prisma.property.findFirst({
-      where: { playerId: adventure.playerId, type: 'infirmary' },
-    })
-  )?.level ?? 0;
+  const infirmary = await prisma.property.findFirst({
+    where: { playerId: adventure.playerId, type: 'infirmary' },
+  });
+  const infirmaryLevel = infirmary?.level ?? 0;
+  const infirmaryRecoveryRate = (infirmary?.bonus as { injuryRecoveryRate?: number } | undefined)?.injuryRecoveryRate ?? 0;
+  const recoveryMultiplier = Math.max(
+    INFIRMARY_RECOVERY_FLOOR_FRACTION,
+    1 - infirmaryLevel * infirmaryRecoveryRate,
+  );
 
   return prisma.$transaction(async (tx) => {
     const resolved = await tx.adventure.update({
@@ -244,16 +252,16 @@ export async function resolveAdventure(
       const temperament = (adv.personality as { temperament: number }).temperament;
 
       const baseInjuryChance = success ? SUCCESS_INJURY_CHANCE : FAILURE_INJURY_CHANCE;
-      const minInjuryChance = success ? MIN_SUCCESS_INJURY_CHANCE : MIN_FAILURE_INJURY_CHANCE;
       // Recklessness carries risk regardless of outcome — the temperament bump applies on
-      // top of the success/failure base rate rather than being subject to its own floor.
-      const injuryChance = Math.max(
-        minInjuryChance,
-        baseInjuryChance - infirmaryLevel * INFIRMARY_INJURY_REDUCTION_PER_LEVEL,
-      ) + temperament * TEMPERAMENT_INJURY_BONUS_PER_POINT;
+      // top of the success/failure base rate.
+      const injuryChance = baseInjuryChance + temperament * TEMPERAMENT_INJURY_BONUS_PER_POINT;
       const injured = injuryRoll < injuryChance;
       const dead = injured && injuryRoll < injuryChance * DEATH_SHARE_OF_INJURY;
-      const recoveryHours = injured && !dead ? Math.floor(Math.random() * 48) + 12 : 0;
+      // Infirmary shrinks recovery time (not injury chance — see the constant above), applied
+      // to the same 12-60h base roll a healthy infirmary-free adventurer would get.
+      const recoveryHours = injured && !dead
+        ? Math.round((Math.floor(Math.random() * 48) + 12) * recoveryMultiplier)
+        : 0;
       const restHours = !injured && !dead
         ? Math.ceil(adventure.contract.durationHours * REST_HOURS_FRACTION_OF_DURATION)
         : 0;

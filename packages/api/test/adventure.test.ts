@@ -333,6 +333,85 @@ describe('resolveAdventure', () => {
     expect(report.recoveryHours).toBe(36); // Math.floor(0.5 * 48) + 12
   });
 
+  it('reduces recovery time based on infirmary level', async () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.9)  // outcomeRoll — failure
+      .mockReturnValueOnce(0.3)  // injuryRoll — injured, not dead
+      .mockReturnValueOnce(0.5); // recovery-hours roll
+
+    const player = await createPlayer({ gold: 500 });
+    await prisma.property.create({
+      data: { playerId: player.id, type: 'infirmary', level: 3, maintenanceCostDaily: 18, bonus: { injuryRecoveryRate: 0.15 } },
+    });
+    const adventurer = await createAdventurer({
+      employerId: player.id, status: 'on_adventure', powerRating: 10, experience: 0, level: 1,
+    });
+    const contract = await createContract({
+      requiredPower: 1000, rewardGold: 300, reputationReward: 3, penaltyGold: 90, penaltyReputation: 1,
+      status: 'in_progress',
+    });
+    const adventure = await prisma.adventure.create({
+      data: {
+        contractId: contract.id, playerId: player.id,
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        completesAt: new Date(Date.now() - 1000),
+        status: 'in_progress',
+      },
+    });
+    await prisma.adventureAdventurer.create({
+      data: { adventureId: adventure.id, adventurerId: adventurer.id },
+    });
+
+    await resolveAdventure(adventure.id);
+
+    const report = await prisma.adventureAdventurer.findUniqueOrThrow({
+      where: { adventureId_adventurerId: { adventureId: adventure.id, adventurerId: adventurer.id } },
+    });
+    expect(report.injured).toBe(true);
+    expect(report.died).toBe(false);
+    // base = floor(0.5 * 48) + 12 = 36; level 3 * 0.15 rate = 45% reduction -> round(36 * 0.55) = 20
+    expect(report.recoveryHours).toBe(20);
+  });
+
+  it('no longer reduces injury chance based on infirmary level — that moved to recovery time only', async () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.9)   // outcomeRoll — failure
+      .mockReturnValueOnce(0.42)  // injuryRoll — below the base failure injury chance (0.46
+                                  // including temperament); would have been safe under the
+                                  // old infirmary-reduces-chance formula, but isn't anymore.
+      .mockReturnValueOnce(0.5);  // recovery-hours roll — value not asserted
+
+    const player = await createPlayer({ gold: 500 });
+    await prisma.property.create({
+      data: { playerId: player.id, type: 'infirmary', level: 3, maintenanceCostDaily: 18, bonus: { injuryRecoveryRate: 0.15 } },
+    });
+    const adventurer = await createAdventurer({
+      employerId: player.id, status: 'on_adventure', powerRating: 10, experience: 0, level: 1,
+    });
+    const contract = await createContract({
+      requiredPower: 1000, rewardGold: 300, reputationReward: 3, penaltyGold: 90, penaltyReputation: 1,
+      status: 'in_progress',
+    });
+    const adventure = await prisma.adventure.create({
+      data: {
+        contractId: contract.id, playerId: player.id,
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        completesAt: new Date(Date.now() - 1000),
+        status: 'in_progress',
+      },
+    });
+    await prisma.adventureAdventurer.create({
+      data: { adventureId: adventure.id, adventurerId: adventurer.id },
+    });
+
+    await resolveAdventure(adventure.id);
+
+    const report = await prisma.adventureAdventurer.findUniqueOrThrow({
+      where: { adventureId_adventurerId: { adventureId: adventure.id, adventurerId: adventurer.id } },
+    });
+    expect(report.injured).toBe(true);
+  });
+
   it('lowers success chance for an unmet contract requirement, changing the outcome', async () => {
     // ratio 1.0 -> base successChance 0.8; one unmet requirement -> 0.75. A roll of 0.77
     // would succeed under the old formula but fail once the requirement penalty applies.

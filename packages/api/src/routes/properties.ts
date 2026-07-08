@@ -17,7 +17,9 @@ const PROPERTY_CONFIG = {
   training_hall: { baseCost: 350, maintenanceDaily: 20, bonus: { powerRatingBonus: 2, xpMultiplier: 1.15 } },
   alchemy_lab:   { baseCost: 500, maintenanceDaily: 30, bonus: { powerRatingBonus: 3 } },
   library:       { baseCost: 400, maintenanceDaily: 25, bonus: { xpMultiplier: 1.2 } },
-  infirmary:     { baseCost: 300, maintenanceDaily: 18, bonus: { injuryRecoveryRate: 2.0 } },
+  // injuryRecoveryRate is a fraction shaved off recovery time per level (0.15 = 15%/level,
+  // read directly off the property row by resolveAdventure — see services/adventure.ts).
+  infirmary:     { baseCost: 300, maintenanceDaily: 18, bonus: { injuryRecoveryRate: 0.15 } },
   armory:        { baseCost: 450, maintenanceDaily: 22, bonus: { wageDiscount: 0.1 } },
 } as const;
 

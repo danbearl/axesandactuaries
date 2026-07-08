@@ -232,7 +232,7 @@ export default function Dashboard() {
           </div>
 
           {properties.length === 0 ? (
-            <div className="empty-state">No properties built. A dormitory improves adventurer retention.</div>
+            <div className="empty-state">No properties built. A dormitory expands your roster capacity.</div>
           ) : (
             <div className="flex-col gap-sm">
               {properties.map(p => (
@@ -243,7 +243,7 @@ export default function Dashboard() {
                   </div>
                   <div className="label text-right">
                     {Object.entries(p.bonus as Record<string, number>).map(([k, v]) => (
-                      <div key={k}>{BONUS_LABELS[k] ?? k}: {typeof v === 'number' && v > 1 ? `+${Math.round((v - 1) * 100)}%` : `+${v}`}</div>
+                      <div key={k}>{BONUS_LABELS[k] ?? k}: {typeof v === 'number' ? formatBonusValue(k, v) : `+${v}`}</div>
                     ))}
                   </div>
                 </div>
@@ -348,3 +348,12 @@ const BONUS_LABELS: Record<string, string> = {
   injuryRecoveryRate: 'Recovery speed',
   wageDiscount: 'Wage discount',
 };
+
+// Bonus values come in different shapes depending on the key: XP-style multipliers (e.g.
+// 1.1 = +10%), plain fractions (e.g. 0.15 = +15%), and flat counts (e.g. +2 power rating) —
+// treating them all as multipliers would render a flat "+2" bonus as a nonsensical "+100%".
+function formatBonusValue(key: string, value: number): string {
+  if (key === 'powerRatingBonus') return `+${value}`;
+  if (value > 1) return `+${Math.round((value - 1) * 100)}%`;
+  return `+${Math.round(value * 100)}%`;
+}

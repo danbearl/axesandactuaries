@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   levelForXp, XP_TO_LEVEL, MAX_LEVEL,
   computeCohesionIncrement, computeCohesionBonus, COHESION_MAX, COHESION_MAX_POWER_BONUS,
-  computeTrainingHallBonus,
+  computeTrainingHallBonus, findRolePropertyBonus,
 } from './game.js';
 
 describe('levelForXp', () => {
@@ -80,5 +80,27 @@ describe('computeTrainingHallBonus', () => {
     expect(computeTrainingHallBonus([
       { type: 'alchemy_lab', level: 3, bonus: { powerRatingBonus: 3 } },
     ])).toBe(0);
+  });
+});
+
+describe('findRolePropertyBonus', () => {
+  const armory = [{ type: 'armory', level: 2, bonus: { xpBonusPerLevel: 0.1, loyaltyRecoveryBonus: 1 } }];
+
+  it('applies to a fighter-role vocation when the matching property exists', () => {
+    expect(findRolePropertyBonus('Sellsword', armory, 'xpBonusPerLevel')).toBeCloseTo(0.2);
+    expect(findRolePropertyBonus('Outrider', armory, 'loyaltyRecoveryBonus')).toBe(2);
+  });
+
+  it('is zero for a vocation with no assigned role', () => {
+    // Chronicler intentionally has no role yet — see VOCATION_PARTY_ROLE.
+    expect(findRolePropertyBonus('Chronicler', armory, 'xpBonusPerLevel')).toBe(0);
+  });
+
+  it('is zero for a vocation whose role has no matching property', () => {
+    expect(findRolePropertyBonus('Arcanist', armory, 'xpBonusPerLevel')).toBe(0);
+  });
+
+  it('is zero when the property has no properties at all', () => {
+    expect(findRolePropertyBonus('Sellsword', [], 'xpBonusPerLevel')).toBe(0);
   });
 });

@@ -71,6 +71,45 @@ describe('collectDailyWages', () => {
     expect(updatedAdv.loyaltyPenalty).toBe(4); // recovered 1 point for being fully settled
   });
 
+  it('recovers extra loyalty for a fighter-vocation adventurer with an Armory', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99); // never quits
+
+    const player = await createPlayer({ gold: 1000 });
+    await prisma.property.create({
+      data: { playerId: player.id, type: 'armory', level: 2, maintenanceCostDaily: 22, bonus: { xpBonusPerLevel: 0.1, loyaltyRecoveryBonus: 1 } },
+    });
+    const adv = await createAdventurer({
+      employerId: player.id, status: 'hired', dailyWage: 100,
+      wagesOwed: 0, daysUnpaid: 0, loyaltyPenalty: 5,
+      vocation: 'Sellsword', // fighter role — matches Armory
+    });
+
+    await collectDailyWages();
+
+    const updatedAdv = await prisma.adventurer.findUniqueOrThrow({ where: { id: adv.id } });
+    // base 1 point + Armory level 2 * loyaltyRecoveryBonus 1 = 3 points recovered
+    expect(updatedAdv.loyaltyPenalty).toBe(2);
+  });
+
+  it('does not grant the Armory loyalty bonus to a non-fighter vocation', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99); // never quits
+
+    const player = await createPlayer({ gold: 1000 });
+    await prisma.property.create({
+      data: { playerId: player.id, type: 'armory', level: 2, maintenanceCostDaily: 22, bonus: { xpBonusPerLevel: 0.1, loyaltyRecoveryBonus: 1 } },
+    });
+    const adv = await createAdventurer({
+      employerId: player.id, status: 'hired', dailyWage: 100,
+      wagesOwed: 0, daysUnpaid: 0, loyaltyPenalty: 5,
+      vocation: 'Arcanist', // wizard role — does not match Armory
+    });
+
+    await collectDailyWages();
+
+    const updatedAdv = await prisma.adventurer.findUniqueOrThrow({ where: { id: adv.id } });
+    expect(updatedAdv.loyaltyPenalty).toBe(4); // only the base 1 point, no role bonus
+  });
+
   it('rolls a quit check for unpaid adventurers and forgives their debt on quit', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0); // always "succeeds" the leave roll
 

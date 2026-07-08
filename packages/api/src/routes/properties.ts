@@ -25,7 +25,14 @@ const PROPERTY_CONFIG = {
   // injuryRecoveryRate is a fraction shaved off recovery time per level (0.15 = 15%/level,
   // read directly off the property row by resolveAdventure — see services/adventure.ts).
   infirmary:     { baseCost: 300, maintenanceDaily: 18, bonus: { injuryRecoveryRate: 0.15 } },
-  armory:        { baseCost: 450, maintenanceDaily: 22, bonus: { wageDiscount: 0.1 } },
+  // First of the party-role properties (fighter): xpBonusPerLevel is a fraction of a
+  // matching-vocation adventurer's own XP gain per level (0.10 = +10%/level). Deliberately
+  // paired with loyaltyRecoveryBonus (+1 extra loyaltyPenalty point recovered per day per
+  // level, on top of the base -1/day — see services/economy.ts) so the property stays
+  // valuable even for an adventurer who's already hit MAX_LEVEL and can no longer benefit
+  // from the XP side. No wageDiscount — dropped as dead weight, same call as every other
+  // property's cleanup this pass.
+  armory:        { baseCost: 450, maintenanceDaily: 22, bonus: { xpBonusPerLevel: 0.1, loyaltyRecoveryBonus: 1 } },
 } as const;
 
 // Upgrade cost to reach each level (key = current level before upgrade)

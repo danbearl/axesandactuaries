@@ -6,9 +6,9 @@ import {
   TEMPERAMENT_BONUS_CHANCE_PER_POINT, TEMPERAMENT_BONUS_GOLD_PER_TRIGGER,
   TEMPERAMENT_INJURY_BONUS_PER_POINT,
   computeCohesionBonus, computeCohesionIncrement, COHESION_MAX,
-  computeTrainingHallBonus,
+  computeTrainingHallBonus, findRolePropertyBonus,
 } from '@axes-actuaries/types';
-import type { StatBlock, ContractTier, PropertyBonus } from '@axes-actuaries/types';
+import type { StatBlock, ContractTier, PropertyBonus, Vocation } from '@axes-actuaries/types';
 import { publish, CHANNELS } from '../lib/redis.js';
 import { ClaimConflictError } from '../lib/errors.js';
 
@@ -215,15 +215,17 @@ export async function resolveAdventure(
   const successChance = estimateSuccessChance(partyPower, adventure.contract.requiredPower, unmetRequirements);
   const success = opts?.forceOutcome ? opts.forceOutcome === 'success' : outcomeRoll < successChance;
 
-  const infirmary = await prisma.property.findFirst({
-    where: { playerId: adventure.playerId, type: 'infirmary' },
+  const properties = await prisma.property.findMany({
+    where: { playerId: adventure.playerId },
   });
+  const infirmary = properties.find((p) => p.type === 'infirmary');
   const infirmaryLevel = infirmary?.level ?? 0;
   const infirmaryRecoveryRate = (infirmary?.bonus as { injuryRecoveryRate?: number } | undefined)?.injuryRecoveryRate ?? 0;
   const recoveryMultiplier = Math.max(
     INFIRMARY_RECOVERY_FLOOR_FRACTION,
     1 - infirmaryLevel * infirmaryRecoveryRate,
   );
+  const roleProperties = properties.map((p) => ({ type: p.type, level: p.level, bonus: p.bonus as PropertyBonus }));
 
   return prisma.$transaction(async (tx) => {
     const resolved = await tx.adventure.update({
@@ -274,8 +276,11 @@ export async function resolveAdventure(
       // member regardless of party size rewarded stuffing parties just to multi-level.
       // Ambition then scales each member's own share individually (the trade-off's upside).
       const ambitionMultiplier = computeAmbitionXpMultiplier((adv.personality as { ambition: number }).ambition);
+      // Party-role property bonus (e.g. Armory for fighter-role vocations) — only applies to
+      // adventurers whose vocation matches a role a currently-owned property serves.
+      const roleXpMultiplier = 1 + findRolePropertyBonus(adv.vocation as Vocation, roleProperties, 'xpBonusPerLevel');
       const xpGain = success
-        ? Math.floor((adventure.contract.rewardGold * XP_PER_GOLD / partySize) * ambitionMultiplier)
+        ? Math.floor((adventure.contract.rewardGold * XP_PER_GOLD / partySize) * ambitionMultiplier * roleXpMultiplier)
         : 0;
       const newXp = adv.experience + xpGain;
       const newLevel = Math.min(MAX_LEVEL, levelForXp(newXp));

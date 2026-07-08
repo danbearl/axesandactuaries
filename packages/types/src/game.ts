@@ -59,6 +59,29 @@ export const VOCATION_STAT_PRIORITY: Record<Vocation, Stat[]> = {
   Alchemist:  ['Cunning',    'Attunement',   'Finesse'],
 };
 
+// ── Party Roles ───────────────────────────────────────────────────────────────
+// Groups vocations into the classical fantasy party roles (fighter/wizard/rogue/priest),
+// derived from VOCATION_STAT_PRIORITY above. Backs the property system's role-specific
+// buildings (Armory -> fighter, Library -> wizard, Alchemy Lab -> rogue; see
+// PROPERTY_PARTY_ROLE) and, longer-term, a planned mechanic where contracts favor certain
+// party compositions.
+//
+// Chronicler is deliberately absent — its role is still an open design question (candidate
+// for priest alongside Mender, but being reconsidered rather than force-fit) rather than
+// guessed at. A vocation with no entry here simply doesn't participate in any role-property
+// bonus yet, which is the correct behavior until it's actually decided.
+export type PartyRole = 'fighter' | 'wizard' | 'rogue' | 'priest';
+
+export const VOCATION_PARTY_ROLE: Partial<Record<Vocation, PartyRole>> = {
+  Sellsword:  'fighter',
+  Outrider:   'fighter',
+  Arcanist:   'wizard',
+  Invoker:    'wizard',
+  Trickster:  'rogue',
+  Alchemist:  'rogue',
+  Mender:     'priest',
+};
+
 // ── Personality ───────────────────────────────────────────────────────────────
 
 export type Loyalty     = 1 | 2 | 3 | 4 | 5; // 1 = mercenary, 5 = steadfast
@@ -165,10 +188,11 @@ export type PropertyType =
   | 'armory';
 
 export interface PropertyBonus {
-  xpMultiplier?:       number;
-  injuryRecoveryRate?: number;
-  powerRatingBonus?:   number;
-  wageDiscount?:       number;
+  xpMultiplier?:          number; // legacy — Library only, dead until its own redesign pass
+  injuryRecoveryRate?:    number;
+  powerRatingBonus?:      number;
+  xpBonusPerLevel?:       number; // role-vocation XP bonus (Armory/fighter today)
+  loyaltyRecoveryBonus?:  number; // role-vocation loyalty-recovery bonus (Armory/fighter today)
 }
 
 export interface Property {
@@ -189,6 +213,33 @@ export function computeTrainingHallBonus(properties: Array<{ type: string; level
   return properties
     .filter((p) => p.type === 'training_hall')
     .reduce((sum, p) => sum + (p.bonus.powerRatingBonus ?? 0) * p.level, 0);
+}
+
+// Which property type serves each party role — the buildable counterpart to
+// VOCATION_PARTY_ROLE above. No entry yet for 'priest' (no property has been built for it —
+// see ROADMAP).
+export const PROPERTY_PARTY_ROLE: Partial<Record<PropertyType, PartyRole>> = {
+  armory:      'fighter',
+  library:     'wizard',
+  alchemy_lab: 'rogue',
+};
+
+// Looks up the role-property bonus (by bonus key, e.g. 'xpBonusPerLevel' or
+// 'loyaltyRecoveryBonus') that applies to a given adventurer, based on their vocation's party
+// role and whichever property currently serves that role for this player. Shared by
+// resolveAdventure (XP) and the daily wage/loyalty cycle (loyalty recovery) so both read the
+// exact same matching logic rather than reimplementing it twice.
+export function findRolePropertyBonus(
+  vocation: Vocation,
+  properties: Array<{ type: string; level: number; bonus: PropertyBonus }>,
+  bonusKey: keyof PropertyBonus,
+): number {
+  const role = VOCATION_PARTY_ROLE[vocation];
+  if (!role) return 0;
+  const property = properties.find((p) => PROPERTY_PARTY_ROLE[p.type as PropertyType] === role);
+  if (!property) return 0;
+  const perLevel = property.bonus[bonusKey] ?? 0;
+  return perLevel * property.level;
 }
 
 // ── Player ────────────────────────────────────────────────────────────────────

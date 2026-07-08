@@ -3,7 +3,9 @@ import type { Adventurer } from '@prisma/client';
 import {
   QUIT_REPUTATION_PENALTY_PER_LEVEL, computeHireCost, computeDailyWage,
   AMBITION_LOYALTY_CHANCE_PER_POINT, IDLE_LOYALTY_GRACE_DAYS,
+  findRolePropertyBonus,
 } from '@axes-actuaries/types';
+import type { PropertyBonus, Vocation } from '@axes-actuaries/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -83,6 +85,13 @@ async function processPlayerWages(
   const paidSet   = new Set<string>();
   const unpaidSet = new Set<string>();
 
+  // Party-role property bonus (e.g. Armory for fighter-role vocations) — fetched once per
+  // player rather than per-adventurer. Deliberately paired with Armory's XP bonus (see
+  // resolveAdventure) so the property stays valuable even once an adventurer has hit
+  // MAX_LEVEL and can no longer benefit from the XP side.
+  const roleProperties = (await prisma.property.findMany({ where: { playerId: player.id } }))
+    .map((p) => ({ type: p.type, level: p.level, bonus: p.bonus as PropertyBonus }));
+
   // ── Step 1: Pay current daily wages, highest level first ──────────────────
   for (const adv of adventurers) {
     if (remainingGold >= adv.dailyWage) {
@@ -146,8 +155,10 @@ async function processPlayerWages(
       wagesOwed = adv.wagesOwed - repaid;
       const fullySettled = wagesOwed === 0;
       daysUnpaid = fullySettled ? 0 : adv.daysUnpaid;
-      // Recover 1 loyalty point per day fully in good standing
-      loyaltyPenalty = fullySettled ? Math.max(0, loyaltyPenalty - 1) : loyaltyPenalty;
+      // Recover 1 loyalty point per day fully in good standing, plus a role-property bonus
+      // (e.g. Armory for fighter-role vocations) on top.
+      const roleRecoveryBonus = findRolePropertyBonus(adv.vocation as Vocation, roleProperties, 'loyaltyRecoveryBonus');
+      loyaltyPenalty = fullySettled ? Math.max(0, loyaltyPenalty - 1 - roleRecoveryBonus) : loyaltyPenalty;
     } else {
       // Increasing penalty: day 1 adds 1, day 2 adds 2, etc. (triangular growth)
       daysUnpaid = adv.daysUnpaid + 1;

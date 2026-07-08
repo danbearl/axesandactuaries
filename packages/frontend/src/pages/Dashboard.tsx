@@ -350,8 +350,13 @@ const BONUS_LABELS: Record<string, string> = {
   xpMultiplier: 'XP gain',
   powerRatingBonus: 'Power rating',
   injuryRecoveryRate: 'Recovery speed',
-  wageDiscount: 'Wage discount',
+  xpBonusPerLevel: 'XP gain (fighters)',
+  loyaltyRecoveryBonus: 'Loyalty recovery (fighters)',
 };
+
+// Flat-count keys (not a percentage/multiplier, regardless of property) — a role-property
+// bonus like "+1 extra loyalty point recovered per day" should never render as "+100%".
+const FLAT_COUNT_KEYS = new Set(['loyaltyRecoveryBonus']);
 
 // Bonus values come in different shapes depending on the key: XP-style multipliers (e.g.
 // 1.1 = +10%), plain fractions (e.g. 0.15 = +15%), and flat counts (e.g. +2 power rating) —
@@ -361,6 +366,7 @@ function formatBonusValue(propertyType: string, key: string, value: number): str
   // Alchemy Lab reuses the same key for a flat, still-unwired value — property-type-aware
   // until Alchemy Lab gets its own pass and either gets a real mechanic or drops the field.
   if (key === 'powerRatingBonus' && propertyType !== 'training_hall') return `+${value}`;
+  if (FLAT_COUNT_KEYS.has(key)) return `+${value}`;
   if (value > 1) return `+${Math.round((value - 1) * 100)}%`;
   return `+${Math.round(value * 100)}%`;
 }

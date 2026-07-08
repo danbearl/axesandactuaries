@@ -55,10 +55,10 @@ const PROPERTY_CATALOG: {
   {
     type: 'armory',
     name: 'Armory',
-    description: 'Weapons, armor, and equipment storage. Reduces effective hire costs for Sellswords and improves Might for combat contracts.',
+    description: 'Weapons, armor, and equipment storage for your fighters (Sellswords, Outriders). Well-equipped fighters learn faster and stay loyal longer — even once they\'ve hit max level.',
     baseCost: 450,
     baseMaintenanceDaily: 22,
-    bonusSummary: '+Might, wage discount for combat vocations',
+    bonusSummary: '+10% XP and +1 loyalty recovery/day for fighters, per level',
   },
 ];
 

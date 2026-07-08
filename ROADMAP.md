@@ -1036,7 +1036,63 @@ open to a small trusted player pool (Phase 0 below).
       `powerRatingBonus` on non-training-hall properties) and `test/adventure.test.ts`
       (training bonus alone flips a contract outcome; additive-not-multiplicative combination
       with Cohesion verified via a roll that only succeeds under one model).
-  - [ ] Library, Alchemy Lab, Armory — not yet reviewed/redesigned.
+  - **New direction, confirmed with the user (2026-07-08)**: beyond fixing dead bonuses, the
+    remaining properties (and possibly a new one) should interact with adventurer *vocations*
+    meaningfully, not just be interchangeable stat sticks. Vocations are grouped into the
+    classical fantasy party roles (fighter/wizard/rogue/priest), and each role gets its own
+    property. This also lays groundwork for a **planned future feature**: contracts favoring
+    certain party compositions by role — not built yet, but the taxonomy below is designed to
+    support it without rework.
+    - New shared taxonomy in `packages/types/src/game.ts`: `PartyRole` type,
+      `VOCATION_PARTY_ROLE` (vocation -> role), `PROPERTY_PARTY_ROLE` (property type -> role
+      it serves), and `findRolePropertyBonus()` (shared lookup used by both `resolveAdventure`
+      and the daily wage/loyalty cycle, so the matching logic isn't duplicated).
+    - Confirmed grouping: **Fighter** = Sellsword, Outrider (-> Armory). **Wizard** = Arcanist,
+      Invoker (-> Library). **Rogue** = Trickster, Alchemist (-> Alchemy Lab). **Priest** =
+      Mender (-> no property yet, see below). All three existing property names/descriptions
+      already leaned this direction before today (Armory: "improves Might for combat
+      contracts"; Library: "lore, maps, strategic texts"; Alchemy Lab: named directly after
+      the Alchemist vocation) — this formalizes what was seemingly the original intent and
+      never finished.
+    - **Chronicler intentionally has no role yet.** It doesn't cleanly fit either Wizard
+      (arcane scholar reading) or Priest (support/wisdom reading) — the user wants to
+      reconsider whether Chronicler itself should be reworked into something that fits the
+      Priest archetype better, rather than force-fitting the existing vocation into a role it
+      doesn't really suit. `VOCATION_PARTY_ROLE` simply has no entry for it, which is the
+      correct behavior until this is decided — Chronicler-vocation adventurers just don't
+      participate in any role-property bonus yet. Revisit when Library (Wizard) or the new
+      Priest property gets its turn.
+    - **A new Priest-role property is confirmed but not yet built** (no name chosen yet —
+      candidates like "Chapel"/"Sanctuary" not decided). Deferred until its vocation
+      membership is settled (Mender alone, or Mender + a reworked Chronicler) and until this
+      pattern has been proven out on Armory first.
+  - [x] **Armory** (2026-07-08) — first role-property built out, chosen as the lowest
+    thematic lift (its existing copy already described combat/Might). Dropped the dead
+    `wageDiscount` entirely (never read anywhere, like every other property's cleanup this
+    pass) and replaced it with two mechanics for fighter-role vocations (Sellsword, Outrider)
+    specifically — not the whole party regardless of vocation, matching how Ambition/
+    Temperament bonuses are already per-adventurer, not party-wide:
+    - **XP bonus**: `xpBonusPerLevel: 0.10` (+10%/level, up to +30% at level 3), applied in
+      `resolveAdventure`'s per-adventurer XP calc as another multiplicative factor alongside
+      the existing Ambition multiplier.
+    - **Loyalty recovery bonus**: `loyaltyRecoveryBonus: 1` (+1 extra `loyaltyPenalty` point
+      recovered per day per level, on top of the existing flat -1/day base), applied in
+      `services/economy.ts`'s daily wage cycle. **Deliberately paired with the XP bonus on
+      the user's explicit reasoning**: XP alone becomes worthless once an adventurer hits
+      `MAX_LEVEL` and can't gain more levels, so a property built purely around XP stops
+      mattering for veteran adventurers exactly when a player has invested the most in them.
+      The loyalty half keeps Armory valuable for retention regardless of level.
+    - Both mechanics read their per-level rate off the property row itself (matching the
+      Infirmary/Training Hall pattern established this session), rather than a hardcoded
+      constant, so the source of truth stays in one place (`routes/properties.ts`'s catalog).
+    - `economy.ts`'s `processPlayerWages` now fetches the player's properties once per call
+      (previously fetched none at all) to support the loyalty-recovery lookup.
+    - Test-covered in `packages/types/src/game.test.ts` (`findRolePropertyBonus` — applies
+      for a matched role, zero for an unassigned vocation like Chronicler, zero for a
+      mismatched role, zero with no properties) and both `test/adventure.test.ts` (XP bonus
+      granted for Sellsword, withheld for Arcanist) and `test/economy.test.ts` (loyalty
+      recovery boosted for Sellsword, unaffected for Arcanist).
+  - [ ] Library (Wizard), Alchemy Lab (Rogue), new Priest property — not yet built.
 
 ## Beta Phase 3 — Player Customization
 **Goal:** players have meaningful ways to express/personalize their guild once retention is

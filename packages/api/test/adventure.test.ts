@@ -194,6 +194,74 @@ describe('resolveAdventure', () => {
     expect(updated.experience).toBe(36);
   });
 
+  it('grants a role-property XP bonus to fighter-vocation adventurers with an Armory', async () => {
+    vi.spyOn(Math, 'random').mockImplementation(() => 0.99); // never injured
+
+    const player = await createPlayer({ gold: 500 });
+    await prisma.property.create({
+      data: { playerId: player.id, type: 'armory', level: 2, maintenanceCostDaily: 22, bonus: { xpBonusPerLevel: 0.1, loyaltyRecoveryBonus: 1 } },
+    });
+    const adventurer = await createAdventurer({
+      employerId: player.id, status: 'on_adventure', powerRating: 50, experience: 0, level: 1,
+      vocation: 'Sellsword', // fighter role — matches Armory
+    });
+    const contract = await createContract({
+      requiredPower: 50, rewardGold: 300, reputationReward: 3,
+      penaltyGold: 90, penaltyReputation: 1, status: 'in_progress',
+    });
+    const adventure = await prisma.adventure.create({
+      data: {
+        contractId: contract.id, playerId: player.id,
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        completesAt: new Date(Date.now() - 1000),
+        status: 'in_progress',
+      },
+    });
+    await prisma.adventureAdventurer.create({
+      data: { adventureId: adventure.id, adventurerId: adventurer.id },
+    });
+
+    await resolveAdventure(adventure.id, { forceOutcome: 'success' });
+
+    // base xp = 300 * 0.1 / 1 = 30; ambition 3 (default) -> x1.1; Armory level 2 -> +20% -> x1.2
+    const updated = await prisma.adventurer.findUniqueOrThrow({ where: { id: adventurer.id } });
+    expect(updated.experience).toBe(Math.floor(30 * DEFAULT_AMBITION_MULTIPLIER * 1.2));
+  });
+
+  it('does not grant the Armory XP bonus to a non-fighter vocation', async () => {
+    vi.spyOn(Math, 'random').mockImplementation(() => 0.99); // never injured
+
+    const player = await createPlayer({ gold: 500 });
+    await prisma.property.create({
+      data: { playerId: player.id, type: 'armory', level: 2, maintenanceCostDaily: 22, bonus: { xpBonusPerLevel: 0.1, loyaltyRecoveryBonus: 1 } },
+    });
+    const adventurer = await createAdventurer({
+      employerId: player.id, status: 'on_adventure', powerRating: 50, experience: 0, level: 1,
+      vocation: 'Arcanist', // wizard role — does not match Armory
+    });
+    const contract = await createContract({
+      requiredPower: 50, rewardGold: 300, reputationReward: 3,
+      penaltyGold: 90, penaltyReputation: 1, status: 'in_progress',
+    });
+    const adventure = await prisma.adventure.create({
+      data: {
+        contractId: contract.id, playerId: player.id,
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        completesAt: new Date(Date.now() - 1000),
+        status: 'in_progress',
+      },
+    });
+    await prisma.adventureAdventurer.create({
+      data: { adventureId: adventure.id, adventurerId: adventurer.id },
+    });
+
+    await resolveAdventure(adventure.id, { forceOutcome: 'success' });
+
+    // base xp = 300 * 0.1 / 1 = 30; ambition 3 (default) -> x1.1; no role match -> no bonus
+    const updated = await prisma.adventurer.findUniqueOrThrow({ where: { id: adventurer.id } });
+    expect(updated.experience).toBe(Math.floor(30 * DEFAULT_AMBITION_MULTIPLIER));
+  });
+
   it('can trigger a reckless-bonus gold payout on a successful adventure with high temperament', async () => {
     vi.spyOn(Math, 'random')
       .mockReturnValueOnce(0.01) // outcomeRoll — unused, forceOutcome overrides it

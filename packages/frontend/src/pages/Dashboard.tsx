@@ -7,7 +7,7 @@ import AdventureTimer from '../components/AdventureTimer.tsx';
 import DailyResetTimer from '../components/DailyResetTimer.tsx';
 import DeployByCountdown from '../components/DeployByCountdown.tsx';
 import { computeRosterCap, countUnmetRequirements, estimateSuccessChance, type Adventurer } from '@axes-actuaries/types';
-import { partyCohesionBonus } from '../lib/cohesion.ts';
+import { partyCohesionBonus, trainingHallBonus } from '../lib/cohesion.ts';
 import './Dashboard.css';
 
 export default function Dashboard() {
@@ -243,7 +243,7 @@ export default function Dashboard() {
                   </div>
                   <div className="label text-right">
                     {Object.entries(p.bonus as Record<string, number>).map(([k, v]) => (
-                      <div key={k}>{BONUS_LABELS[k] ?? k}: {typeof v === 'number' ? formatBonusValue(k, v) : `+${v}`}</div>
+                      <div key={k}>{BONUS_LABELS[k] ?? k}: {typeof v === 'number' ? formatBonusValue(p.type, k, v) : `+${v}`}</div>
                     ))}
                   </div>
                 </div>
@@ -298,7 +298,8 @@ export default function Dashboard() {
               const party      = hiredAdventurers.filter(a => selectedAdventurerIds.includes(a.id));
               const basePower  = party.reduce((s, a) => s + a.powerRating, 0);
               const cohesionBonus = partyCohesionBonus(selectedAdventurerIds, data.cohesionPairs);
-              const partyPower = Math.round(basePower * (1 + cohesionBonus));
+              const trainingBonus = trainingHallBonus(data.properties);
+              const partyPower = Math.round(basePower * (1 + trainingBonus + cohesionBonus));
               const unmetRequirements = countUnmetRequirements(deployingContract, party);
               const chance     = Math.round(estimateSuccessChance(partyPower, deployingContract.requiredPower, unmetRequirements) * 100);
               return (
@@ -307,6 +308,9 @@ export default function Dashboard() {
                   <span className="value">{partyPower}</span>
                   <span className="label"> vs. {deployingContract.requiredPower} required · </span>
                   <span className="value">~{chance}% success</span>
+                  {trainingBonus > 0 && (
+                    <span className="label"> · +{Math.round(trainingBonus * 100)}% training bonus</span>
+                  )}
                   {cohesionBonus > 0 && (
                     <span className="label"> · +{Math.round(cohesionBonus * 100)}% cohesion bonus</span>
                   )}
@@ -352,8 +356,11 @@ const BONUS_LABELS: Record<string, string> = {
 // Bonus values come in different shapes depending on the key: XP-style multipliers (e.g.
 // 1.1 = +10%), plain fractions (e.g. 0.15 = +15%), and flat counts (e.g. +2 power rating) —
 // treating them all as multipliers would render a flat "+2" bonus as a nonsensical "+100%".
-function formatBonusValue(key: string, value: number): string {
-  if (key === 'powerRatingBonus') return `+${value}`;
+function formatBonusValue(propertyType: string, key: string, value: number): string {
+  // Training Hall's powerRatingBonus is a fraction of party power (0.1 = +10%/level).
+  // Alchemy Lab reuses the same key for a flat, still-unwired value — property-type-aware
+  // until Alchemy Lab gets its own pass and either gets a real mechanic or drops the field.
+  if (key === 'powerRatingBonus' && propertyType !== 'training_hall') return `+${value}`;
   if (value > 1) return `+${Math.round((value - 1) * 100)}%`;
   return `+${Math.round(value * 100)}%`;
 }

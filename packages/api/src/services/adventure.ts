@@ -6,8 +6,9 @@ import {
   TEMPERAMENT_BONUS_CHANCE_PER_POINT, TEMPERAMENT_BONUS_GOLD_PER_TRIGGER,
   TEMPERAMENT_INJURY_BONUS_PER_POINT,
   computeCohesionBonus, computeCohesionIncrement, COHESION_MAX,
+  computeTrainingHallBonus,
 } from '@axes-actuaries/types';
-import type { StatBlock, ContractTier } from '@axes-actuaries/types';
+import type { StatBlock, ContractTier, PropertyBonus } from '@axes-actuaries/types';
 import { publish, CHANNELS } from '../lib/redis.js';
 import { ClaimConflictError } from '../lib/errors.js';
 
@@ -164,14 +165,13 @@ async function computePartyPower(
 
   const basePower = adventurers.reduce((sum, a) => sum + a.powerRating, 0);
 
-  const trainingBonus = properties
-    .filter((p) => p.type === 'training_hall')
-    .reduce((sum, p) => {
-      const bonus = p.bonus as { powerRatingBonus?: number };
-      return sum + (bonus.powerRatingBonus ?? 0) * p.level;
-    }, 0);
+  // Combined additively with cohesion (not multiplicatively/compounded) so the total bonus
+  // stays easy to reason about as more power-affecting mechanics are added.
+  const trainingBonus = computeTrainingHallBonus(
+    properties.map((p) => ({ type: p.type, level: p.level, bonus: p.bonus as PropertyBonus })),
+  );
 
-  return Math.round((basePower + trainingBonus) * (1 + cohesionBonus));
+  return Math.round(basePower * (1 + trainingBonus + cohesionBonus));
 }
 
 // Resolves an in-progress adventure whose completesAt has passed.

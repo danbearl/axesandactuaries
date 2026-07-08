@@ -6,7 +6,7 @@ import {
   BIDDING_CONTRACT_TIERS, CONTRACT_TIER_REPUTATION_REQUIREMENTS,
   countUnmetRequirements, estimateSuccessChance,
 } from '@axes-actuaries/types';
-import { partyCohesionBonus } from '../lib/cohesion.ts';
+import { partyCohesionBonus, trainingHallBonus } from '../lib/cohesion.ts';
 import ContractCard from '../components/ContractCard.tsx';
 import './ContractMarket.css';
 
@@ -304,7 +304,8 @@ export default function ContractMarket() {
               const party = hiredAdventurers.filter(a => selectedAdventurerIds.includes(a.id));
               const basePower = party.reduce((s, a) => s + a.powerRating, 0);
               const cohesionBonus = partyCohesionBonus(selectedAdventurerIds, playerData?.cohesionPairs ?? []);
-              const partyPower = Math.round(basePower * (1 + cohesionBonus));
+              const trainingBonus = trainingHallBonus(playerData?.properties ?? []);
+              const partyPower = Math.round(basePower * (1 + trainingBonus + cohesionBonus));
               const unmetRequirements = countUnmetRequirements(deployingContract, party);
               const chance = Math.round(estimateSuccessChance(partyPower, deployingContract.requiredPower, unmetRequirements) * 100);
               return (
@@ -313,6 +314,9 @@ export default function ContractMarket() {
                   <span className="value">{partyPower}</span>
                   <span className="label"> vs. {deployingContract.requiredPower} required · </span>
                   <span className="value">~{chance}% success</span>
+                  {trainingBonus > 0 && (
+                    <span className="label"> · +{Math.round(trainingBonus * 100)}% training bonus</span>
+                  )}
                   {cohesionBonus > 0 && (
                     <span className="label"> · +{Math.round(cohesionBonus * 100)}% cohesion bonus</span>
                   )}

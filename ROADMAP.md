@@ -999,7 +999,44 @@ open to a small trusted player pool (Phase 0 below).
     - Test-covered in `test/adventure.test.ts`: recovery hours reduced by the expected amount
       at max infirmary level, and a regression guard confirming a roll that would have been
       "safe" under the old chance-reduction formula still results in injury now.
-  - [ ] Training Hall, Library, Alchemy Lab, Armory — not yet reviewed/redesigned.
+  - [x] **Training Hall** (2026-07-08): dropped its dead `xpMultiplier: 1.15` promise, same
+    call as Dormitory and Infirmary — power rating only, XP stays reserved for Library.
+    Confirmed with the user: the working half of Training Hall (power rating) was also
+    under-tuned for higher-tier play — a flat `+2/level` (max +6 at level 3) added *once* to
+    the party's total, against a scale where legendary contracts require 140-280 combined
+    power and a single well-built level-6 adventurer can approach 90+ power alone. Redesigned
+    to a **percentage of total party power** instead: `+10%/level`, up to +30% at level 3 —
+    the same shape of mechanic Cohesion already uses, so it scales correctly regardless of
+    contract tier or party size instead of becoming trivial at endgame.
+    - New shared `computeTrainingHallBonus()` in `packages/types/src/game.ts` (mirroring
+      `computeCohesionBonus`), used by both `computePartyPower` in `services/adventure.ts`
+      (the real roll) and a new `trainingHallBonus()` helper in the frontend's
+      `lib/cohesion.ts` (the live party-assembly preview on the Dashboard and Contract
+      Market) — so the two can't drift, same reasoning as Cohesion's shared function.
+    - Training Hall and Cohesion combine **additively**, not multiplicatively/compounded
+      (`basePower * (1 + trainingBonus + cohesionBonus)`) — a deliberate choice so the total
+      bonus stays a simple sum as more power-affecting properties get built out, rather than
+      compounding into an increasingly extreme multiplier. Test-covered specifically as a
+      regression guard, since a roll was chosen that only succeeds under one of the two
+      models.
+    - **Fixing the frontend preview gap surfaced this needed fixing now, not later**: the
+      three party-assembly previews (Dashboard, Contract Market) never included Training
+      Hall's bonus at all, even before today — a pre-existing gap noted (and deliberately
+      left alone) during the Cohesion work, when it was only worth a few flat points. Now
+      that it's worth up to 30% of party power, leaving it out would have made the displayed
+      success chance meaningfully wrong for anyone who owns a Training Hall, so it was fixed
+      as part of this change rather than deferred again. `AdventureDetail.tsx` (a read-only
+      view of an already-committed party, not a decision point) remains the one preview left
+      out, consistent with the reasoning already established for it.
+    - `Dashboard.tsx`'s bonus-value formatter (`formatBonusValue`, added last turn for
+      Infirmary) needed to become property-type-aware: `powerRatingBonus` is now a *fraction*
+      for Training Hall but is still a flat, dead value for Alchemy Lab (not yet redesigned),
+      so the same JSON key means different things depending on which property owns it.
+    - Test-covered in `packages/types/src/game.test.ts` (scales with level, ignores
+      `powerRatingBonus` on non-training-hall properties) and `test/adventure.test.ts`
+      (training bonus alone flips a contract outcome; additive-not-multiplicative combination
+      with Cohesion verified via a roll that only succeeds under one model).
+  - [ ] Library, Alchemy Lab, Armory — not yet reviewed/redesigned.
 
 ## Beta Phase 3 — Player Customization
 **Goal:** players have meaningful ways to express/personalize their guild once retention is

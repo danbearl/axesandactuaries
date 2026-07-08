@@ -569,6 +569,75 @@ describe('resolveAdventure', () => {
     expect(updatedAdventure.status).toBe('completed');
   });
 
+  it('raises party power via a Training Hall, changing the outcome', async () => {
+    // ratio 0.5 -> base successChance 0.55. Training Hall level 3 -> +30% power -> ratio 0.65
+    // -> 0.625. A roll of 0.58 fails at 0.55 but succeeds once the training bonus applies.
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0.58).mockReturnValue(0.99);
+
+    const player = await createPlayer({ gold: 500 });
+    await prisma.property.create({
+      data: { playerId: player.id, type: 'training_hall', level: 3, maintenanceCostDaily: 20, bonus: { powerRatingBonus: 0.1 } },
+    });
+    const adventurer = await createAdventurer({ employerId: player.id, status: 'on_adventure', powerRating: 100 });
+    const contract = await createContract({ requiredPower: 200, status: 'in_progress' });
+    const adventure = await prisma.adventure.create({
+      data: {
+        contractId: contract.id, playerId: player.id,
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        completesAt: new Date(Date.now() - 1000),
+        status: 'in_progress',
+      },
+    });
+    await prisma.adventureAdventurer.create({
+      data: { adventureId: adventure.id, adventurerId: adventurer.id },
+    });
+
+    await resolveAdventure(adventure.id);
+
+    const updatedAdventure = await prisma.adventure.findUniqueOrThrow({ where: { id: adventure.id } });
+    expect(updatedAdventure.status).toBe('completed');
+  });
+
+  it('combines Training Hall and Cohesion bonuses additively, not multiplicatively', async () => {
+    // basePower 100, Training Hall level 3 (+30%), full Cohesion (+50%). Additive -> partyPower
+    // 180 -> ratio 0.9 -> successChance 0.75. Multiplicative -> partyPower 195 -> ratio 0.975
+    // -> successChance 0.7875. A roll of 0.76 fails additive but succeeds multiplicative —
+    // this is the regression guard for which model is actually implemented.
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0.76).mockReturnValue(0.99);
+
+    const player = await createPlayer({ gold: 500 });
+    await prisma.property.create({
+      data: { playerId: player.id, type: 'training_hall', level: 3, maintenanceCostDaily: 20, bonus: { powerRatingBonus: 0.1 } },
+    });
+    const a1 = await createAdventurer({ employerId: player.id, status: 'on_adventure', powerRating: 50 });
+    const a2 = await createAdventurer({ employerId: player.id, status: 'on_adventure', powerRating: 50 });
+    const [lowId, highId] = [a1.id, a2.id].sort();
+    await prisma.adventurerCohesion.create({
+      data: { adventurerLowId: lowId, adventurerHighId: highId, cohesion: 100 },
+    });
+
+    const contract = await createContract({ requiredPower: 200, status: 'in_progress' });
+    const adventure = await prisma.adventure.create({
+      data: {
+        contractId: contract.id, playerId: player.id,
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        completesAt: new Date(Date.now() - 1000),
+        status: 'in_progress',
+      },
+    });
+    await prisma.adventureAdventurer.createMany({
+      data: [
+        { adventureId: adventure.id, adventurerId: a1.id },
+        { adventureId: adventure.id, adventurerId: a2.id },
+      ],
+    });
+
+    await resolveAdventure(adventure.id);
+
+    const updatedAdventure = await prisma.adventure.findUniqueOrThrow({ where: { id: adventure.id } });
+    expect(updatedAdventure.status).toBe('failed');
+  });
+
   it('is idempotent — resolving an already-resolved adventure does nothing further', async () => {
     vi.spyOn(Math, 'random')
       .mockReturnValueOnce(0.1)  // outcomeRoll — success

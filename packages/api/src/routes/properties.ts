@@ -14,7 +14,12 @@ const PROPERTY_CONFIG = {
   // Training Hall/Library/etc. to avoid functional overlap with a future XP-focused
   // property.
   dormitory:     { baseCost: 200, maintenanceDaily: 15, bonus: {} },
-  training_hall: { baseCost: 350, maintenanceDaily: 20, bonus: { powerRatingBonus: 2, xpMultiplier: 1.15 } },
+  // powerRatingBonus is a fraction of the party's total power added per level (0.10 =
+  // +10%/level, read directly off the property row by computePartyPower — see
+  // services/adventure.ts). No xpMultiplier — dropped as dead weight, same call as
+  // Dormitory: one property, one clear job. A future XP-focused property (Library) picks
+  // up XP gain instead, so the two don't overlap.
+  training_hall: { baseCost: 350, maintenanceDaily: 20, bonus: { powerRatingBonus: 0.1 } },
   alchemy_lab:   { baseCost: 500, maintenanceDaily: 30, bonus: { powerRatingBonus: 3 } },
   library:       { baseCost: 400, maintenanceDaily: 25, bonus: { xpMultiplier: 1.2 } },
   // injuryRecoveryRate is a fraction shaved off recovery time per level (0.15 = 15%/level,

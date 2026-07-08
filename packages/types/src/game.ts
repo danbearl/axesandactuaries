@@ -180,6 +180,17 @@ export interface Property {
   builtAt:             string;
 }
 
+// Fractional bonus to a party's total power from Training Hall (0.10 = +10%/level, stored on
+// the property itself — see routes/properties.ts). Shared between the backend's actual
+// success-chance roll (computePartyPower in services/adventure.ts) and the frontend's live
+// party-assembly preview, so what a player sees while picking a party always matches what
+// resolution actually uses — the same reasoning Cohesion's shared bonus function follows.
+export function computeTrainingHallBonus(properties: Array<{ type: string; level: number; bonus: PropertyBonus }>): number {
+  return properties
+    .filter((p) => p.type === 'training_hall')
+    .reduce((sum, p) => sum + (p.bonus.powerRatingBonus ?? 0) * p.level, 0);
+}
+
 // ── Player ────────────────────────────────────────────────────────────────────
 
 export interface Player {

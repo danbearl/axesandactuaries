@@ -23,10 +23,10 @@ const PROPERTY_CATALOG: {
   {
     type: 'training_hall',
     name: 'Training Hall',
-    description: 'A dedicated space for combat drills, physical conditioning, and skill refinement. Increases power rating and XP gain.',
+    description: 'A dedicated space for combat drills, physical conditioning, and skill refinement. Boosts your entire party\'s effective power on every contract.',
     baseCost: 350,
     baseMaintenanceDaily: 20,
-    bonusSummary: '+Power Rating, +XP per level',
+    bonusSummary: '+10% party power per level',
   },
   {
     type: 'infirmary',

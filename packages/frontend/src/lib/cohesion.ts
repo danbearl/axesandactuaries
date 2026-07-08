@@ -1,5 +1,5 @@
-import { computeCohesionBonus } from '@axes-actuaries/types';
-import type { CohesionPairResponse } from './api';
+import { computeCohesionBonus, computeTrainingHallBonus } from '@axes-actuaries/types';
+import type { CohesionPairResponse, PropertyResponse } from './api';
 
 // Fractional power bonus (0 to 0.10) for a candidate party, given the roster-wide pairwise
 // cohesion data from /player/me. Every pair among the selected members counts — a pair with
@@ -22,4 +22,11 @@ export function partyCohesionBonus(partyIds: string[], cohesionPairs: CohesionPa
 
 function pairKey(a: string, b: string): string {
   return a < b ? `${a}:${b}` : `${b}:${a}`;
+}
+
+// Fractional bonus to party power from Training Hall — same shared function the backend's
+// actual success-chance roll uses, so the assembly preview never drifts from what resolution
+// applies.
+export function trainingHallBonus(properties: PropertyResponse[]): number {
+  return computeTrainingHallBonus(properties);
 }

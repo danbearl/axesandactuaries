@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   levelForXp, XP_TO_LEVEL, MAX_LEVEL,
   computeCohesionIncrement, computeCohesionBonus, COHESION_MAX, COHESION_MAX_POWER_BONUS,
+  computeTrainingHallBonus,
 } from './game.js';
 
 describe('levelForXp', () => {
@@ -55,5 +56,29 @@ describe('computeCohesionBonus', () => {
   it('averages across mismatched pairs rather than excluding the never-partnered ones', () => {
     // one pair at max cohesion, one pair that's never worked together -> average 50
     expect(computeCohesionBonus([COHESION_MAX, 0])).toBeCloseTo(COHESION_MAX_POWER_BONUS / 2);
+  });
+});
+
+describe('computeTrainingHallBonus', () => {
+  it('is zero with no training hall', () => {
+    expect(computeTrainingHallBonus([])).toBe(0);
+    expect(computeTrainingHallBonus([{ type: 'infirmary', level: 3, bonus: {} }])).toBe(0);
+  });
+
+  it('scales with training hall level', () => {
+    expect(computeTrainingHallBonus([
+      { type: 'training_hall', level: 1, bonus: { powerRatingBonus: 0.1 } },
+    ])).toBeCloseTo(0.1);
+    expect(computeTrainingHallBonus([
+      { type: 'training_hall', level: 3, bonus: { powerRatingBonus: 0.1 } },
+    ])).toBeCloseTo(0.3);
+  });
+
+  it('ignores powerRatingBonus on non-training-hall properties', () => {
+    // Alchemy Lab still has a dead powerRatingBonus field until its own redesign pass —
+    // must not be picked up here.
+    expect(computeTrainingHallBonus([
+      { type: 'alchemy_lab', level: 3, bonus: { powerRatingBonus: 3 } },
+    ])).toBe(0);
   });
 });

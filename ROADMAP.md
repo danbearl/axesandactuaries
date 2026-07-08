@@ -1261,16 +1261,52 @@ open to a small trusted player pool (Phase 0 below).
   - No test changes needed — `game.test.ts`'s `levelForXp` tests already iterate
     symbolically from `2` to `MAX_LEVEL` against `XP_TO_LEVEL[lvl]`, so they automatically
     extended their own coverage to the new levels without modification.
-  - **Flagged but not touched, since they weren't part of what was asked**: two mechanics
-    were tuned against the old level-6 ceiling and may be worth revisiting now that levels
-    7-10 exist. `minSatisfyingTier` (the Ambition mechanic's contract-tolerance curve) caps
-    out at "dangerous" for any level above 4 — a level 10 adventurer has the identical
-    tolerance floor as a level 5 one, so the new level range doesn't get its own tolerance
-    stratification. Separately, `CONTRACT_TIER_CONFIG`'s power ranges (dangerous 70-140,
-    legendary 140-280) were calibrated when a level-6 adventurer's power ceiling was the
-    practical maximum (`powerRating = avgStat × level`) — a level-10 adventurer's power
-    ceiling is meaningfully higher, which could make top-tier contracts more trivially
-    achievable by a handful of very high-level adventurers than originally balanced for.
+  - **Flagged but not touched, since they weren't part of what was asked**: `minSatisfyingTier`
+    (the Ambition mechanic's contract-tolerance curve) still caps out at "dangerous" for any
+    level above 4 — a level 10 adventurer has the identical tolerance floor as a level 5 one,
+    so the new level range doesn't get its own tolerance stratification. Still open. (The
+    other flagged item — contract power ranges being too low for the new level ceiling — was
+    resolved the same day; see the entry directly below.)
+- [x] Recalibrated Standard/Dangerous/Legendary power ranges against the adventurer title
+  tiers (2026-07-08) — the previous ranges (standard 25-70, dangerous 70-140, legendary
+  140-280) were flagged as a balance concern right after the level-cap change, and the user
+  confirmed with a concrete example: a full party of six level 1-3 adventurers could already
+  clear legendary (the old 140-280 range) at ~90% success. Root cause once worked through the
+  actual formula: `estimateSuccessChance` is `0.3 + ratio×0.5` capped to [30%, 90%], so a
+  party merely *matching* required power already gets 80% — hitting the 90% cap only needs
+  120% of required power. Combined with power scaling roughly linearly at ~12.5/level per
+  adventurer (~75/level for a full 6-person party, derived from the 3d6+2 stat-roll average)
+  and this session's power-boosting mechanics (Cohesion, Training Hall) stacking on top, the
+  old ranges were calibrated for a much smaller effective party power than a real 6-person
+  roster produces.
+  - New ranges calibrated against the adventurer title tiers directly (tier 1 = levels 1-4,
+    tier 2 = 5-8, tier 3 = 9-10; see `VOCATION_TIERS`) and a full party of 6: each tier's
+    `max` is set so the tier's lowest level gets roughly a 50% shot (a genuine coin flip,
+    the difficulty target the user confirmed) against the hardest contract the tier can
+    roll; `min` is set so the tier's highest level clears the 90% cap against the easiest
+    roll. **Standard: 100-190. Dangerous: 500-940. Legendary: 625-1700.** Errand
+    deliberately untouched (5-25) — stays easy on purpose, a way for new players to earn
+    gold regardless of roster strength, per explicit instruction.
+  - Tier 1 (Standard) is a special case worth noting: its power growth across levels 1-4 is
+    4x, wide enough that the "50% at the low end" and "90% at the high end" constraints
+    don't both bind the same way they do for tiers 2/3 — a level-4 party already clears the
+    low end of the range well past the 90% cap. That's expected, not a bug: you're meant to
+    be outgrowing Standard by the time you're near the top of tier 1.
+  - Tier 3 (Legendary) is the opposite case: only an 11% power spread between its own low
+    (level 9) and high (level 10) end, so almost all of its difficulty variance has to come
+    from the requiredPower *range* itself rather than the level gap — reflected in that
+    range's width (625-1700, a 2.7x spread) being the largest of the three.
+  - **Deliberately not touched, flagged for a possible follow-up**: `rewardRange` for these
+    three tiers is unchanged, even though `powerRange` moved up dramatically (dangerous
+    ~7x, legendary ~4-6x at the midpoint). Contracts now demand meaningfully stronger
+    parties for the same gold payout as before — not necessarily wrong (risk/reward framing
+    is a separate design question from raw difficulty), but worth a deliberate look rather
+    than assuming the existing reward numbers are still well-tuned against the new power
+    requirements.
+  - No test changes needed — `contracts.test.ts`'s range-check test reads `cfg.powerRange`
+    dynamically from `CONTRACT_TIER_CONFIG` rather than hardcoding the old bounds, and no
+    API test relies on tier-derived `requiredPower` (`createContract`'s fixture default is
+    a fixed, tier-independent value), so the new ranges needed no test updates to stay green.
 
 ## Beta Phase 3 — Player Customization
 **Goal:** players have meaningful ways to express/personalize their guild once retention is

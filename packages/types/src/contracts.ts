@@ -55,6 +55,20 @@ interface TierConfig {
   penaltyReputation: number;
 }
 
+// powerRange for standard/dangerous/legendary is calibrated against the matching adventurer
+// title tier (see VOCATION_TIERS in game.ts: tier 1 = levels 1-4, tier 2 = levels 5-8,
+// tier 3 = levels 9-10) and a full 6-person party, using estimateSuccessChance's actual
+// formula (0.3 + ratio*0.5, capped [0.3, 0.9] — so ratio 1.2 already hits the 90% cap).
+// Average adventurer power is ~12.5 * level (stats are 3d6+2, averaging 12.5, independent
+// of vocation), so a full party's power is ~75 * level. Each tier's `max` is set so the
+// tier's *lowest* level, as a full party, gets roughly a 50% shot (ratio 0.4) against the
+// hardest contract the tier can roll; `min` is set so the tier's *highest* level hits the
+// 90% cap (ratio >= 1.2) against the easiest roll. Recalibrated 2026-07-08 after the
+// previous ranges (still visible in git history) were found trivial for a full party of
+// low-level adventurers — a party of six level 1-3s could clear legendary contracts (the
+// old 140-280 range) at ~90%, since six adventurers' combined power outpaced what the range
+// assumed. Errand deliberately untouched — stays easy, a way for new players to quickly
+// earn gold regardless of roster strength.
 export const CONTRACT_TIER_CONFIG: Record<ContractTier, TierConfig> = {
   errand: {
     powerRange:        [5,   25],
@@ -64,24 +78,32 @@ export const CONTRACT_TIER_CONFIG: Record<ContractTier, TierConfig> = {
     reputationReward:  1,
     penaltyReputation: 0,
   },
+  // Tier 1 (levels 1-4): full party 75-300 power. Tier 1's power growth (4x from level 1 to
+  // 4) outpaces what a single range needs for the difficulty curve — a level-4 party clears
+  // the low end of this range well past the 90% cap regardless, which is expected: you're
+  // meant to be outgrowing Standard by the time you're near the top of Tier 1.
   standard: {
-    powerRange:        [25,  70],
+    powerRange:        [100, 190],
     rewardRange:       [200, 700],
     durationRange:     [4,   16],
     penaltyMultiplier: 0.3,
     reputationReward:  3,
     penaltyReputation: 1,
   },
+  // Tier 2 (levels 5-8): full party ~375 (L5) to ~600 (L8) power.
   dangerous: {
-    powerRange:        [70,  140],
+    powerRange:        [500, 940],
     rewardRange:       [700, 2500],
     durationRange:     [12,  36],
     penaltyMultiplier: 0.5,
     reputationReward:  8,
     penaltyReputation: 3,
   },
+  // Tier 3 (levels 9-10): full party ~675 (L9) to ~750 (L10) power — only an 11% spread
+  // between the tier's own low and high end, so this tier leans hardest on its
+  // requiredPower *range* itself (rather than the level gap) to create difficulty variance.
   legendary: {
-    powerRange:        [140, 280],
+    powerRange:        [625, 1700],
     rewardRange:       [2500, 7000],
     durationRange:     [24,  72],
     penaltyMultiplier: 0.7,

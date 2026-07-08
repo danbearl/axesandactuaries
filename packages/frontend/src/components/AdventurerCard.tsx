@@ -22,7 +22,11 @@ const PERSONALITY_LABELS = {
 
 export default function AdventurerCard({ adventurer: a, compact, onHire, onFire, onClick, repRequired }: Props) {
   const tierIndex = a.level < 5 ? 0 : a.level < 10 ? 1 : 2;
-  const title = VOCATION_TIERS[a.vocation][tierIndex];
+  // Falls back to the raw vocation string for a stale value not in VOCATION_TIERS (e.g. an
+  // adventurer generated under a vocation that's since been renamed/removed) rather than
+  // crashing the whole card — this exact scenario happened in production after Chronicler
+  // was renamed to Chanter and a database row wasn't migrated in time.
+  const title = VOCATION_TIERS[a.vocation]?.[tierIndex] ?? a.vocation;
   const xpToNext = (a.level * 100) - (a.experience % (a.level * 100));
 
   // Resting: healthy and technically "on roster", but not yet redeployable.

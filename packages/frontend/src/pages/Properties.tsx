@@ -15,10 +15,10 @@ const PROPERTY_CATALOG: {
   {
     type: 'dormitory',
     name: 'Dormitory',
-    description: 'Comfortable lodging for your adventurers. Higher quality dormitories improve morale and XP gain between contracts.',
+    description: 'Living quarters for your adventurers. Determines how many you can keep on the roster at once — build or upgrade to make room for a bigger guild.',
     baseCost: 200,
     baseMaintenanceDaily: 15,
-    bonusSummary: '+10% XP gain per level',
+    bonusSummary: '+4 roster capacity per level',
   },
   {
     type: 'training_hall',

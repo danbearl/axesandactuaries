@@ -938,6 +938,28 @@ open to a small trusted player pool (Phase 0 below).
     even if generation logic changes later, but needs a new column/table). Leans toward
     persisting at resolution, matching how `AdventureAdventurer` already snapshots
     per-adventurer outcomes at resolution time rather than deriving them live.
+- Property system overhaul (2026-07-08, in progress — working through one property at a
+  time with the user). **Audit finding that kicked this off**: of the six property types,
+  only Dormitory (roster cap) and Training Hall (power rating) actually do anything
+  mechanically. Infirmary reduces injury *chance*, not recovery time as its own description
+  claims. Library, Alchemy Lab, and Armory are pure gold sinks today — buildable,
+  upgradeable, charging daily maintenance forever, with zero effect: their catalog `bonus`
+  values (`xpMultiplier`, `powerRatingBonus`, `wageDiscount`) are never read by any game
+  logic. The frontend catalog copy (`Properties.tsx`) promises even more than the backend
+  config does — per-vocation bonuses and stat bonuses (Cunning, Might) that don't exist
+  anywhere in the `PropertyBonus` type at all. Working through each property one at a time
+  to close these gaps with real, wired-up mechanics rather than leaving them decorative.
+  - [x] **Dormitory** (2026-07-08): confirmed as roster-expansion-only, formalized. Its
+    `xpMultiplier: 1.1` config value was already dead (never read anywhere — `computeRosterCap`
+    is the only thing that ever looks at a dormitory), so this was a documentation/cleanup
+    change rather than a mechanic removal: dropped the dead bonus from `PROPERTY_CONFIG` in
+    `routes/properties.ts`, and fixed `Properties.tsx`'s catalog copy (description +
+    `bonusSummary`) to describe roster capacity instead of the XP/morale bonus it never
+    actually granted. Deliberate design call for the rest of this pass: keep Dormitory's role
+    scoped to roster capacity only, and give a *different* property (Library is the leading
+    candidate, given its existing copy and dead `xpMultiplier: 1.2`) the real XP bonus, so the
+    two don't functionally overlap once both are wired up.
+  - [ ] Training Hall, Infirmary, Library, Alchemy Lab, Armory — not yet reviewed/redesigned.
 
 ## Beta Phase 3 — Player Customization
 **Goal:** players have meaningful ways to express/personalize their guild once retention is

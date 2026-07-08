@@ -8,7 +8,12 @@ const router = Router();
 
 // Build costs and bonuses per property type and level
 const PROPERTY_CONFIG = {
-  dormitory:     { baseCost: 200, maintenanceDaily: 15, bonus: { xpMultiplier: 1.1 } },
+  // No `bonus` entry — dormitory's only mechanical effect is roster capacity
+  // (computeRosterCap, keyed off the property's level directly), not the generic
+  // bonus-JSON path every other property uses. Deliberately kept distinct from
+  // Training Hall/Library/etc. to avoid functional overlap with a future XP-focused
+  // property.
+  dormitory:     { baseCost: 200, maintenanceDaily: 15, bonus: {} },
   training_hall: { baseCost: 350, maintenanceDaily: 20, bonus: { powerRatingBonus: 2, xpMultiplier: 1.15 } },
   alchemy_lab:   { baseCost: 500, maintenanceDaily: 30, bonus: { powerRatingBonus: 3 } },
   library:       { baseCost: 400, maintenanceDaily: 25, bonus: { xpMultiplier: 1.2 } },

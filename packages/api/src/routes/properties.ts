@@ -19,32 +19,31 @@ const PROPERTY_CONFIG = {
   // services/adventure.ts). No xpMultiplier — dropped as dead weight, same call as
   // Dormitory: one property, one clear job.
   training_hall: { baseCost: 350, maintenanceDaily: 20, bonus: { powerRatingBonus: 0.1 } },
-  // Third of the party-role properties (rogue: Trickster, Alchemist) — same mechanic pair
-  // and rates as Armory (fighter), see the comment there. No more dead, unwired
-  // powerRatingBonus: 3 — every property now has a real, wired mechanic.
+  // The four party-role properties (Armory/fighter, Library/wizard, Alchemy Lab/rogue,
+  // Sanctuary/priest) share an identical cost structure — 500 base, 30/day maintenance —
+  // normalized on top of an already-identical mechanic (xpBonusPerLevel: 0.10,
+  // loyaltyRecoveryBonus: 1 for the matching vocation role; see services/adventure.ts and
+  // services/economy.ts). They previously had slightly different costs (400-500 base,
+  // 22-30 maintenance) left over from being built out one at a time; normalized once all
+  // four existed, since nothing distinguishes them from each other besides which vocations
+  // they favor. xpBonusPerLevel is deliberately paired with loyaltyRecoveryBonus (+1 extra
+  // loyaltyPenalty point recovered per day per level, on top of the base -1/day) so each
+  // property stays valuable even for an adventurer who's already hit MAX_LEVEL and can no
+  // longer benefit from the XP side.
   alchemy_lab:   { baseCost: 500, maintenanceDaily: 30, bonus: { xpBonusPerLevel: 0.1, loyaltyRecoveryBonus: 1 } },
-  // Second of the party-role properties (wizard: Arcanist, Invoker) — same mechanic pair
-  // and rates as Armory (fighter), see the comment there. No xpMultiplier — dropped as dead
-  // weight, replaced with the real, wired role-vocation bonus.
-  library:       { baseCost: 400, maintenanceDaily: 25, bonus: { xpBonusPerLevel: 0.1, loyaltyRecoveryBonus: 1 } },
+  library:       { baseCost: 500, maintenanceDaily: 30, bonus: { xpBonusPerLevel: 0.1, loyaltyRecoveryBonus: 1 } },
   // injuryRecoveryRate is a fraction shaved off recovery time per level (0.15 = 15%/level,
   // read directly off the property row by resolveAdventure — see services/adventure.ts).
   infirmary:     { baseCost: 300, maintenanceDaily: 18, bonus: { injuryRecoveryRate: 0.15 } },
-  // First of the party-role properties (fighter: Sellsword, Outrider): xpBonusPerLevel is a
-  // fraction of a matching-vocation adventurer's own XP gain per level (0.10 = +10%/level).
-  // Deliberately paired with loyaltyRecoveryBonus (+1 extra loyaltyPenalty point recovered
-  // per day per level, on top of the base -1/day — see services/economy.ts) so the property
-  // stays valuable even for an adventurer who's already hit MAX_LEVEL and can no longer
-  // benefit from the XP side. No wageDiscount — dropped as dead weight, same call as every
-  // other property's cleanup this pass.
-  armory:        { baseCost: 450, maintenanceDaily: 22, bonus: { xpBonusPerLevel: 0.1, loyaltyRecoveryBonus: 1 } },
+  armory:        { baseCost: 500, maintenanceDaily: 30, bonus: { xpBonusPerLevel: 0.1, loyaltyRecoveryBonus: 1 } },
+  sanctuary:     { baseCost: 500, maintenanceDaily: 30, bonus: { xpBonusPerLevel: 0.1, loyaltyRecoveryBonus: 1 } },
 } as const;
 
 // Upgrade cost to reach each level (key = current level before upgrade)
 const UPGRADE_COSTS: Record<number, number> = { 1: 150, 2: 350, 3: 700 };
 
 const BuildPropertyBody = z.object({
-  type: z.enum(['dormitory', 'training_hall', 'alchemy_lab', 'library', 'infirmary', 'armory']),
+  type: z.enum(['dormitory', 'training_hall', 'alchemy_lab', 'library', 'infirmary', 'armory', 'sanctuary']),
 });
 
 // GET /api/v1/properties

@@ -344,6 +344,7 @@ const PROPERTY_LABELS: Record<string, string> = {
   dormitory: 'Dormitory', training_hall: 'Training Hall',
   alchemy_lab: 'Alchemy Lab', library: 'Library',
   infirmary: 'Infirmary', armory: 'Armory',
+  sanctuary: 'Sanctuary',
 };
 
 const BONUS_LABELS: Record<string, string> = {

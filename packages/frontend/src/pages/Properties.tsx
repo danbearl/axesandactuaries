@@ -40,8 +40,8 @@ const PROPERTY_CATALOG: {
     type: 'library',
     name: 'Library',
     description: 'A collection of lore, maps, and strategic texts for your wizards (Arcanists, Invokers). Well-read wizards learn faster and stay loyal longer — even once they\'ve hit max level.',
-    baseCost: 400,
-    baseMaintenanceDaily: 25,
+    baseCost: 500,
+    baseMaintenanceDaily: 30,
     bonusSummary: '+10% XP and +1 loyalty recovery/day for wizards, per level',
   },
   {
@@ -56,9 +56,17 @@ const PROPERTY_CATALOG: {
     type: 'armory',
     name: 'Armory',
     description: 'Weapons, armor, and equipment storage for your fighters (Sellswords, Outriders). Well-equipped fighters learn faster and stay loyal longer — even once they\'ve hit max level.',
-    baseCost: 450,
-    baseMaintenanceDaily: 22,
+    baseCost: 500,
+    baseMaintenanceDaily: 30,
     bonusSummary: '+10% XP and +1 loyalty recovery/day for fighters, per level',
+  },
+  {
+    type: 'sanctuary',
+    name: 'Sanctuary',
+    description: 'A quiet space for reflection and ritual, tended by your priests (Menders, Chanters). Well-supported priests learn faster and stay loyal longer — even once they\'ve hit max level.',
+    baseCost: 500,
+    baseMaintenanceDaily: 30,
+    bonusSummary: '+10% XP and +1 loyalty recovery/day for priests, per level',
   },
 ];
 

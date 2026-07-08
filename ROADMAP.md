@@ -1156,8 +1156,42 @@ open to a small trusted player pool (Phase 0 below).
       priest; every vocation now has an assigned role) and updated the one test whose
       unassigned-role case relied on Chronicler's old absence to use a synthetic vocation
       instead, since that scenario no longer exists for real data.
-  - [ ] New Priest-role property (Mender, Chanter) — not yet built, name not yet chosen.
-    Chronicler/Chanter question resolved above; this is now unblocked.
+  - [x] **Sanctuary** (2026-07-08) — fourth and last role-property, priest (Mender, Chanter).
+    User proposed the name directly; kept it as-is — single word, matches the naming
+    convention of every other property (Armory, Library, Infirmary, Dormitory), evokes
+    reflection/ritual without being denominationally specific, in keeping with Chanter's own
+    "Liturgist/Hierophant" flavor without leaning fully into an organized-church aesthetic.
+    Same mechanic pair and rates as Armory/Library/Alchemy Lab (`xpBonusPerLevel: 0.10`,
+    `loyaltyRecoveryBonus: 1`), priced at 425 base / 24 daily maintenance — between Library
+    (400/25) and Armory (450/22), no existing properties undercut or exceeded.
+    - **Unlike every other property change this pass, this one needed an actual schema
+      migration.** `PropertyType` is a genuine Prisma enum (`vocation` on the other hand is a
+      plain string column, which is why the Chanter rename the previous turn was a data fix,
+      not a migration) — added `sanctuary` to the enum in `schema.prisma`, plus the matching
+      entries in `packages/types/src/game.ts`'s `PropertyType` union and
+      `PROPERTY_PARTY_ROLE`, the Zod enum and catalog entry in `routes/properties.ts`, and the
+      catalog/label entries in both `Properties.tsx` and `Dashboard.tsx`.
+    - **All four classical party roles now have both a vocation pairing and a property**:
+      Fighter (Sellsword, Outrider → Armory), Wizard (Arcanist, Invoker → Library), Rogue
+      (Trickster, Alchemist → Alchemy Lab), Priest (Mender, Chanter → Sanctuary). This closes
+      out the vocation-role property arc started with the Dormitory/Armory conversations.
+    - Test-covered identically to Armory/Library/Alchemy Lab in
+      `packages/types/src/game.test.ts`, `test/adventure.test.ts`, and `test/economy.test.ts`,
+      using Mender in place of Sellsword/Arcanist/Trickster.
+  - [x] **Normalized vocation-property costs** (2026-07-08) — Armory, Library, Alchemy Lab,
+    and Sanctuary previously had slightly different costs (400-500 base, 22-30 daily
+    maintenance) left over from being priced one at a time as each was built out. Since the
+    four are otherwise perfectly symmetric (identical `xpBonusPerLevel`/
+    `loyaltyRecoveryBonus` mechanic, differing only in which vocation role they favor),
+    normalized all four to **500 base cost / 30 daily maintenance**, reusing Alchemy Lab's
+    existing values (already at the 500 tier) rather than inventing new numbers. Upgrade
+    cost (150 → 350 across levels) and maintenance scaling (+50% of base per level above 1)
+    were already global mechanisms shared by every property, not property-specific, so no
+    formula changes were needed — normalizing the base numbers was sufficient to make all
+    four identical in cost at every level. No test changes needed: every existing test that
+    creates one of these four properties does so via a direct `prisma.property.create()` call
+    with its own explicit `maintenanceCostDaily`, not by reading `PROPERTY_CONFIG`, so none
+    of them actually asserted against the old catalog values in the first place.
 
 ## Beta Phase 3 — Player Customization
 **Goal:** players have meaningful ways to express/personalize their guild once retention is

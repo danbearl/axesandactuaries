@@ -65,9 +65,9 @@ export const VOCATION_STAT_PRIORITY: Record<Vocation, Stat[]> = {
 // ── Party Roles ───────────────────────────────────────────────────────────────
 // Groups vocations into the classical fantasy party roles (fighter/wizard/rogue/priest),
 // derived from VOCATION_STAT_PRIORITY above. Backs the property system's role-specific
-// buildings (Armory -> fighter, Library -> wizard, Alchemy Lab -> rogue, and a planned
-// priest-role property; see PROPERTY_PARTY_ROLE) and, longer-term, a planned mechanic where
-// contracts favor certain party compositions.
+// buildings (Armory -> fighter, Library -> wizard, Alchemy Lab -> rogue, Sanctuary -> priest;
+// see PROPERTY_PARTY_ROLE) and, longer-term, a planned mechanic where contracts favor certain
+// party compositions.
 //
 // Every vocation now has an assigned role — Chanter (formerly Chronicler, renamed and
 // reworked to actually fit) fills out priest alongside Mender. The old Chronicler didn't fit
@@ -191,7 +191,8 @@ export type PropertyType =
   | 'alchemy_lab'
   | 'library'
   | 'infirmary'
-  | 'armory';
+  | 'armory'
+  | 'sanctuary';
 
 export interface PropertyBonus {
   injuryRecoveryRate?:    number;
@@ -221,12 +222,12 @@ export function computeTrainingHallBonus(properties: Array<{ type: string; level
 }
 
 // Which property type serves each party role — the buildable counterpart to
-// VOCATION_PARTY_ROLE above. No entry yet for 'priest' (no property has been built for it —
-// see ROADMAP).
+// VOCATION_PARTY_ROLE above. Every role now has a property.
 export const PROPERTY_PARTY_ROLE: Partial<Record<PropertyType, PartyRole>> = {
   armory:      'fighter',
   library:     'wizard',
   alchemy_lab: 'rogue',
+  sanctuary:   'priest',
 };
 
 // Looks up the role-property bonus (by bonus key, e.g. 'xpBonusPerLevel' or

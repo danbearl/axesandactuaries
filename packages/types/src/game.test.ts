@@ -122,6 +122,12 @@ describe('findRolePropertyBonus', () => {
     expect(findRolePropertyBonus('Trickster', alchemyLab, 'xpBonusPerLevel')).toBeCloseTo(0.3);
     expect(findRolePropertyBonus('Alchemist', alchemyLab, 'loyaltyRecoveryBonus')).toBe(3);
   });
+
+  it('applies to a priest-role vocation via a Sanctuary', () => {
+    const sanctuary = [{ type: 'sanctuary', level: 1, bonus: { xpBonusPerLevel: 0.1, loyaltyRecoveryBonus: 1 } }];
+    expect(findRolePropertyBonus('Mender', sanctuary, 'xpBonusPerLevel')).toBeCloseTo(0.1);
+    expect(findRolePropertyBonus('Chanter', sanctuary, 'loyaltyRecoveryBonus')).toBe(1);
+  });
 });
 
 describe('VOCATION_PARTY_ROLE', () => {

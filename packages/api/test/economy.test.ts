@@ -110,6 +110,46 @@ describe('collectDailyWages', () => {
     expect(updatedAdv.loyaltyPenalty).toBe(4); // only the base 1 point, no role bonus
   });
 
+  it('recovers extra loyalty for a wizard-vocation adventurer with a Library', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99); // never quits
+
+    const player = await createPlayer({ gold: 1000 });
+    await prisma.property.create({
+      data: { playerId: player.id, type: 'library', level: 2, maintenanceCostDaily: 25, bonus: { xpBonusPerLevel: 0.1, loyaltyRecoveryBonus: 1 } },
+    });
+    const adv = await createAdventurer({
+      employerId: player.id, status: 'hired', dailyWage: 100,
+      wagesOwed: 0, daysUnpaid: 0, loyaltyPenalty: 5,
+      vocation: 'Arcanist', // wizard role — matches Library
+    });
+
+    await collectDailyWages();
+
+    const updatedAdv = await prisma.adventurer.findUniqueOrThrow({ where: { id: adv.id } });
+    // base 1 point + Library level 2 * loyaltyRecoveryBonus 1 = 3 points recovered
+    expect(updatedAdv.loyaltyPenalty).toBe(2);
+  });
+
+  it('recovers extra loyalty for a rogue-vocation adventurer with an Alchemy Lab', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99); // never quits
+
+    const player = await createPlayer({ gold: 1000 });
+    await prisma.property.create({
+      data: { playerId: player.id, type: 'alchemy_lab', level: 2, maintenanceCostDaily: 30, bonus: { xpBonusPerLevel: 0.1, loyaltyRecoveryBonus: 1 } },
+    });
+    const adv = await createAdventurer({
+      employerId: player.id, status: 'hired', dailyWage: 100,
+      wagesOwed: 0, daysUnpaid: 0, loyaltyPenalty: 5,
+      vocation: 'Trickster', // rogue role — matches Alchemy Lab
+    });
+
+    await collectDailyWages();
+
+    const updatedAdv = await prisma.adventurer.findUniqueOrThrow({ where: { id: adv.id } });
+    // base 1 point + Alchemy Lab level 2 * loyaltyRecoveryBonus 1 = 3 points recovered
+    expect(updatedAdv.loyaltyPenalty).toBe(2);
+  });
+
   it('rolls a quit check for unpaid adventurers and forgives their debt on quit', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0); // always "succeeds" the leave roll
 

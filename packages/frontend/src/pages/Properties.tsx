@@ -39,18 +39,18 @@ const PROPERTY_CATALOG: {
   {
     type: 'library',
     name: 'Library',
-    description: 'A collection of lore, maps, and strategic texts. Chroniclers gain additional bonuses here; all adventurers gain Cunning.',
+    description: 'A collection of lore, maps, and strategic texts for your wizards (Arcanists, Invokers). Well-read wizards learn faster and stay loyal longer — even once they\'ve hit max level.',
     baseCost: 400,
     baseMaintenanceDaily: 25,
-    bonusSummary: '+Cunning, Chronicler bonus per level',
+    bonusSummary: '+10% XP and +1 loyalty recovery/day for wizards, per level',
   },
   {
     type: 'alchemy_lab',
     name: 'Alchemy Laboratory',
-    description: 'A workspace for compound preparation. Alchemists thrive here; all adventurers benefit from pre-contract preparations.',
+    description: 'A workspace for compound preparation, favored by your rogues (Tricksters, Alchemists). Well-stocked rogues learn faster and stay loyal longer — even once they\'ve hit max level.',
     baseCost: 500,
     baseMaintenanceDaily: 30,
-    bonusSummary: '+Party buffs, Alchemist bonus per level',
+    bonusSummary: '+10% XP and +1 loyalty recovery/day for rogues, per level',
   },
   {
     type: 'armory',

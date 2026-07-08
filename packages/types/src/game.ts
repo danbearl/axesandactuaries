@@ -21,7 +21,7 @@ export const VOCATIONS = [
   'Mender',
   'Trickster',
   'Invoker',
-  'Chronicler',
+  'Chanter',
   'Alchemist',
 ] as const;
 
@@ -35,7 +35,7 @@ export const VOCATION_TIERS: Record<Vocation, [string, string, string]> = {
   Mender:     ['Mender',     'Warden',     'Lifebinder'],
   Trickster:  ['Trickster',  'Phantom',    'Shadowblade'],
   Invoker:    ['Invoker',    'Stormbinder','Conduit'],
-  Chronicler: ['Chronicler', 'Lorekeeper', 'Sage'],
+  Chanter:    ['Chanter',    'Liturgist',  'Hierophant'],
   Alchemist:  ['Alchemist',  'Distiller',  'Grandmaster'],
 };
 
@@ -55,21 +55,26 @@ export const VOCATION_STAT_PRIORITY: Record<Vocation, Stat[]> = {
   Mender:     ['Influence',  'Attunement',  'Grit'],
   Trickster:  ['Finesse',    'Cunning',      'Influence'],
   Invoker:    ['Attunement', 'Might',        'Grit'],
-  Chronicler: ['Cunning',    'Influence',    'Attunement'],
+  // Influence-primary (matching Mender, the other priest-role vocation) with Cunning as a
+  // secondary nod to its ritual/lore roots — related to but distinct from Mender's own
+  // Influence/Attunement/Grit profile.
+  Chanter:    ['Influence',  'Cunning',      'Attunement'],
   Alchemist:  ['Cunning',    'Attunement',   'Finesse'],
 };
 
 // ── Party Roles ───────────────────────────────────────────────────────────────
 // Groups vocations into the classical fantasy party roles (fighter/wizard/rogue/priest),
 // derived from VOCATION_STAT_PRIORITY above. Backs the property system's role-specific
-// buildings (Armory -> fighter, Library -> wizard, Alchemy Lab -> rogue; see
-// PROPERTY_PARTY_ROLE) and, longer-term, a planned mechanic where contracts favor certain
-// party compositions.
+// buildings (Armory -> fighter, Library -> wizard, Alchemy Lab -> rogue, and a planned
+// priest-role property; see PROPERTY_PARTY_ROLE) and, longer-term, a planned mechanic where
+// contracts favor certain party compositions.
 //
-// Chronicler is deliberately absent — its role is still an open design question (candidate
-// for priest alongside Mender, but being reconsidered rather than force-fit) rather than
-// guessed at. A vocation with no entry here simply doesn't participate in any role-property
-// bonus yet, which is the correct behavior until it's actually decided.
+// Every vocation now has an assigned role — Chanter (formerly Chronicler, renamed and
+// reworked to actually fit) fills out priest alongside Mender. The old Chronicler didn't fit
+// any role cleanly: "Lorekeeper"/"Sage"-flavored and Cunning-primary read as an arcane
+// historian, not a cleric, so retitling alone wouldn't have fixed it — replaced instead of
+// force-fit. Existing adventurers with the old vocation string were migrated by
+// prisma/renameChroniclerToChanter.ts.
 export type PartyRole = 'fighter' | 'wizard' | 'rogue' | 'priest';
 
 export const VOCATION_PARTY_ROLE: Partial<Record<Vocation, PartyRole>> = {
@@ -80,6 +85,7 @@ export const VOCATION_PARTY_ROLE: Partial<Record<Vocation, PartyRole>> = {
   Trickster:  'rogue',
   Alchemist:  'rogue',
   Mender:     'priest',
+  Chanter:    'priest',
 };
 
 // ── Personality ───────────────────────────────────────────────────────────────
@@ -188,11 +194,10 @@ export type PropertyType =
   | 'armory';
 
 export interface PropertyBonus {
-  xpMultiplier?:          number; // legacy — Library only, dead until its own redesign pass
   injuryRecoveryRate?:    number;
   powerRatingBonus?:      number;
-  xpBonusPerLevel?:       number; // role-vocation XP bonus (Armory/fighter today)
-  loyaltyRecoveryBonus?:  number; // role-vocation loyalty-recovery bonus (Armory/fighter today)
+  xpBonusPerLevel?:       number; // role-vocation XP bonus (Armory/fighter, Library/wizard)
+  loyaltyRecoveryBonus?:  number; // role-vocation loyalty-recovery bonus (Armory/fighter, Library/wizard)
 }
 
 export interface Property {

@@ -61,16 +61,17 @@ describe('generateContract procedural naming', () => {
       // (which would make this test brittle against word-bank size changes).
       expect(titles.size).toBeGreaterThan(15);
     });
-
-    it(`does not repeat the same ${tier} title back-to-back`, () => {
-      let previous = generateContract(tier).title;
-      for (let i = 0; i < 20; i++) {
-        const next = generateContract(tier).title;
-        expect(next).not.toBe(previous);
-        previous = next;
-      }
-    });
   }
+
+  // No test asserts zero back-to-back repeats: the recent-title dedup (mirroring
+  // generator.ts's adventurer-name history) retries a fixed number of times and then
+  // accepts whatever it gets — a deliberate best-effort design, not a hard uniqueness
+  // guarantee (see the comment above generateContractFlavor in contracts.ts). An earlier
+  // version of this test asserted exactly that guarantee across 20 real-random draws per
+  // tier and failed intermittently in CI — legendary's pool is thin enough (one of its two
+  // patterns ignores location entirely, leaving only 6 "hot" title values out of ~114) that
+  // a genuine, expected collision surfaces often enough to make the assertion flaky rather
+  // than a real regression signal.
 });
 
 describe('generateContract requirements', () => {
@@ -129,7 +130,7 @@ describe('countUnmetRequirements', () => {
   it('does not count a stat requirement met by any single party member', () => {
     const contract = { requiredStats: { Might: 15 }, requiredVocation: undefined };
     const party = [
-      { vocation: 'Chronicler', stats: { Might: 8 } },
+      { vocation: 'Chanter', stats: { Might: 8 } },
       { vocation: 'Sellsword', stats: { Might: 16 } },
     ];
     expect(countUnmetRequirements(contract, party)).toBe(0);

@@ -3,7 +3,9 @@ import {
   levelForXp, XP_TO_LEVEL, MAX_LEVEL,
   computeCohesionIncrement, computeCohesionBonus, COHESION_MAX, COHESION_MAX_POWER_BONUS,
   computeTrainingHallBonus, findRolePropertyBonus,
+  VOCATION_PARTY_ROLE, VOCATIONS,
 } from './game.js';
+import type { Vocation } from './game.js';
 
 describe('levelForXp', () => {
   it('returns level 1 for zero xp', () => {
@@ -92,8 +94,10 @@ describe('findRolePropertyBonus', () => {
   });
 
   it('is zero for a vocation with no assigned role', () => {
-    // Chronicler intentionally has no role yet — see VOCATION_PARTY_ROLE.
-    expect(findRolePropertyBonus('Chronicler', armory, 'xpBonusPerLevel')).toBe(0);
+    // Every current vocation has a role now, but the lookup must stay safe for a future
+    // one that doesn't yet — the same situation Chanter itself was in (as "Chronicler")
+    // before this rework assigned it to priest.
+    expect(findRolePropertyBonus('Unassigned' as Vocation, armory, 'xpBonusPerLevel')).toBe(0);
   });
 
   it('is zero for a vocation whose role has no matching property', () => {
@@ -102,5 +106,33 @@ describe('findRolePropertyBonus', () => {
 
   it('is zero when the property has no properties at all', () => {
     expect(findRolePropertyBonus('Sellsword', [], 'xpBonusPerLevel')).toBe(0);
+  });
+
+  it('applies to a wizard-role vocation via a Library, independent of an owned Armory', () => {
+    const library = { type: 'library', level: 1, bonus: { xpBonusPerLevel: 0.1, loyaltyRecoveryBonus: 1 } };
+    const both = [...armory, library];
+    expect(findRolePropertyBonus('Arcanist', both, 'xpBonusPerLevel')).toBeCloseTo(0.1);
+    expect(findRolePropertyBonus('Invoker', both, 'loyaltyRecoveryBonus')).toBe(1);
+    // A fighter vocation still only matches Armory, not Library, when both are owned.
+    expect(findRolePropertyBonus('Sellsword', both, 'xpBonusPerLevel')).toBeCloseTo(0.2);
+  });
+
+  it('applies to a rogue-role vocation via an Alchemy Lab', () => {
+    const alchemyLab = [{ type: 'alchemy_lab', level: 3, bonus: { xpBonusPerLevel: 0.1, loyaltyRecoveryBonus: 1 } }];
+    expect(findRolePropertyBonus('Trickster', alchemyLab, 'xpBonusPerLevel')).toBeCloseTo(0.3);
+    expect(findRolePropertyBonus('Alchemist', alchemyLab, 'loyaltyRecoveryBonus')).toBe(3);
+  });
+});
+
+describe('VOCATION_PARTY_ROLE', () => {
+  it('groups Chanter with Mender under priest', () => {
+    expect(VOCATION_PARTY_ROLE.Chanter).toBe('priest');
+    expect(VOCATION_PARTY_ROLE.Mender).toBe('priest');
+  });
+
+  it('assigns every vocation a role now that Chanter has replaced Chronicler', () => {
+    for (const vocation of VOCATIONS) {
+      expect(VOCATION_PARTY_ROLE[vocation]).toBeDefined();
+    }
   });
 });

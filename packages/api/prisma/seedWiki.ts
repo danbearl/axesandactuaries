@@ -37,7 +37,7 @@ Heritage currently determines an adventurer's generated name pool, physical appe
 | Mender | Influence, Attunement, Grit | Mender → Warden → Lifebinder |
 | Trickster | Finesse, Cunning, Influence | Trickster → Phantom → Shadowblade |
 | Invoker | Attunement, Might, Grit | Invoker → Stormbinder → Conduit |
-| Chronicler | Cunning, Influence, Attunement | Chronicler → Lorekeeper → Sage |
+| Chanter | Influence, Cunning, Attunement | Chanter → Liturgist → Hierophant |
 | Alchemist | Cunning, Attunement, Finesse | Alchemist → Distiller → Grandmaster |
 
 An adventurer's title changes automatically as they level up — it's purely cosmetic and doesn't affect their stats.`,

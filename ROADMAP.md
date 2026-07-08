@@ -910,8 +910,15 @@ open to a small trusted player pool (Phase 0 below).
     `CONTRACT_TEMPLATES` (used only for one-time fresh-database bootstrapping, not the
     ongoing market generation this change touches) was deliberately left alone.
   - Test-covered in `packages/types/src/contracts.test.ts`: non-empty title/description for
-    every tier, a 60-sample generation producing well over the old fixed-pool size in unique
-    titles, and no back-to-back repeats across 20 consecutive generations per tier.
+    every tier, and a 60-sample generation producing well over the old fixed-pool size in
+    unique titles. **Correction (2026-07-08)**: this originally also asserted zero
+    back-to-back repeats across 20 consecutive generations per tier — removed after it failed
+    intermittently in CI. The recent-title dedup is an explicit best-effort mechanism (fixed
+    retry count, then accepts whatever it gets, same as generator.ts's adventurer-name
+    history), not a hard guarantee, and legendary's pool is thin enough (one of its two
+    patterns ignores location entirely, leaving only 6 "hot" values) that a genuine collision
+    surfaces often enough to make that specific assertion flaky rather than a real regression
+    signal. The variety test above remains the meaningful coverage.
 - Contract narratives in the completion report (2026-07-07, captured — not yet built):
   procedurally generate a short narrative paragraph for the "Party Report" section shown
   once an adventure resolves (`AdventureDetail.tsx`, currently a plain per-adventurer table —
@@ -1092,7 +1099,65 @@ open to a small trusted player pool (Phase 0 below).
       mismatched role, zero with no properties) and both `test/adventure.test.ts` (XP bonus
       granted for Sellsword, withheld for Arcanist) and `test/economy.test.ts` (loyalty
       recovery boosted for Sellsword, unaffected for Arcanist).
-  - [ ] Library (Wizard), Alchemy Lab (Rogue), new Priest property — not yet built.
+  - [x] **Library** (2026-07-08) — second role-property, wizard (Arcanist, Invoker). Before
+    building, confirmed with the user whether to reuse Armory's exact mechanic pair or give
+    Library something distinct (the original brainstorm included a third idea — a permanent
+    stat bump on level-up); decided to reuse the same pair for now and table the stat-bump
+    idea for a *different*, non-role-vocation property later rather than build it into this
+    batch. Same rates as Armory: `xpBonusPerLevel: 0.10`, `loyaltyRecoveryBonus: 1`. Dropped
+    the dead `xpMultiplier` field entirely — with Library's removal it's now unused by every
+    property, so it's gone from the `PropertyBonus` interface too, not just left dead on one
+    property like the others were mid-pass.
+    - **Found and fixed a labeling bug this reuse would have caused**: `Dashboard.tsx`'s
+      bonus-value labels (`XP gain (fighters)`, `Loyalty recovery (fighters)`, added for
+      Armory) would have been wrong for Library, which reuses the identical JSON keys for a
+      different role. Generalized to a `bonusLabel()` helper that looks up the role a given
+      property actually serves (`PROPERTY_PARTY_ROLE`) and labels it dynamically — "XP gain
+      (wizards)" for Library, "XP gain (fighters)" for Armory, from the same code path.
+    - Test-covered in `packages/types/src/game.test.ts` (a wizard vocation matches Library
+      independent of an owned Armory; a fighter vocation still only matches Armory when both
+      are owned) and the same XP/loyalty pattern as Armory in `test/adventure.test.ts` and
+      `test/economy.test.ts`, using Arcanist in place of Sellsword.
+  - [x] **Alchemy Lab** (2026-07-08) — third role-property, rogue (Trickster, Alchemist).
+    Same mechanic pair and rates as Armory/Library, confirmed with the user upfront rather
+    than re-litigated. Dropped the dead `powerRatingBonus: 3` (never read — `computePartyPower`
+    only ever looked at `training_hall`). **This was the last property with a dead bonus
+    field** — all six now have a real, working mechanic (Dormitory: roster cap, Training
+    Hall: party power, Infirmary: recovery time, Armory/Library/Alchemy Lab: role-vocation
+    XP + loyalty recovery).
+    - Simplified `Dashboard.tsx`'s bonus-value formatter now that this was the only other
+      property using `powerRatingBonus` (alongside Training Hall) — the property-type-aware
+      branch added for exactly this ambiguity is gone, since `powerRatingBonus` now
+      unambiguously belongs to Training Hall alone and always means "fraction of party
+      power." `formatBonusValue()` dropped its now-unused `propertyType` parameter.
+    - Test-covered identically to Armory/Library in `packages/types/src/game.test.ts`,
+      `test/adventure.test.ts`, and `test/economy.test.ts`, using Trickster in place of
+      Sellsword/Arcanist.
+  - [x] **Chronicler renamed and reworked to Chanter, resolving the priest question**
+    (2026-07-08). The reskin-vs-replace decision came down to identity: "Chronicler" means
+    historian/record-keeper, and its own tier titles ("Lorekeeper," "Sage") reinforced that
+    reading — no amount of retitling the upper tiers fixes what the base name and its whole
+    surrounding flavor already commit to. Replaced instead of force-fit.
+    - New vocation `Chanter` (`VOCATIONS` in `packages/types/src/game.ts`), titles
+      `Chanter → Liturgist → Hierophant`, stat priority `Influence, Cunning, Attunement` —
+      Influence-primary to match Mender (the other priest-role vocation), Cunning kept as a
+      secondary nod to the old vocation's ritual/lore roots rather than dropped entirely, so
+      it's related to but distinct from Mender's own `Influence, Attunement, Grit` profile.
+      `VOCATION_PARTY_ROLE.Chanter = 'priest'` — every vocation now has an assigned role.
+    - `vocation` is a plain string column (no Prisma enum), so this was a data fix, not a
+      schema migration: new standalone script `prisma/renameChroniclerToChanter.ts`
+      (`pnpm db:migrate:chanter`, mirroring `seedWiki.ts`'s runnable-standalone pattern)
+      renames every existing `vocation: 'Chronicler'` adventurer to `'Chanter'` in place,
+      keeping their level/stats/history — idempotent, safe to run more than once.
+    - Also updated the Vocations wiki page's template table in `seedWiki.ts` (only affects
+      fresh-seeded wikis; the live wiki content needs the same edit pasted in manually via
+      the in-app editor, same as any other wiki content change).
+    - Test-covered in `packages/types/src/game.test.ts` (Chanter groups with Mender under
+      priest; every vocation now has an assigned role) and updated the one test whose
+      unassigned-role case relied on Chronicler's old absence to use a synthetic vocation
+      instead, since that scenario no longer exists for real data.
+  - [ ] New Priest-role property (Mender, Chanter) — not yet built, name not yet chosen.
+    Chronicler/Chanter question resolved above; this is now unblocked.
 
 ## Beta Phase 3 — Player Customization
 **Goal:** players have meaningful ways to express/personalize their guild once retention is

@@ -6,7 +6,7 @@ import AdventurerCard from '../components/AdventurerCard.tsx';
 import AdventureTimer from '../components/AdventureTimer.tsx';
 import DailyResetTimer from '../components/DailyResetTimer.tsx';
 import DeployByCountdown from '../components/DeployByCountdown.tsx';
-import { computeRosterCap, countUnmetRequirements, estimateSuccessChance, type Adventurer } from '@axes-actuaries/types';
+import { computeRosterCap, countUnmetRequirements, estimateSuccessChance, PROPERTY_PARTY_ROLE, type Adventurer } from '@axes-actuaries/types';
 import { partyCohesionBonus, trainingHallBonus } from '../lib/cohesion.ts';
 import './Dashboard.css';
 
@@ -243,7 +243,7 @@ export default function Dashboard() {
                   </div>
                   <div className="label text-right">
                     {Object.entries(p.bonus as Record<string, number>).map(([k, v]) => (
-                      <div key={k}>{BONUS_LABELS[k] ?? k}: {typeof v === 'number' ? formatBonusValue(p.type, k, v) : `+${v}`}</div>
+                      <div key={k}>{bonusLabel(p.type, k)}: {typeof v === 'number' ? formatBonusValue(k, v) : `+${v}`}</div>
                     ))}
                   </div>
                 </div>
@@ -347,25 +347,36 @@ const PROPERTY_LABELS: Record<string, string> = {
 };
 
 const BONUS_LABELS: Record<string, string> = {
-  xpMultiplier: 'XP gain',
   powerRatingBonus: 'Power rating',
   injuryRecoveryRate: 'Recovery speed',
-  xpBonusPerLevel: 'XP gain (fighters)',
-  loyaltyRecoveryBonus: 'Loyalty recovery (fighters)',
+  xpBonusPerLevel: 'XP gain',
+  loyaltyRecoveryBonus: 'Loyalty recovery',
 };
+
+const ROLE_LABELS: Record<string, string> = {
+  fighter: 'fighters', wizard: 'wizards', rogue: 'rogues', priest: 'priests',
+};
+
+// Role-vocation bonus keys (xpBonusPerLevel, loyaltyRecoveryBonus) are reused across every
+// role-property (Armory/fighter, Library/wizard, ...) — the label needs to say which role
+// this specific property's bonus applies to, or it'd read as if it applied to everyone.
+const ROLE_BONUS_KEYS = new Set(['xpBonusPerLevel', 'loyaltyRecoveryBonus']);
+
+function bonusLabel(propertyType: string, key: string): string {
+  const base = BONUS_LABELS[key] ?? key;
+  if (!ROLE_BONUS_KEYS.has(key)) return base;
+  const role = PROPERTY_PARTY_ROLE[propertyType as keyof typeof PROPERTY_PARTY_ROLE];
+  return role ? `${base} (${ROLE_LABELS[role]})` : base;
+}
 
 // Flat-count keys (not a percentage/multiplier, regardless of property) — a role-property
 // bonus like "+1 extra loyalty point recovered per day" should never render as "+100%".
 const FLAT_COUNT_KEYS = new Set(['loyaltyRecoveryBonus']);
 
 // Bonus values come in different shapes depending on the key: XP-style multipliers (e.g.
-// 1.1 = +10%), plain fractions (e.g. 0.15 = +15%), and flat counts (e.g. +2 power rating) —
-// treating them all as multipliers would render a flat "+2" bonus as a nonsensical "+100%".
-function formatBonusValue(propertyType: string, key: string, value: number): string {
-  // Training Hall's powerRatingBonus is a fraction of party power (0.1 = +10%/level).
-  // Alchemy Lab reuses the same key for a flat, still-unwired value — property-type-aware
-  // until Alchemy Lab gets its own pass and either gets a real mechanic or drops the field.
-  if (key === 'powerRatingBonus' && propertyType !== 'training_hall') return `+${value}`;
+// 1.1 = +10%), plain fractions (e.g. 0.1 = +10%), and flat counts (e.g. +1 loyalty point) —
+// treating a flat count as a fraction would render it as a nonsensical percentage.
+function formatBonusValue(key: string, value: number): string {
   if (FLAT_COUNT_KEYS.has(key)) return `+${value}`;
   if (value > 1) return `+${Math.round((value - 1) * 100)}%`;
   return `+${Math.round(value * 100)}%`;

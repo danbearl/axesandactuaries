@@ -21,7 +21,11 @@ const PERSONALITY_LABELS = {
 };
 
 export default function AdventurerCard({ adventurer: a, compact, onHire, onFire, onClick, repRequired }: Props) {
-  const tierIndex = a.level < 5 ? 0 : a.level < 10 ? 1 : 2;
+  // Tier boundaries: 1-4 -> base title, 5-8 -> mid title, 9-10 -> top title. Now that
+  // MAX_LEVEL is 10 (raised from 6, a placeholder from initial design), the top tier is
+  // actually reachable — it previously required level 10 while the level cap was 6, making
+  // it permanently dead content.
+  const tierIndex = a.level < 5 ? 0 : a.level < 9 ? 1 : 2;
   // Falls back to the raw vocation string for a stale value not in VOCATION_TIERS (e.g. an
   // adventurer generated under a vocation that's since been renamed/removed) rather than
   // crashing the whole card — this exact scenario happened in production after Chronicler

@@ -283,6 +283,25 @@ open to a small trusted player pool (Phase 0 below).
     first, since teaching mechanics that are about to deepen would mean redoing it.
 - Whatever other UX friction surfaces from real trusted-pool usage — this phase should stay
   open to feedback-driven items, not just the list above.
+- Mobile-friendly layout (2026-07-08, user's idea, captured for later — no scoping done):
+  the app has never had a responsive-design pass. Checked the current state before writing
+  this: the viewport meta tag is already present in `index.html` (so it's not starting from
+  zero), but there are **zero `@media` queries anywhere in the codebase**, and several
+  layouts are built on fixed assumptions that would break on a narrow screen —
+  `Navigation.css`'s sidebar is a hard `width: 220px` with no collapse/hamburger behavior,
+  and multiple pages use fixed-column grids (`AdventureDetail.css`'s `.detail-grid`/
+  `.detail-stats` at `1fr 1fr`, `Dashboard.css`'s stat grid at `repeat(4, 1fr)`, `Wiki.tsx`'s
+  nav+content two-column layout) that would squeeze rather than reflow. A few grids already
+  use `repeat(auto-fill/auto-fit, minmax(...))` (`AdventurerMarket.css`, `Profile.css`),
+  which is inherently more mobile-friendly and could be a pattern to extend elsewhere rather
+  than starting from scratch everywhere.
+  - Open questions to resolve when this gets scoped for real: responsive breakpoints
+    (reflow existing layouts at narrow widths) vs. a dedicated mobile-specific UI (more work,
+    but can make deliberately different UX choices — e.g. bottom nav instead of a collapsed
+    sidebar); whether this is a full pass across every page or starts with the highest-traffic
+    ones (Dashboard, Contract Market, Adventurer Market); and whether native-app-adjacent
+    concerns (PWA installability, touch-target sizing, viewport-height quirks on mobile
+    Safari) are in scope or a separate follow-up.
 
 ## Beta Phase 2 — Game Mechanics Depth
 **Goal:** the core loop is deep and balanced enough to hold a trusted pool's attention.
@@ -1192,6 +1211,66 @@ open to a small trusted player pool (Phase 0 below).
     creates one of these four properties does so via a direct `prisma.property.create()` call
     with its own explicit `maintenanceCostDaily`, not by reading `PROPERTY_CONFIG`, so none
     of them actually asserted against the old catalog values in the first place.
+  - [x] **Fixed stale property `bonus` JSON causing a +600% Training Bonus in production**
+    (2026-07-08) — reported by the user: a level-3 Training Hall showed +600% instead of
+    +30%. Root cause: every property-bonus redesign this project went through (Training
+    Hall's flat-2 → fraction-0.1, Infirmary's dead-2.0 → real-0.15, Armory/Library/Alchemy
+    Lab's `wageDiscount`/`xpMultiplier`/flat-`powerRatingBonus` → `xpBonusPerLevel`/
+    `loyaltyRecoveryBonus`) updated `PROPERTY_CONFIG` going forward but never touched
+    already-existing property rows, which keep whatever `bonus` JSON they had at build time
+    forever — the upgrade route only ever wrote `level`/`maintenanceCostDaily`/`costBasis`,
+    never `bonus`. Training Hall was the one that surfaced *visibly wrong* rather than
+    silently broken, because old and new both used the same key name (`powerRatingBonus`)
+    with different meanings (flat vs. fraction): a pre-redesign row's stored `2 * level 3 =
+    6` got reinterpreted under the new percentage formula as +600%. Infirmary's old value
+    similarly clamps to the 25% recovery floor regardless of actual level under the new
+    formula; Armory/Library/Alchemy Lab's old keys don't exist under the new schema at all,
+    so pre-redesign rows of those types were silently granting **zero** bonus instead of a
+    visibly wrong one — same underlying bug, just not one that produces an alarming number
+    on screen.
+    - **Process gap, not a one-off mistake**: this happened because `PROPERTY_CONFIG` lived
+      directly in `routes/properties.ts` with no mechanism forcing existing rows to stay in
+      sync, and — unlike the Chronicler→Chanter vocation rename, which got an explicit
+      migration script at the time — none of the property-bonus redesigns this session got
+      a corresponding data migration.
+    - Extracted `PROPERTY_CONFIG`/`UPGRADE_COSTS` out of `routes/properties.ts` into a new
+      `services/propertyCatalog.ts`, the single source of truth both the route and the new
+      migration script import from, rather than risking a second catalog drifting out of
+      sync with the first.
+    - New one-off `prisma/syncPropertyBonuses.ts` (`pnpm db:sync:property-bonuses`, same
+      standalone-runnable pattern as `renameChroniclerToChanter.ts`) re-syncs every existing
+      property row's `bonus` to its type's current catalog value, regardless of level —
+      idempotent, safe to run again after any future bonus schema change too.
+    - **Defensive fix so this can't recur silently**: the upgrade route now also re-writes
+      `bonus: config.bonus` on every upgrade (previously only `level`/`maintenanceCostDaily`/
+      `costBasis`), so a property at least self-heals the next time it's upgraded. This
+      doesn't help an already-max-level property that's never upgraded again — the migration
+      script is still what fixes those — but narrows the exposure window for the next redesign.
+- [x] Raised the adventurer level cap from 6 to 10 (2026-07-08) — the 6-level cap was a
+  placeholder from initial design, never deliberately tuned. Surfaced by a user question
+  about vocation title tiers: `VOCATION_TIERS` already defined a third title tier
+  (Ironclad/Ghost/Archon/etc.) gated at level 10, which was permanently dead content while
+  `MAX_LEVEL` was 6 — nobody could ever reach it. Fixed both sides: raised `MAX_LEVEL` to 10
+  and set the new user-specified tier boundaries (1-4 → base title, 5-8 → mid title, 9-10 →
+  top title, in `AdventurerCard.tsx`'s `tierIndex` calc) so the top tier is actually
+  reachable now.
+  - `XP_TO_LEVEL` (`packages/types/src/game.ts`) extended for levels 7-10 by continuing the
+    exact doubling curve already established by levels 3-6 (each level's XP jump is exactly
+    2x the previous — 250, 500, 1000, 2000 — so 4000/8000/16000/32000 for the new levels),
+    rather than inventing new tuning: 7,850 / 15,850 / 31,850 / 63,850.
+  - No test changes needed — `game.test.ts`'s `levelForXp` tests already iterate
+    symbolically from `2` to `MAX_LEVEL` against `XP_TO_LEVEL[lvl]`, so they automatically
+    extended their own coverage to the new levels without modification.
+  - **Flagged but not touched, since they weren't part of what was asked**: two mechanics
+    were tuned against the old level-6 ceiling and may be worth revisiting now that levels
+    7-10 exist. `minSatisfyingTier` (the Ambition mechanic's contract-tolerance curve) caps
+    out at "dangerous" for any level above 4 — a level 10 adventurer has the identical
+    tolerance floor as a level 5 one, so the new level range doesn't get its own tolerance
+    stratification. Separately, `CONTRACT_TIER_CONFIG`'s power ranges (dangerous 70-140,
+    legendary 140-280) were calibrated when a level-6 adventurer's power ceiling was the
+    practical maximum (`powerRating = avgStat × level`) — a level-10 adventurer's power
+    ceiling is meaningfully higher, which could make top-tier contracts more trivially
+    achievable by a handful of very high-level adventurers than originally balanced for.
 
 ## Beta Phase 3 — Player Customization
 **Goal:** players have meaningful ways to express/personalize their guild once retention is

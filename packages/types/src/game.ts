@@ -313,9 +313,13 @@ export function computeRosterCap(dormitoryLevel: number): number {
 
 // ── Leveling ──────────────────────────────────────────────────────────────────
 
-// Cumulative XP required to reach each level (index = target level)
-export const XP_TO_LEVEL = [0, 0, 100, 350, 850, 1850, 3850] as const;
-export const MAX_LEVEL = 6;
+// Cumulative XP required to reach each level (index = target level). Levels 7-10 continue
+// the same doubling curve already established by levels 3-6 (each jump exactly 2x the
+// previous: 250, 500, 1000, 2000, so 4000/8000/16000/32000 next) — MAX_LEVEL was raised from
+// 6 to 10 (2026-07-08, was a placeholder from initial design) without changing the curve's
+// shape, just extending it.
+export const XP_TO_LEVEL = [0, 0, 100, 350, 850, 1850, 3850, 7850, 15850, 31850, 63850] as const;
+export const MAX_LEVEL = 10;
 
 export function levelForXp(xp: number): number {
   for (let lvl = MAX_LEVEL; lvl >= 2; lvl--) {

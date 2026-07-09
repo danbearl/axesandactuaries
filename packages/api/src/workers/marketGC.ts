@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { publish, CHANNELS } from '../lib/redis.js';
 import { BID_AWARD_DEPLOY_HOURS } from '@axes-actuaries/types';
-import { replenishBiddingMarket } from '../services/marketSeeding.js';
+import { replenishContractMarket } from '../services/marketSeeding.js';
 
 // Runs every 15 minutes.
 export async function runMarketGC(): Promise<void> {
@@ -64,10 +64,10 @@ export async function runMarketGC(): Promise<void> {
     data:  { status: 'expired' },
   });
 
-  // Top up dangerous/legendary back to their standing target — runs after the awarding/expiry
-  // passes above so it sees an up-to-date count, not one still including contracts this same
-  // tick just resolved.
-  const replenished = await replenishBiddingMarket(now);
+  // Top up every tier back to its population-scaled standing target — runs after the
+  // awarding/expiry passes above so it sees an up-to-date count, not one still including
+  // contracts this same tick just resolved.
+  const replenished = await replenishContractMarket(now);
 
   // Fail awarded contracts whose deploy-by deadline passed without a party ever being sent
   // — otherwise a player could accept/win contracts indefinitely without committing to

@@ -5,7 +5,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { prisma } from '../lib/prisma.js';
 import { resolveAdventure } from '../services/adventure.js';
-import { seedAdventurers, seedContracts, replenishBiddingMarket } from '../services/marketSeeding.js';
+import { seedAdventurers, replenishContractMarket } from '../services/marketSeeding.js';
 import { zodErrorMessage } from '../lib/zodError.js';
 
 const router = Router();
@@ -156,15 +156,11 @@ router.post('/adventurers/seed', async (req, res) => {
 });
 
 // POST /api/v1/admin/contracts/seed
-// Adds one daily batch of errand/standard contracts, and tops up dangerous/legendary up to
-// their standing target if under (see BIDDING_MARKET_TARGET) — without touching anything
-// already on the market.
+// Tops up every contract tier to its population-scaled standing target (see
+// CONTRACT_MARKET_BASE_RATE) — without touching anything already on the market.
 router.post('/contracts/seed', async (_req, res) => {
-  const [dailyAdded, biddingAdded] = await Promise.all([
-    seedContracts(),
-    replenishBiddingMarket(),
-  ]);
-  res.json({ added: dailyAdded + biddingAdded });
+  const added = await replenishContractMarket();
+  res.json({ added });
 });
 
 export default router;

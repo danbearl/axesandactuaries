@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { collectDailyWages, chargePropertyMaintenance } from '../services/economy.js';
-import { seedAdventurers, seedContracts } from '../services/marketSeeding.js';
+import { seedAdventurers } from '../services/marketSeeding.js';
+import { getActivePlayerCount } from '../services/activity.js';
 import { publish, CHANNELS } from '../lib/redis.js';
 import { COHESION_DAILY_DECAY } from '@axes-actuaries/types';
 
@@ -31,36 +32,17 @@ export async function runDailyReset(): Promise<void> {
     decayCohesion(),
   ]);
 
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const playerCount = await prisma.player.count({
-    where: {
-      OR: [
-        // Deliberate hire / build / sell actions in the last 7 days
-        {
-          transactions: {
-            some: {
-              createdAt: { gte: sevenDaysAgo },
-              reason: { in: ['hire_cost', 'property_build', 'property_sell'] },
-            },
-          },
-        },
-        // Or sent a party on at least one adventure in the last 7 days
-        { adventures: { some: { createdAt: { gte: sevenDaysAgo } } } },
-      ],
-    },
-  });
+  const playerCount = await getActivePlayerCount(now);
   const adventurerCount = Math.max(
     DAILY_ADVENTURER_MIN,
     Math.ceil(playerCount * DAILY_ADVENTURERS_PER_PLAYER),
   );
 
-  // seedContracts only covers errand/standard — dangerous/legendary are maintained by
-  // marketGC's reactive standing-target top-up instead (see BIDDING_MARKET_TARGET).
-  const [adventurersAdded, contractsAdded] = await Promise.all([
-    seedAdventurers(adventurerCount, now),
-    seedContracts(now),
-  ]);
-  console.log(`[daily-reset] Added ${adventurersAdded} adventurer(s), ${contractsAdded} contract(s) to market`);
+  // Contracts (all four tiers) are no longer seeded here — they're maintained continuously
+  // by marketGC's reactive standing-target top-up instead (see CONTRACT_MARKET_BASE_RATE),
+  // which now covers errand/standard too, not just dangerous/legendary.
+  const adventurersAdded = await seedAdventurers(adventurerCount, now);
+  console.log(`[daily-reset] Added ${adventurersAdded} adventurer(s) to market`);
 
   publish(CHANNELS.market, 'market_update', { type: 'daily_reset' })
     .catch(() => { /* non-fatal */ });

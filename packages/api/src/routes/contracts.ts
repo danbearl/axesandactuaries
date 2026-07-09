@@ -4,11 +4,11 @@ import { prisma } from '../lib/prisma.js';
 import {
   BIDDING_CONTRACT_TIERS,
   CONTRACT_TIER_REPUTATION_REQUIREMENTS,
-  DIRECT_ACCEPT_DEPLOY_HOURS,
   BID_WINDOW_HOURS,
 } from '@axes-actuaries/types';
 import type { ContractTier } from '@axes-actuaries/types';
 import { getBootstrapStatus, WELFARE_COOLDOWN_HOURS, WELFARE_CONTRACT, claimWelfareContract } from '../services/bootstrap.js';
+import { acceptContract } from '../services/contracts.js';
 import { ClaimConflictError } from '../lib/errors.js';
 import { publish, CHANNELS } from '../lib/redis.js';
 
@@ -90,8 +90,9 @@ router.post('/welfare/accept', requireAuth, async (req, res) => {
 
 // POST /api/v1/contracts/:id/accept
 // Direct accept — only available for errand and standard tier.
-// Dangerous/legendary must go through bidding. Uses atomic UPDATE WHERE to
-// prevent two players from accepting the same contract simultaneously.
+// Dangerous/legendary must go through bidding. See services/contracts.ts for the
+// tier/status/expiry/cap checks and the atomic claim that prevents two players from
+// accepting the same contract simultaneously.
 router.post('/:id/accept', requireAuth, async (req, res) => {
   const { id } = req.params;
 
@@ -100,35 +101,21 @@ router.post('/:id/accept', requireAuth, async (req, res) => {
     res.status(404).json({ error: 'Contract not found' });
     return;
   }
-  if (BIDDING_CONTRACT_TIERS.includes(contract.tier as ContractTier)) {
-    res.status(409).json({ error: 'Dangerous and legendary contracts are awarded through competitive bidding, not direct accept' });
-    return;
-  }
-  if (contract.status !== 'available') {
-    res.status(409).json({ error: 'Contract is no longer available' });
-    return;
-  }
-  if (new Date(contract.expiresAt) <= new Date()) {
-    res.status(409).json({ error: 'Contract has expired' });
-    return;
-  }
 
-  // Atomic claim: only one player can win when multiple race for the same contract.
-  const deployBy = new Date(Date.now() + DIRECT_ACCEPT_DEPLOY_HOURS * 60 * 60 * 1000);
-  const claimed = await prisma.contract.updateMany({
-    where: { id, status: 'available' },
-    data:  { status: 'awarded', awardedTo: req.playerId, deployBy },
-  });
-  if (claimed.count === 0) {
-    res.status(409).json({ error: 'Contract was just taken by another player' });
-    return;
+  try {
+    const updatedContract = await acceptContract(req.playerId, contract);
+
+    publish(CHANNELS.market, 'market_update', { type: 'contract_accept', contractId: id })
+      .catch(() => { /* non-fatal if Redis is unavailable */ });
+
+    res.json({ contract: updatedContract });
+  } catch (err) {
+    if (err instanceof ClaimConflictError) {
+      res.status(409).json({ error: err.message });
+      return;
+    }
+    throw err;
   }
-
-  publish(CHANNELS.market, 'market_update', { type: 'contract_accept', contractId: id })
-    .catch(() => { /* non-fatal if Redis is unavailable */ });
-
-  const updatedContract = await prisma.contract.findUniqueOrThrow({ where: { id } });
-  res.json({ contract: updatedContract });
 });
 
 // POST /api/v1/contracts/:id/bid

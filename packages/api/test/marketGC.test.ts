@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { BIDDING_MARKET_TARGET } from '@axes-actuaries/types';
+import { CONTRACT_MARKET_BASE_RATE } from '@axes-actuaries/types';
 import { prisma } from '../src/lib/prisma.js';
 import { runMarketGC } from '../src/workers/marketGC.js';
 import { createPlayer, createAdventurer, createContract } from './fixtures.js';
@@ -105,21 +105,20 @@ describe('runMarketGC', () => {
     expect(awarded.status).toBe('awarded');
   });
 
-  it('tops up dangerous/legendary contracts to their standing target from an empty market', async () => {
+  it('tops up every tier to its base standing target from an empty market with no active players', async () => {
     await runMarketGC();
 
-    const dangerousCount = await prisma.contract.count({
-      where: { tier: 'dangerous', status: { in: ['available', 'bidding'] } },
-    });
-    const legendaryCount = await prisma.contract.count({
-      where: { tier: 'legendary', status: { in: ['available', 'bidding'] } },
-    });
-    expect(dangerousCount).toBe(BIDDING_MARKET_TARGET.dangerous);
-    expect(legendaryCount).toBe(BIDDING_MARKET_TARGET.legendary);
+    for (const tier of ['errand', 'standard', 'dangerous', 'legendary'] as const) {
+      const count = await prisma.contract.count({
+        where: { tier, status: { in: ['available', 'bidding'] } },
+      });
+      // Zero active players still floors at the base rate — see CONTRACT_MARKET_BASE_RATE.
+      expect(count).toBe(CONTRACT_MARKET_BASE_RATE[tier]);
+    }
   });
 
   it('does not add more bidding-tier contracts once the standing target is already met', async () => {
-    for (let i = 0; i < BIDDING_MARKET_TARGET.legendary; i++) {
+    for (let i = 0; i < CONTRACT_MARKET_BASE_RATE.legendary; i++) {
       await createContract({ tier: 'legendary', status: 'available', bidDeadline: null });
     }
 
@@ -128,7 +127,7 @@ describe('runMarketGC', () => {
     const legendaryCount = await prisma.contract.count({
       where: { tier: 'legendary', status: { in: ['available', 'bidding'] } },
     });
-    expect(legendaryCount).toBe(BIDDING_MARKET_TARGET.legendary);
+    expect(legendaryCount).toBe(CONTRACT_MARKET_BASE_RATE.legendary);
   });
 
   it('counts bidding-status contracts toward the standing target, not just available ones', async () => {
@@ -141,7 +140,28 @@ describe('runMarketGC', () => {
     const legendaryCount = await prisma.contract.count({
       where: { tier: 'legendary', status: { in: ['available', 'bidding'] } },
     });
-    expect(legendaryCount).toBe(BIDDING_MARKET_TARGET.legendary);
+    expect(legendaryCount).toBe(CONTRACT_MARKET_BASE_RATE.legendary);
+  });
+
+  it('scales every tier\'s target up with the active player count', async () => {
+    // Two active players (one via a qualifying transaction, one via a sent adventure) should
+    // double every tier's target above its base-rate floor.
+    const p1 = await createPlayer();
+    await prisma.transaction.create({
+      data: { playerId: p1.id, amount: -100, reason: 'hire_cost', description: 'test' },
+    });
+    const p2 = await createPlayer();
+    const contract = await createContract({ status: 'in_progress' });
+    await prisma.adventure.create({
+      data: { contractId: contract.id, playerId: p2.id, startsAt: past(1000), completesAt: future(1000), status: 'in_progress' },
+    });
+
+    await runMarketGC();
+
+    const legendaryCount = await prisma.contract.count({
+      where: { tier: 'legendary', status: { in: ['available', 'bidding'] } },
+    });
+    expect(legendaryCount).toBe(CONTRACT_MARKET_BASE_RATE.legendary * 2);
   });
 
   it('fails an awarded contract whose deploy-by deadline passed, applying its penalty', async () => {

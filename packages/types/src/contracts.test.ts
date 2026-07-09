@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
-  generateContract, generateDailyContracts, CONTRACT_TIER_CONFIG,
+  generateContract, CONTRACT_TIER_CONFIG,
   countUnmetRequirements, adventurerMeetsAnyRequirement, estimateSuccessChance,
   MIN_SUCCESS_CHANCE, MAX_SUCCESS_CHANCE, REQUIREMENT_PENALTY_PER_UNMET,
   DIRECT_ACCEPT_CONTRACT_EXPIRY_HOURS, BIDDING_CONTRACT_BACKSTOP_EXPIRY_HOURS,
-  BIDDING_MARKET_TARGET,
+  CONTRACT_MARKET_BASE_RATE,
 } from './contracts.js';
 import { BIDDING_CONTRACT_TIERS } from './game.js';
 import type { ContractTier } from './game.js';
@@ -211,28 +211,11 @@ describe('estimateSuccessChance', () => {
   });
 });
 
-describe('generateDailyContracts', () => {
-  it('produces only errand/standard contracts — bidding tiers use a standing target instead', () => {
-    // Dangerous/legendary don't age off on a fixed clock (see BID_WINDOW_HOURS), so a flat
-    // daily add would let the market grow unbounded over multiple days; they're maintained
-    // by workers/marketGC.ts's reactive top-up against BIDDING_MARKET_TARGET instead.
-    const contracts = generateDailyContracts(new Date());
-    const counts = contracts.reduce<Record<string, number>>((acc, c) => {
-      acc[c.tier] = (acc[c.tier] ?? 0) + 1;
-      return acc;
-    }, {});
-
-    expect(counts.errand).toBe(5);
-    expect(counts.standard).toBe(8);
-    expect(counts.dangerous).toBeUndefined();
-    expect(counts.legendary).toBeUndefined();
-    expect(contracts).toHaveLength(13);
-  });
-});
-
-describe('BIDDING_MARKET_TARGET', () => {
-  it('defines a standing target for both bidding tiers', () => {
-    expect(BIDDING_MARKET_TARGET.dangerous).toBe(5);
-    expect(BIDDING_MARKET_TARGET.legendary).toBe(2);
+describe('CONTRACT_MARKET_BASE_RATE', () => {
+  it('defines a per-active-player standing-target rate for every tier', () => {
+    expect(CONTRACT_MARKET_BASE_RATE.errand).toBe(5);
+    expect(CONTRACT_MARKET_BASE_RATE.standard).toBe(8);
+    expect(CONTRACT_MARKET_BASE_RATE.dangerous).toBe(5);
+    expect(CONTRACT_MARKET_BASE_RATE.legendary).toBe(2);
   });
 });

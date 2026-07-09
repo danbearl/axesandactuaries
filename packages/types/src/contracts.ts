@@ -41,8 +41,17 @@ export const BID_WINDOW_HOURS = 4;
 // Backstop for a contract that never receives a single bid — without this, an unpopular
 // contract would occupy its market slot forever, since nothing else ever prompts its
 // removal. Deliberately generous (days, not hours) since replenishment is reactive (see
-// BIDDING_MARKET_TARGET below), so a longer backstop doesn't reintroduce an empty-market gap.
+// CONTRACT_MARKET_BASE_RATE below), so a longer backstop doesn't reintroduce an empty-market gap.
 export const BIDDING_CONTRACT_BACKSTOP_EXPIRY_HOURS = 96;
+
+// A player can hold at most this many direct-accept (errand/standard) contracts
+// simultaneously in 'awarded'-but-undeployed limbo. These two tiers have no reputation gate
+// by design (see CONTRACT_TIER_REPUTATION_REQUIREMENTS), so without a cap a player could
+// accept the entire market for free and just let each one lapse at its deploy-by penalty —
+// denying every other player a contract to work in the meantime at essentially zero cost to
+// themselves. Dangerous/legendary aren't capped: winning one already requires clearing a
+// reputation gate and a competitive bid, a much higher-effort path.
+export const MAX_CONCURRENT_DIRECT_ACCEPT_CONTRACTS = 3;
 
 // ── Tier Configuration ────────────────────────────────────────────────────────
 
@@ -467,29 +476,19 @@ export function estimateSuccessChance(
   return Math.max(MIN_SUCCESS_CHANCE, Math.min(MAX_SUCCESS_CHANCE, raw));
 }
 
-// Direct-accept tiers only: a fixed once-daily batch, added on top of whatever's already on
-// the market (contracts age off individually via DIRECT_ACCEPT_CONTRACT_EXPIRY_HOURS, so this
-// never needs to be target-aware the way the bidding tiers do — see BIDDING_MARKET_TARGET).
-const DAILY_CONTRACT_COUNTS: Record<'errand' | 'standard', number> = {
-  errand:   5,
-  standard: 8,
-};
-
-// Bidding tiers only: a standing target maintained continuously by workers/marketGC.ts
-// (checked every 15 minutes, topped up whenever a contract resolves or backstop-expires)
-// rather than a once-daily add — since these contracts don't age off on a fixed clock, a flat
-// daily add would let the market grow unbounded over multiple days instead of holding steady.
-export const BIDDING_MARKET_TARGET: Record<'dangerous' | 'legendary', number> = {
+// Per-active-player rate for every tier's standing market target — the whole market (not
+// just the bidding tiers) is maintained continuously by workers/marketGC.ts (checked every
+// 15 minutes, topped up to max(rate, ceil(rate * activePlayerCount)) whenever a slot opens
+// up) rather than a once-daily fixed add, so the market scales with how many people are
+// actually playing instead of staying a constant regardless of guild size. "Active" means
+// took some action in the last 7 days — see api's services/activity.ts.
+//
+// The rate also doubles as a floor: at zero or one active players this reduces to today's
+// original fixed numbers, so a quiet market (or a fresh deploy, before anyone's activity
+// clears the 7-day window) never drops to zero contracts and locks new players out.
+export const CONTRACT_MARKET_BASE_RATE: Record<ContractTier, number> = {
+  errand:    5,
+  standard:  8,
   dangerous: 5,
   legendary: 2,
 };
-
-export function generateDailyContracts(now = new Date()): GeneratedContract[] {
-  const contracts: GeneratedContract[] = [];
-  for (const [tier, count] of Object.entries(DAILY_CONTRACT_COUNTS) as ['errand' | 'standard', number][]) {
-    for (let i = 0; i < count; i++) {
-      contracts.push(generateContract(tier, now));
-    }
-  }
-  return contracts;
-}

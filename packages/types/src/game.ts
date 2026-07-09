@@ -457,3 +457,23 @@ export interface Transaction {
   referenceId?: string;
   createdAt:   string;
 }
+
+// ── Player Events ─────────────────────────────────────────────────────────────
+// Mirrors TransactionReason/Transaction's shape — an extensible, typed per-player event log
+// (see api's services/playerEvents.ts). Adding a future event type costs one enum value here
+// (kept in sync with the matching Prisma enum) plus one call site, no schema/route changes.
+
+export type PlayerEventType =
+  | 'contract_completed'
+  | 'contract_failed'
+  | 'adventurer_quit'
+  | 'adventurer_recovered'
+  | 'adventurer_rest_complete';
+
+export interface PlayerEvent {
+  id:          string;
+  type:        PlayerEventType;
+  summary:     string;
+  referenceId?: string;
+  createdAt:   string;
+}

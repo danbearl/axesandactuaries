@@ -50,6 +50,15 @@ export function useSSE() {
         void queryClient.invalidateQueries({ queryKey: ['transactions'] });
       });
 
+      // One generic event for every guild-events-feed entry (contract completion/failure,
+      // adventurer quit/injury-recovery/rest-completion, and any future type added to
+      // services/playerEvents.ts) — prefix-matches both ['feed', page, filter] (Feed.tsx) and
+      // ['feed', 'recent'] (Dashboard widget). Adding a new event type never needs a new
+      // handler here.
+      es.addEventListener('player_event', () => {
+        void queryClient.invalidateQueries({ queryKey: ['feed'] });
+      });
+
       es.onerror = () => {
         es?.close();
         es = null;

@@ -50,6 +50,11 @@ export default function Dashboard() {
     queryFn: () => api.transactions.list(5, 0),
   });
 
+  const { data: feedData } = useQuery({
+    queryKey: ['feed', 'recent'],
+    queryFn: () => api.feed.list(5, 0),
+  });
+
   if (isLoading || !data) {
     return <div className="dashboard"><div className="empty-state">Loading…</div></div>;
   }
@@ -63,6 +68,7 @@ export default function Dashboard() {
   const daysOfRunway = dailyBurn > 0 ? Math.floor(player.gold / dailyBurn) : Infinity;
 
   const recentTx = txData?.transactions ?? [];
+  const recentEvents = feedData?.events ?? [];
   const isDeployable = (a: AdventurerResponse) =>
     a.status === 'hired' && (!a.restUntil || new Date(a.restUntil) <= new Date());
   const hiredAdventurers = hired.filter(isDeployable);
@@ -224,6 +230,23 @@ export default function Dashboard() {
               </div>
             ))}
             {recentTx.length === 0 && <div className="empty-state">No transactions yet.</div>}
+          </div>
+        </section>
+
+        {/* Recent events */}
+        <section className="panel dashboard-ledger">
+          <div className="flex items-center justify-between mb-md">
+            <h2>Recent Events</h2>
+            <Link to="/adventures" className="btn btn-sm btn-secondary">Full Feed</Link>
+          </div>
+
+          <div className="flex-col gap-xs">
+            {recentEvents.map(ev => (
+              <div key={ev.id} className="ledger-row">
+                <div className="ledger-desc">{ev.summary}</div>
+              </div>
+            ))}
+            {recentEvents.length === 0 && <div className="empty-state">No recent events.</div>}
           </div>
         </section>
 

@@ -197,6 +197,26 @@ describe('collectDailyWages', () => {
     expect(forgiveness.referenceId).toBe(adv.id);
   });
 
+  it('logs an adventurer_quit event mentioning unpaid wages when wages were owed', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+
+    const player = await createPlayer({ gold: 0, reputation: 100 });
+    const adv = await createAdventurer({
+      name: 'Kessa Vane', employerId: player.id, status: 'hired', level: 2, dailyWage: 50,
+      personality: { loyalty: 1, ambition: 3, temperament: 3, disposition: 3 },
+      daysUnpaid: 5, loyaltyPenalty: 20,
+    });
+
+    await collectDailyWages();
+
+    const event = await prisma.playerEvent.findFirstOrThrow({
+      where: { playerId: player.id, type: 'adventurer_quit' },
+    });
+    expect(event.referenceId).toBe(adv.id);
+    expect(event.summary).toContain('Kessa Vane');
+    expect(event.summary).toContain('unpaid wages');
+  });
+
   it('does not let adventurers on an active adventure quit even if unpaid', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0); // would force a quit if it were allowed to leave
 
@@ -257,6 +277,14 @@ describe('collectDailyWages', () => {
       where: { playerId: player.id, reason: 'wage' },
     });
     expect(wageTx.amount).toBe(-50);
+
+    // No wages were ever owed, so the quit event falls back to the generic reason rather
+    // than (incorrectly) mentioning unpaid wages.
+    const event = await prisma.playerEvent.findFirstOrThrow({
+      where: { playerId: player.id, type: 'adventurer_quit' },
+    });
+    expect(event.summary).toContain('sought better opportunities');
+    expect(event.summary).not.toContain('unpaid wages');
   });
 
   it('does not accrue idle penalty while an adventurer is resting off a prior mission', async () => {

@@ -14,6 +14,7 @@ if (!dbUrl.includes('_test')) {
 const TABLES = [
   'adventure_adventurers',
   'transactions',
+  'player_events',
   'contract_bids',
   'adventures',
   'properties',

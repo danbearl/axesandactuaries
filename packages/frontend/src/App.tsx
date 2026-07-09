@@ -13,7 +13,7 @@ const AdventurerMarket = lazy(() => import('./pages/AdventurerMarket.tsx'));
 const ContractMarket = lazy(() => import('./pages/ContractMarket.tsx'));
 const Properties = lazy(() => import('./pages/Properties.tsx'));
 const AdventureDetail = lazy(() => import('./pages/AdventureDetail.tsx'));
-const AdventureLog = lazy(() => import('./pages/AdventureLog.tsx'));
+const Feed = lazy(() => import('./pages/Feed.tsx'));
 const AdventurerDetail = lazy(() => import('./pages/AdventurerDetail.tsx'));
 const Transactions = lazy(() => import('./pages/Transactions.tsx'));
 const Profile = lazy(() => import('./pages/Profile.tsx'));
@@ -81,7 +81,7 @@ function AuthenticatedApp() {
             <Route path="/market/adventurers" element={<AdventurerMarket />} />
             <Route path="/market/contracts" element={<ContractMarket />} />
             <Route path="/properties" element={<Properties />} />
-            <Route path="/adventures" element={<AdventureLog />} />
+            <Route path="/adventures" element={<Feed />} />
             <Route path="/adventures/:id" element={<AdventureDetail />} />
             <Route path="/adventurers/:id" element={<AdventurerDetail />} />
             <Route path="/transactions" element={<Transactions />} />

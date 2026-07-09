@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import { publish, CHANNELS } from '../lib/redis.js';
 import { BID_AWARD_DEPLOY_HOURS } from '@axes-actuaries/types';
 import { replenishContractMarket } from '../services/marketSeeding.js';
+import { logPlayerEvent } from '../services/playerEvents.js';
 
 // Runs every 15 minutes.
 export async function runMarketGC(): Promise<void> {
@@ -117,15 +118,29 @@ export async function runMarketGC(): Promise<void> {
 
   // Release injured adventurers who have recovered — still employed ones return to duty;
   // ones released (fired) while injured re-enter the open market instead, since they have
-  // no employer to return to. Split into two updates since the target status differs.
-  const recoveredEmployed = await prisma.adventurer.updateMany({
+  // no employer to return to. Split into two updates since the target status differs; the
+  // employed case is found first (rather than a bare updateMany) so each one can get its own
+  // logPlayerEvent — there's an owning player to notify, unlike the unemployed case.
+  const recoveredEmployedList = await prisma.adventurer.findMany({
     where: {
       status:              'injured',
       injuryRecoveryUntil: { lte: now },
       employerId:          { not: null },
     },
-    data: { status: 'hired', injuryRecoveryUntil: null },
+    select: { id: true, name: true, employerId: true },
   });
+  for (const adv of recoveredEmployedList) {
+    await prisma.adventurer.update({
+      where: { id: adv.id },
+      data:  { status: 'hired', injuryRecoveryUntil: null },
+    });
+    logPlayerEvent({
+      playerId:    adv.employerId!,
+      type:        'adventurer_recovered',
+      summary:     `${adv.name} has recovered from injury and is ready to deploy.`,
+      referenceId: adv.id,
+    }).catch(() => {});
+  }
   const recoveredUnemployed = await prisma.adventurer.updateMany({
     where: {
       status:              'injured',
@@ -138,14 +153,36 @@ export async function runMarketGC(): Promise<void> {
       poolExpiresAt:       new Date(now.getTime() + 48 * 60 * 60 * 1000),
     },
   });
-  const recoveredCount = recoveredEmployed.count + recoveredUnemployed.count;
+  const recoveredCount = recoveredEmployedList.length + recoveredUnemployed.count;
 
-  const total = awarded + bidExpiredCount + marketExpired.count + replenished + deployMissed.length + recoveredCount;
+  // Clear elapsed rest periods for hired adventurers — restUntil is otherwise only ever
+  // checked lazily (party assembly, wage/loyalty accrual), never actively cleared, so this is
+  // the one active moment a "finished resting" event can be logged. Only hired adventurers
+  // are in scope: an unemployed one's stale restUntil isn't meaningful to any player.
+  const restCompleteList = await prisma.adventurer.findMany({
+    where: { status: 'hired', restUntil: { lte: now, not: null } },
+    select: { id: true, name: true, employerId: true },
+  });
+  for (const adv of restCompleteList) {
+    await prisma.adventurer.update({
+      where: { id: adv.id },
+      data:  { restUntil: null },
+    });
+    logPlayerEvent({
+      playerId:    adv.employerId!,
+      type:        'adventurer_rest_complete',
+      summary:     `${adv.name} has finished resting and is ready to deploy.`,
+      referenceId: adv.id,
+    }).catch(() => {});
+  }
+
+  const total = awarded + bidExpiredCount + marketExpired.count + replenished + deployMissed.length
+    + recoveredCount + restCompleteList.length;
   if (total > 0) {
     console.log(
       `[market-gc] Awarded ${awarded} bid contract(s), expired ${bidExpiredCount + marketExpired.count} contract(s), ` +
       `replenished ${replenished} bidding-tier contract(s), failed ${deployMissed.length} contract(s) for missed ` +
-      `deploy-by, recovered ${recoveredCount} adventurer(s)`,
+      `deploy-by, recovered ${recoveredCount} adventurer(s), ${restCompleteList.length} adventurer(s) finished resting`,
     );
     publish(CHANNELS.market, 'market_update', {
       type:      'gc',
@@ -154,6 +191,7 @@ export async function runMarketGC(): Promise<void> {
       replenished,
       deployMissed: deployMissed.length,
       recovered: recoveredCount,
+      restComplete: restCompleteList.length,
     }).catch(() => {});
   }
 }

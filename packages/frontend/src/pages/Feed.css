@@ -1,0 +1,68 @@
+.feed-page { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.feed-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+/* reuse tier-tab shape from ContractMarket/Transactions via global index.css — define locally */
+.feed-filters .tier-tab {
+  font-family: var(--font-heading);
+  font-size:   0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding:     0.35rem 0.85rem;
+  border-radius: var(--radius);
+  border:      1px solid var(--parchment-dark);
+  background:  transparent;
+  color:       var(--ink-faint);
+  cursor:      pointer;
+  transition:  all 0.15s;
+}
+.feed-filters .tier-tab:hover  { border-color: var(--ink-faint); color: var(--ink-light); }
+.feed-filters .tier-tab.active { background: var(--ink); color: var(--parchment); border-color: var(--ink); }
+
+.log-table {
+  width:           100%;
+  border-collapse: collapse;
+  font-size:       0.95rem;
+}
+
+.log-table thead tr {
+  border-bottom: 2px solid var(--parchment-dark);
+}
+.log-table th {
+  padding:     0.5rem 0.75rem;
+  text-align:  left;
+  font-family: var(--font-heading);
+}
+
+.log-table-row {
+  border-bottom: 1px solid var(--parchment-dark);
+  cursor:        pointer;
+  transition:    background 0.1s;
+}
+.log-table-row:last-child { border-bottom: none; }
+.log-table-row:hover { background: var(--parchment-mid); }
+.log-table-row-static { cursor: default; }
+.log-table-row-static:hover { background: none; }
+
+.log-table td { padding: 0.6rem 0.75rem; vertical-align: middle; }
+
+.feed-type-tag {
+  font-family: var(--font-heading);
+  font-size:   0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color:       var(--ink-faint);
+  white-space: nowrap;
+}
+
+.log-pagination {
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  gap:             1rem;
+}

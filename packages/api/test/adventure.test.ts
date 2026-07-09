@@ -112,6 +112,10 @@ describe('resolveAdventure', () => {
     expect(tx.reason).toBe('contract_payment');
     expect(tx.amount).toBe(300);
 
+    const event = await prisma.playerEvent.findFirstOrThrow({ where: { playerId: player.id } });
+    expect(event.type).toBe('contract_completed');
+    expect(event.referenceId).toBe(adventure.id);
+
     const updatedAdv = await prisma.adventurer.findUniqueOrThrow({ where: { id: adventurer.id } });
     expect(updatedAdv.status).toBe('hired');
     expect(updatedAdv.injuryRecoveryUntil).toBeNull();
@@ -488,6 +492,10 @@ describe('resolveAdventure', () => {
     const tx = await prisma.transaction.findFirstOrThrow({ where: { playerId: player.id } });
     expect(tx.reason).toBe('penalty');
     expect(tx.amount).toBe(-90);
+
+    const event = await prisma.playerEvent.findFirstOrThrow({ where: { playerId: player.id } });
+    expect(event.type).toBe('contract_failed');
+    expect(event.referenceId).toBe(adventure.id);
 
     const updatedAdv = await prisma.adventurer.findUniqueOrThrow({ where: { id: adventurer.id } });
     expect(updatedAdv.status).toBe('injured');

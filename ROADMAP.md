@@ -437,6 +437,16 @@ open to a small trusted player pool (Phase 0 below).
   breakdown of another player's underlying gold/reputation/power numbers. Test-covered in
   `test/leaderboard.test.ts` (score math, onboarding-incomplete exclusion, top-10-only vs.
   windowed response) and verified end-to-end in a real browser.
+- Adventurer leaderboard (2026-07-09, user's idea, captured for later — no scoping done) —
+  a separate leaderboard from the player ranking above, listing the most powerful individual
+  adventurers game-wide: vocation, power level, number of adventures, success %, and
+  employer. Ranked by power level, then success % as tiebreaker, then number of adventures as
+  second tiebreaker. Likely lives alongside the existing player leaderboard
+  (`pages/Leaderboard.tsx`, `services/leaderboard.ts`) as a second view rather than a new nav
+  destination, given the precedent it sets. Open questions for the scoping pass: whether
+  unemployed/market adventurers are included (their "employer" column implies at least an
+  explicit "none" state) or this is scoped to currently-hired ones only; and whether it's
+  restricted to top-N like the player leaderboard or fully browsable.
 - [x] Fixed negative-reputation lockout (2026-07-06) — a player whose reputation dropped
   below 0 (from repeated contract-failure penalties) became unable to hire *any* adventurer,
   including the cheapest level 1–2 ones, and the Contract Board hid the Accept button for
@@ -552,30 +562,63 @@ open to a small trusted player pool (Phase 0 below).
 - Achievements (from original TODO.md, Gamification, split off from the ranking item above
   on 2026-07-06) — no design work done yet; needs its own scoping pass before
   implementation.
-- Player news feed (2026-07-07, user's idea, captured for later — no scoping done) — a
-  private, per-player rolling feed of short, single-sentence events about their own guild
-  ("Clear the Millbrook Road completed successfully", "Kessa Vane left due to unpaid
-  wages") — distinct from both the Adventure Log (detailed per-adventure reports, already
-  built) and the Announcements/newsletter idea captured above (admin-authored, broadcast to
-  everyone) — this is terse, system-generated, and private to the one player it's about.
-  Natural fit once scoped: several of the exact moments this would cover already publish a
-  per-player SSE event that could double as the feed's source — `adventure_completed`
-  (`services/adventure.ts`), `contract_awarded`/`contract_expired` (`workers/marketGC.ts`),
-  `daily_summary` (`workers/dailyReset.ts`). SSE alone isn't enough on its own though — it's
-  ephemeral and missed entirely if the player is offline when it fires, so this needs real
-  persistence (a new table), with the existing SSE events just double-published to it rather
-  than the feed being SSE-derived at read time. Adventurer quits don't publish *any* SSE
-  event today (`services/economy.ts`'s quit logic only records a `debt_forgiven`
-  transaction) — would need a new publish call there too. The user's own example wording
-  implies the feed should state *why* an adventurer left (unpaid wages vs. lack of
-  opportunity), but the quit logic currently blends all loyalty sources (wages, idle
-  neglect, tier mismatch) into one shared `loyaltyPenalty` pool with no tracked "proximate
-  cause" — surfacing a specific reason would need at least a dominant-cause heuristic, if
-  not tracking cause explicitly. Open questions: how far back does the rolling feed go /
-  does it paginate (same shape as the Adventure Log); does it need a read/unread indicator
-  or nav badge (echoes the same open question already captured for Announcements); does it
-  live in its own nav tab or fold into an existing one (Dashboard sidebar, notification
-  bell icon).
+- [x] Player events feed (2026-07-09) — replaced the Adventure Log tab with a unified,
+  filterable/sortable **Feed** covering contract completions/failures, adventurer quits (with
+  an approximated reason), injury recovery, and rest completion. Designed explicitly so a 6th+
+  event type costs one enum value + one call site, per the user's stated requirement — closes
+  out the "Player news feed" idea captured on 2026-07-07 (below is what actually shipped,
+  replacing that entry).
+  - New `PlayerEvent` model/`PlayerEventType` enum (`packages/api/prisma/schema.prisma`,
+    mirrored in `packages/types/src/game.ts` per the enum-sync gotcha in `CLAUDE.md`) — same
+    shape as the existing `Transaction`/`TransactionReason` ledger pattern. New
+    `services/playerEvents.ts` gives every trigger point a single `logPlayerEvent()` call
+    (DB write is real and can throw; the SSE publish is swallowed internally, matching every
+    other `publish()` call in this codebase — CI has no Redis service at all, confirmed while
+    building this, so an unswallowed publish would have broken every test that exercises a
+    trigger point, not just this feature's own).
+  - Five trigger points wired: `services/adventure.ts`'s `resolveAdventure()` (contract
+    completed/failed, linking to the existing `/adventures/:id` detail page);
+    `services/economy.ts`'s quit block (adventurer quit — reason approximated from data
+    already on hand: "unpaid wages (N gp owed)" if `wagesOwed > 0` at the moment of leaving,
+    else a generic "sought better opportunities elsewhere", deliberately not adding real
+    cause-tracking to the loyalty-penalty accrual logic); `workers/marketGC.ts`'s injury
+    recovery sweep (converted from a bare `updateMany` to a `findMany`-then-loop so each
+    recovered adventurer's employer gets notified, mirroring the file's existing
+    `deployMissed` pattern); and a brand new rest-completion sweep in the same file — rest
+    previously had **no active trigger at all** (`restUntil` was only ever checked lazily
+    wherever read), so this is genuinely new instrumentation, not a hook into existing code.
+  - New `GET /api/v1/feed?limit=&offset=&type=` (`routes/feed.ts`, thin wrapper over
+    `services/playerEvents.ts`'s `listPlayerEvents()`) at a fresh mount path — `/api/v1/events`
+    was already taken by the SSE stream. Deleted `GET /adventures/history` outright (confirmed
+    via grep it was used only by the page being replaced).
+  - Frontend: new `pages/Feed.tsx` at the same `/adventures` route (so `/adventures/:id` links
+    keep working untouched), with type filter tabs (mirroring `Transactions.tsx`'s filter
+    pattern) resetting to page 0 on change, and pagination mirroring the old Adventure Log.
+    Only `contract_completed`/`contract_failed` rows are clickable — an `adventurer_quit`
+    event carries a `referenceId` for symmetry, but `routes/adventurers.ts`'s employer check
+    (`adventurer.employerId !== req.playerId`) means the ex-employer can never actually view
+    that adventurer's detail page again, so the frontend deliberately never links it. Dashboard
+    gained a "Recent Events" panel next to the existing "Recent Ledger" one, same shape.
+    `useSSE.ts` gained exactly one new handler, `player_event`, invalidating the `['feed']`
+    query key prefix — every future event type this generic channel carries needs zero
+    additional frontend wiring.
+  - Scope cut mid-design: a global "market refreshed" event type (population-scaled market
+    top-ups, daily adventurer reseeding) was planned and then deliberately dropped per explicit
+    direction — this pass is scoped to events specifically about a player's own guild.
+    `playerId` is a required field on `PlayerEvent`, not nullable; a global event type remains
+    a small, well-understood follow-up if wanted later (nullable `playerId` + an
+    `OR: [{ playerId }, { playerId: null }]` read, a pattern this codebase already uses
+    elsewhere for `restUntil` in `services/adventure.ts`).
+  - Test-covered at the service/worker layer (this codebase's established convention — no
+    route-level/supertest tests exist anywhere, so `routes/feed.ts` stays a thin wrapper over
+    a directly-tested service function rather than introducing a new testing pattern for just
+    one route): new `test/playerEvents.test.ts` (`logPlayerEvent`, `listPlayerEvents`
+    pagination/filtering/ownership), extended `test/marketGC.test.ts` (both new sweeps, event
+    logged for the employed/hired case only), `test/economy.test.ts` (both quit-reason
+    branches), and `test/adventure.test.ts` (both resolution outcomes). `pnpm typecheck`
+    verified clean across all three packages; `pnpm test` requires the schema migration to be
+    applied first (`pnpm db:migrate`, user's own action per this repo's convention) before it
+    can pass — not yet run end-to-end at the time of this entry.
 - Adventurer equipment system (from original TODO.md, Game Mechanics).
 - Adventurer traits/abilities (2026-07-07, user's idea, captured for later — no scoping
   done) — non-stat tags or abilities adventurers earn as they level up, giving each one a
@@ -1333,6 +1376,62 @@ open to a small trusted player pool (Phase 0 below).
     dynamically from `CONTRACT_TIER_CONFIG` rather than hardcoding the old bounds, and no
     API test relies on tier-derived `requiredPower` (`createContract`'s fixture default is
     a fixed, tier-independent value), so the new ranges needed no test updates to stay green.
+- [x] Contract market scales with player population; capped direct-accept hoarding
+  (2026-07-09) — raised as a scaling concern: errand/standard generated a fixed daily batch
+  (5/8) regardless of how many players were actually on the guild roster, which wouldn't
+  hold up past a couple of active players. Two design options were on the table — a shared
+  market scaled by active-player-count, vs. private per-player daily pools for
+  errand/standard. Went with the shared, population-scaled option: dangerous/legendary
+  already need to stay a shared competitive pool (bidding requires cross-player visibility),
+  so a private-pool split would've left the market page presenting two different mental
+  models side by side; the population-scaled option also directly extends a pattern already
+  proven in this codebase (`dailyReset.ts`'s adventurer-pool sizing, which already scales off
+  a 7-day "took some action" active-player count) rather than introducing a second,
+  structurally different mechanism alongside it.
+  - New `services/activity.ts` extracts that exact 7-day active-player query (previously
+    inlined in `dailyReset.ts`) into a shared `getActivePlayerCount()`, reused by both the
+    adventurer pool and the contract market so they scale off one consistent definition of
+    "active."
+  - New `CONTRACT_MARKET_BASE_RATE` (`packages/types/src/contracts.ts`) replaces the old
+    fixed `DAILY_CONTRACT_COUNTS`/`BIDDING_MARKET_TARGET`, giving all four tiers — not just
+    dangerous/legendary — the same per-active-player rate (errand 5, standard 8, dangerous 5,
+    legendary 2, unchanged from the prior fixed numbers). `services/marketSeeding.ts`'s new
+    `replenishContractMarket()` generalizes the old dangerous/legendary-only standing-target
+    top-up to cover all four tiers on `marketGC`'s existing 15-minute cycle, targeting
+    `max(rate, ceil(rate × activePlayerCount))`. The `max(rate, …)` floor is a deliberate
+    addition beyond what was asked: without it, zero active players (a fresh deploy, or a
+    lull before anyone's activity clears the 7-day window) computes a target of zero and
+    locks the market empty — including for a brand-new player, since their first session
+    doesn't count as "active" under the existing definition (no hire/build/sell/adventure
+    yet), which would otherwise be a bootstrapping deadlock. The floor just reduces to
+    today's original fixed numbers in that case, so it's not expected to be visible at
+    today's playtest population. `dailyReset.ts` no longer seeds contracts at all — that
+    responsibility moved entirely to the reactive top-up, and admin's "Seed Contracts" button
+    now calls the unified top-up for all tiers instead of two separate calls.
+  - Second, related concern raised in the same conversation: with no reputation gate on
+    errand/standard (deliberate, so new players are never locked out — see
+    `CONTRACT_TIER_REPUTATION_REQUIREMENTS`), a bad actor could accept every errand/standard
+    contract on the market for free and just let each one lapse, denying them to every other
+    player. The existing `deployBy` penalty (see the unbounded-hoarding fix above) already
+    costs a player who does this — but only in gold/reputation, not in market availability
+    for others while they're doing it. New `MAX_CONCURRENT_DIRECT_ACCEPT_CONTRACTS = 3` caps
+    how many contracts a player can simultaneously hold in `'awarded'`-but-undeployed limbo;
+    accepting a fourth returns a 409 until one deploys or resolves. Scoped to errand/standard
+    only — dangerous/legendary already require clearing a reputation gate and winning a
+    competitive bid, a much higher-effort path than a free direct accept, so weren't judged
+    worth the added complexity of also skipping an at-cap winner in `marketGC`'s bid-award
+    loop.
+  - Accept logic extracted from the router into a new `services/contracts.ts`
+    (`acceptContract()`), matching this codebase's existing thin-router-over-service-function
+    convention (`services/adventure.ts`, `services/bootstrap.ts`) so the cap check — and the
+    tier/status/expiry checks and atomic claim it now sits alongside — is unit-testable
+    directly rather than only reachable through an HTTP layer this test suite doesn't cover.
+  - Test-covered in `packages/types/src/contracts.test.ts` (new `CONTRACT_MARKET_BASE_RATE`
+    values), `packages/api/test/marketGC.test.ts` (all four tiers top up from empty, target
+    scales with active-player count, floor holds at zero active players), and new
+    `packages/api/test/contracts.test.ts` (cap enforcement, cap not affected by in-progress/
+    resolved/bidding-tier contracts). Typecheck/tests/build all verified clean by the user
+    before this entry.
 
 ## Beta Phase 3 — Player Customization
 **Goal:** players have meaningful ways to express/personalize their guild once retention is
@@ -1392,6 +1491,29 @@ criteria fuzzy.
 - Legendary-contract story elements affecting the game world (from original TODO.md, Game
   Mechanics) — grouped here rather than Beta Phase 2 since "affecting the game world"
   presumes a persistent multi-region world state to affect.
+
+## Post-Beta — Native Mobile App
+**Goal:** a native mobile client listed on the Apple App Store and Google Play, so players
+can play natively on their phones rather than through a mobile browser. Explicitly
+independent of Beta Phase 1's mobile-friendly *web* layout item above — that item makes the
+existing site usable on a phone's browser; this is a separate native application entirely,
+and doesn't depend on or replace it (the responsive web pass should still happen regardless
+of whether this is ever built). Deliberately ambitious/exploratory — no scoping done yet.
+
+- No platform decision made yet — needs its own research/decision pass before any
+  implementation: a cross-platform framework (e.g. React Native, matching the existing
+  React/TS skillset in `packages/frontend`) vs. two fully separate native codebases, vs. a
+  wrapped/packaged version of the existing web app (e.g. Capacitor) as a faster but lower-
+  quality-ceiling starting point.
+- API surface is likely mostly reusable as-is (`packages/api`'s REST endpoints + Redis
+  pub/sub-backed SSE for real-time updates aren't web-specific), but push notifications
+  (contract deadlines, adventure completions, deploy-by warnings) would be a genuinely new
+  capability the current web app doesn't have, and mobile SSE/backgrounding behavior needs
+  its own investigation rather than assuming parity with the browser.
+- Clerk auth would need its native/mobile SDK integration rather than the current web flow.
+- App store distribution brings its own new scope: developer account setup for both stores,
+  store review/compliance requirements, app store listing assets, and a release/update
+  pipeline distinct from the current `flyctl deploy` web flow.
 
 ## Post-Beta — Infrastructure Maturity
 **Goal:** the platform holds up under real scale and ongoing maintenance, not just a beta

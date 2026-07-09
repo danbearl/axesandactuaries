@@ -239,4 +239,63 @@ describe('runMarketGC', () => {
     expect(updated.injuryRecoveryUntil).toBeNull();
     expect(updated.poolExpiresAt).not.toBeNull();
   });
+
+  it('logs an adventurer_recovered event for an employed adventurer who recovers', async () => {
+    const player = await createPlayer();
+    const adv = await createAdventurer({
+      name: 'Kessa Vane', employerId: player.id, status: 'injured', injuryRecoveryUntil: past(1000),
+    });
+
+    await runMarketGC();
+
+    const event = await prisma.playerEvent.findFirstOrThrow({ where: { playerId: player.id } });
+    expect(event.type).toBe('adventurer_recovered');
+    expect(event.referenceId).toBe(adv.id);
+    expect(event.summary).toContain('Kessa Vane');
+  });
+
+  it('does not log any event for an unemployed adventurer who recovers', async () => {
+    await createAdventurer({ employerId: null, status: 'injured', injuryRecoveryUntil: past(1000) });
+
+    await runMarketGC();
+
+    const count = await prisma.playerEvent.count();
+    expect(count).toBe(0);
+  });
+
+  it('clears an elapsed rest period for a hired adventurer and logs an event', async () => {
+    const player = await createPlayer();
+    const adv = await createAdventurer({
+      name: 'Doran Ashe', employerId: player.id, status: 'hired', restUntil: past(1000),
+    });
+
+    await runMarketGC();
+
+    const updated = await prisma.adventurer.findUniqueOrThrow({ where: { id: adv.id } });
+    expect(updated.restUntil).toBeNull();
+
+    const event = await prisma.playerEvent.findFirstOrThrow({ where: { playerId: player.id } });
+    expect(event.type).toBe('adventurer_rest_complete');
+    expect(event.referenceId).toBe(adv.id);
+    expect(event.summary).toContain('Doran Ashe');
+  });
+
+  it('does not touch an available (unemployed) adventurer\'s stale restUntil', async () => {
+    const adv = await createAdventurer({ employerId: null, status: 'available', restUntil: past(1000) });
+
+    await runMarketGC();
+
+    const updated = await prisma.adventurer.findUniqueOrThrow({ where: { id: adv.id } });
+    expect(updated.restUntil).not.toBeNull();
+  });
+
+  it('leaves a hired adventurer alone whose rest period has not yet elapsed', async () => {
+    const player = await createPlayer();
+    const adv = await createAdventurer({ employerId: player.id, status: 'hired', restUntil: future(60 * 60 * 1000) });
+
+    await runMarketGC();
+
+    const updated = await prisma.adventurer.findUniqueOrThrow({ where: { id: adv.id } });
+    expect(updated.restUntil).not.toBeNull();
+  });
 });

@@ -10,6 +10,7 @@ import {
 } from '@axes-actuaries/types';
 import type { StatBlock, ContractTier, PropertyBonus, Vocation } from '@axes-actuaries/types';
 import { publish, CHANNELS } from '../lib/redis.js';
+import { logPlayerEvent } from './playerEvents.js';
 import { ClaimConflictError } from '../lib/errors.js';
 
 // ── Tunables ──────────────────────────────────────────────────────────────────
@@ -387,6 +388,15 @@ export async function resolveAdventure(
       status:        resolved.status,
       contractTitle: resolved.contract.title,
       goldDelta,
+    }).catch(() => { /* non-fatal if Redis is unavailable */ });
+
+    logPlayerEvent({
+      playerId:    adventure.playerId,
+      type:        success ? 'contract_completed' : 'contract_failed',
+      summary:     success
+        ? `Completed: ${adventure.contract.title}`
+        : `Failed: ${adventure.contract.title}`,
+      referenceId: adventureId,
     }).catch(() => { /* non-fatal if Redis is unavailable */ });
 
     return resolved;

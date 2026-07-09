@@ -83,6 +83,7 @@ model Player {
   properties   Property[]
   transactions Transaction[]
   contractBids ContractBid[]
+  playerEvents PlayerEvent[]
 
   @@map("players")
 }
@@ -262,6 +263,35 @@ model Transaction {
   player Player @relation(fields: [playerId], references: [id])
 
   @@map("transactions")
+}
+
+enum PlayerEventType {
+  contract_completed
+  contract_failed
+  adventurer_quit
+  adventurer_recovered
+  adventurer_rest_complete
+}
+
+// A per-player log of notable guild events, powering the Feed page/Dashboard "Recent Events"
+// widget. Mirrors Transaction/TransactionReason's shape deliberately — adding a future event
+// type costs one enum value (here and packages/types' matching union) plus one call to
+// services/playerEvents.ts's logPlayerEvent(), no schema/route changes.
+model PlayerEvent {
+  id          String          @id @default(cuid())
+  playerId    String          @map("player_id")
+  type        PlayerEventType
+  summary     String
+  // Link target for the frontend (e.g. an adventure id for a contract result). Not every
+  // type is meaningfully linkable — see routes/feed.ts and pages/Feed.tsx.
+  referenceId String?         @map("reference_id")
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId, createdAt])
+  @@index([playerId, type])
+  @@map("player_events")
 }
 
 // Freeform wiki/documentation content. No in-app editor yet — edited directly

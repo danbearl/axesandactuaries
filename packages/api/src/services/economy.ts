@@ -6,6 +6,7 @@ import {
   findRolePropertyBonus,
 } from '@axes-actuaries/types';
 import type { PropertyBonus, Vocation } from '@axes-actuaries/types';
+import { logPlayerEvent } from './playerEvents.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -241,6 +242,20 @@ async function processPlayerWages(
           },
         }),
       ]);
+      // Loyalty is a single blended pool (wages, idle neglect, tier mismatch all feed the
+      // same loyaltyPenalty — see the comment above), so there's no tracked single "cause" to
+      // report exactly. Approximated from what's actually known at quit time rather than
+      // adding new cause-tracking: unpaid wages are the most legible, concrete reason when
+      // present, otherwise a generic catch-all.
+      const reason = p.wagesOwed > 0
+        ? `unpaid wages (${p.wagesOwed} gp owed)`
+        : 'sought better opportunities elsewhere';
+      logPlayerEvent({
+        playerId:    player.id,
+        type:        'adventurer_quit',
+        summary:     `${adv.name} left the guild — ${reason} (-${repPenalty} reputation).`,
+        referenceId: adv.id,
+      }).catch(() => { /* non-fatal if Redis is unavailable */ });
       console.log(
         `[loyalty] ${adv.name} left (effective loyalty ${effectiveLoyalty}/5${debtNote}, -${repPenalty} rep)`,
       );

@@ -79,13 +79,15 @@ export const api = {
   adventures: {
     list: () => request<{ adventures: AdventureResponse[] }>('/adventures'),
     get: (id: string) => request<{ adventure: AdventureResponse }>(`/adventures/${id}`),
-    history: (limit = 20, offset = 0) =>
-      request<AdventureHistoryResponse>(`/adventures/history?limit=${limit}&offset=${offset}`),
     start: (contractId: string, adventurerIds: string[]) =>
       request<{ adventure: AdventureResponse }>('/adventures', {
         method: 'POST',
         body: JSON.stringify({ contractId, adventurerIds }),
       }),
+  },
+  feed: {
+    list: (limit = 20, offset = 0, type?: string) =>
+      request<FeedResponse>(`/feed?limit=${limit}&offset=${offset}${type && type !== 'all' ? `&type=${type}` : ''}`),
   },
   properties: {
     list: () => request<{ properties: PropertyResponse[] }>('/properties'),
@@ -230,8 +232,17 @@ export interface AdventureResponse {
   createdAt: string;
 }
 
-export interface AdventureHistoryResponse {
-  adventures: AdventureResponse[];
+export interface PlayerEventResponseItem {
+  id: string;
+  playerId: string;
+  type: string;
+  summary: string;
+  referenceId: string | null;
+  createdAt: string;
+}
+
+export interface FeedResponse {
+  events: PlayerEventResponseItem[];
   total: number;
   limit: number;
   offset: number;

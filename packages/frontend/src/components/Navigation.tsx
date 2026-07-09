@@ -107,8 +107,8 @@ export default function Navigation({ player }: Props) {
         </li>
         <li>
           <NavLink to="/adventures" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-            <span className="nav-icon">📔</span>
-            Adventure Log
+            <span className="nav-icon">📰</span>
+            Feed
           </NavLink>
         </li>
         <li>

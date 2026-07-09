@@ -10,10 +10,13 @@ export interface LogPlayerEventInput {
 }
 
 // The one call every new event type needs: one enum value (schema.prisma + the matching
-// packages/types union, together) plus one call here. The DB write is real and can throw
-// (a genuine failure the caller should see); the SSE publish is best-effort and swallowed
-// internally — CI's test environment has no Redis service at all, and every other publish()
-// call in this codebase already treats Redis being unavailable as non-fatal.
+// packages/types union, together) plus one call here. The DB write is real and can throw (a
+// genuine failure the caller should see); the SSE publish is best-effort and — like every
+// other publish() call in this codebase — fire-and-forget, not awaited. This isn't just
+// style: ioredis's default reconnect/offline-queue behavior can leave a queued command
+// pending far longer than a caller should ever block on (confirmed in CI, which has no Redis
+// service at all — an awaited publish() here made every direct caller, including this
+// function's own tests, hang until vitest's timeout).
 export async function logPlayerEvent(input: LogPlayerEventInput): Promise<void> {
   const event = await prisma.playerEvent.create({
     data: {
@@ -24,7 +27,7 @@ export async function logPlayerEvent(input: LogPlayerEventInput): Promise<void> 
     },
   });
 
-  await publish(CHANNELS.player(input.playerId), 'player_event', {
+  publish(CHANNELS.player(input.playerId), 'player_event', {
     id:          event.id,
     type:        event.type,
     summary:     event.summary,

@@ -437,6 +437,24 @@ export function countUnmetRequirements(
   return unmet;
 }
 
+// Whether a single adventurer, on their own, satisfies at least one of a contract's stat/
+// vocation requirements — for surfacing which specific adventurers are worth assigning in
+// the party-assembly UI, rather than leaving the player to guess from the aggregate "missing
+// N requirements" count countUnmetRequirements produces for the whole party.
+export function adventurerMeetsAnyRequirement(
+  contract: { requiredStats: Partial<StatBlock>; requiredVocation?: string | null },
+  adventurer: { vocation: string; stats: Partial<StatBlock> },
+): boolean {
+  if (contract.requiredVocation && adventurer.vocation === contract.requiredVocation) return true;
+
+  for (const [stat, threshold] of Object.entries(contract.requiredStats)) {
+    if (threshold === undefined) continue;
+    if ((adventurer.stats[stat as Stat] ?? 0) >= threshold) return true;
+  }
+
+  return false;
+}
+
 // Returns a 0–1 success chance. `unmetRequirements` defaults to 0 so existing callers that
 // haven't been updated yet still get sensible behavior.
 export function estimateSuccessChance(

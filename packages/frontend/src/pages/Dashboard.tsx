@@ -6,7 +6,7 @@ import AdventurerCard from '../components/AdventurerCard.tsx';
 import AdventureTimer from '../components/AdventureTimer.tsx';
 import DailyResetTimer from '../components/DailyResetTimer.tsx';
 import DeployByCountdown from '../components/DeployByCountdown.tsx';
-import { computeRosterCap, countUnmetRequirements, estimateSuccessChance, PROPERTY_PARTY_ROLE, type Adventurer } from '@axes-actuaries/types';
+import { computeRosterCap, countUnmetRequirements, adventurerMeetsAnyRequirement, estimateSuccessChance, PROPERTY_PARTY_ROLE, type Adventurer } from '@axes-actuaries/types';
 import { partyCohesionBonus, trainingHallBonus } from '../lib/cohesion.ts';
 import './Dashboard.css';
 
@@ -145,6 +145,9 @@ export default function Dashboard() {
                 <div>
                   <div className="value">{c.title}</div>
                   <div className="label">{c.tier} · {c.rewardGold.toLocaleString()} gp · Power {c.requiredPower}</div>
+                  {formatRequirements(c) && (
+                    <div className="label">Needs: {formatRequirements(c)}</div>
+                  )}
                   {c.deployBy && <DeployByCountdown deployBy={c.deployBy} />}
                 </div>
                 <button
@@ -271,6 +274,13 @@ export default function Dashboard() {
             <p className="label" style={{ marginBottom: '1rem' }}>
               Select adventurers to deploy. Required power: {deployingContract.requiredPower}
             </p>
+            {formatRequirements(deployingContract) && (
+              <p className="label" style={{ marginBottom: '1rem' }}>
+                Preferred: {formatRequirements(deployingContract)} — a party member meeting a
+                requirement raises the success chance; adventurers below marked "Matches" meet
+                at least one.
+              </p>
+            )}
 
             {hiredAdventurers.length === 0 ? (
               <div className="empty-state">No idle adventurers available to deploy.</div>
@@ -278,6 +288,7 @@ export default function Dashboard() {
               <div className="flex-col gap-sm" style={{ marginBottom: '1rem' }}>
                 {hiredAdventurers.map((adv: AdventurerResponse) => {
                   const checked = selectedAdventurerIds.includes(adv.id);
+                  const matches = adventurerMeetsAnyRequirement(deployingContract, adv);
                   return (
                     <label
                       key={adv.id}
@@ -286,7 +297,12 @@ export default function Dashboard() {
                       <input type="checkbox" checked={checked} onChange={() => toggleAdventurer(adv.id)} />
                       <div>
                         <span className="value">{adv.name}</span>{' '}
-                        <span className="label">{adv.vocation} · Power {adv.powerRating} · Lv.{adv.level}</span>
+                        <span className="label">{adv.vocation} · Power {adv.powerRating} · Lv.{adv.level}</span>{' '}
+                        {matches && (
+                          <span className="badge" style={{ background: 'var(--success)', color: '#fff', fontSize: '0.65rem' }}>
+                            Matches
+                          </span>
+                        )}
                       </div>
                     </label>
                   );
@@ -381,4 +397,13 @@ function formatBonusValue(key: string, value: number): string {
   if (FLAT_COUNT_KEYS.has(key)) return `+${value}`;
   if (value > 1) return `+${Math.round((value - 1) * 100)}%`;
   return `+${Math.round(value * 100)}%`;
+}
+
+// Compact "Needs X, Y" summary for a contract's preferred stat/vocation requirements — null
+// if the contract has none. Used where there isn't room for full requirement badges (e.g.
+// the awaiting-deployment list), unlike the fuller display in the deploy modal below.
+function formatRequirements(c: ContractResponse): string | null {
+  const parts = Object.entries(c.requiredStats).map(([stat, val]) => `${stat} ${val}+`);
+  if (c.requiredVocation) parts.push(c.requiredVocation);
+  return parts.length > 0 ? parts.join(', ') : null;
 }

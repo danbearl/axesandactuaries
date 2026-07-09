@@ -38,7 +38,7 @@ export default function ContractCard({ contract: c, onAccept, onAcceptOnly, onBi
       <div className="cc-header">
         <div className="cc-title-row">
           <h3 className="cc-title">{c.title}</h3>
-          <div className="flex gap-xs items-center" style={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <div className="flex gap-xs items-center" style={{ flexWrap: 'wrap' }}>
             <span className={`badge badge-tier-${c.tier}`}>{c.tier}</span>
             {isBidding ? (
               <>

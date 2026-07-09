@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   generateContract, generateDailyContracts, CONTRACT_TIER_CONFIG,
-  countUnmetRequirements, estimateSuccessChance,
+  countUnmetRequirements, adventurerMeetsAnyRequirement, estimateSuccessChance,
   MIN_SUCCESS_CHANCE, MAX_SUCCESS_CHANCE, REQUIREMENT_PENALTY_PER_UNMET,
   DIRECT_ACCEPT_CONTRACT_EXPIRY_HOURS, BIDDING_CONTRACT_BACKSTOP_EXPIRY_HOURS,
   BIDDING_MARKET_TARGET,
@@ -155,6 +155,38 @@ describe('countUnmetRequirements', () => {
     const contract = { requiredStats: { Attunement: 16 }, requiredVocation: 'Arcanist' };
     const party = [{ vocation: 'Sellsword', stats: { Attunement: 5 } }];
     expect(countUnmetRequirements(contract, party)).toBe(2);
+  });
+});
+
+describe('adventurerMeetsAnyRequirement', () => {
+  it('is false when the contract has no requirements', () => {
+    const contract = { requiredStats: {}, requiredVocation: undefined };
+    expect(adventurerMeetsAnyRequirement(contract, { vocation: 'Sellsword', stats: {} })).toBe(false);
+  });
+
+  it('is true when the adventurer meets the vocation requirement', () => {
+    const contract = { requiredStats: {}, requiredVocation: 'Arcanist' };
+    expect(adventurerMeetsAnyRequirement(contract, { vocation: 'Arcanist', stats: {} })).toBe(true);
+  });
+
+  it('is false when the adventurer does not meet the vocation requirement', () => {
+    const contract = { requiredStats: {}, requiredVocation: 'Arcanist' };
+    expect(adventurerMeetsAnyRequirement(contract, { vocation: 'Sellsword', stats: {} })).toBe(false);
+  });
+
+  it('is true when the adventurer meets a stat requirement', () => {
+    const contract = { requiredStats: { Might: 15 }, requiredVocation: undefined };
+    expect(adventurerMeetsAnyRequirement(contract, { vocation: 'Sellsword', stats: { Might: 16 } })).toBe(true);
+  });
+
+  it('is false when the adventurer falls short of every stat requirement', () => {
+    const contract = { requiredStats: { Might: 15 }, requiredVocation: undefined };
+    expect(adventurerMeetsAnyRequirement(contract, { vocation: 'Sellsword', stats: { Might: 10 } })).toBe(false);
+  });
+
+  it('is true if any one of multiple requirements is met, without needing all of them', () => {
+    const contract = { requiredStats: { Might: 15, Grit: 15 }, requiredVocation: 'Arcanist' };
+    expect(adventurerMeetsAnyRequirement(contract, { vocation: 'Sellsword', stats: { Might: 16, Grit: 5 } })).toBe(true);
   });
 });
 

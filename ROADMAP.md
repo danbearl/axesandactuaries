@@ -632,6 +632,32 @@ open to a small trusted player pool (Phase 0 below).
     `test/adventure.test.ts` (an integration test proving an unmet requirement actually
     flips a specific outcome roll from success to failure). Verified end-to-end in a real
     browser.
+- [x] Surfaced contract requirements at every point a player needs them (2026-07-09) —
+  user-reported quality-of-life gap: requirements were visible on the Contract Market listing
+  (`ContractCard.tsx`), but nowhere else in the flow that actually matters once a contract is
+  accepted. The awaiting-deployment list on the Dashboard didn't show them at all, and the
+  assign-party dialogs (Dashboard and Contract Market both have their own nearly-identical
+  one) only showed the *aggregate* "missing N preferred requirements" count — telling a
+  player something was unmet without saying what, forcing blind trial-and-error swaps of
+  party members until the warning happened to clear.
+  - New shared `adventurerMeetsAnyRequirement()` in `packages/types/src/contracts.ts`, a
+    sibling to the existing `countUnmetRequirements()` — same per-condition logic, but
+    answering "does this one adventurer meet any requirement" instead of "how many
+    requirements does nobody in the party meet," since the party-assembly UI needed the
+    former to highlight specific candidates, not just the aggregate.
+  - Dashboard's "Contracts Awaiting Deployment" list now shows a compact "Needs: X, Y" line
+    per contract. Both assign-party dialogs now show the same requirements list up front
+    (not just after the fact via the missing-count warning), and each adventurer in the
+    checklist gets a "Matches" badge if they individually satisfy at least one requirement —
+    so a player can identify good candidates at a glance instead of guessing.
+  - Local `formatRequirements()` helper duplicated between `Dashboard.tsx` and
+    `ContractMarket.tsx` rather than extracted into a shared component — matches this
+    codebase's existing convention for these two pages' near-identical assign-party dialogs,
+    which were already independently maintained rather than sharing a component before this
+    change.
+  - Test-covered in `packages/types/src/contracts.test.ts` (vocation match, stat match,
+    no-match, and the any-not-all case where one met requirement is enough despite others
+    being unmet).
 - [x] Fixed unbounded awarded-contract hoarding (2026-07-07) — flagged during a design
   conversation about bid-abuse potential: a player who accepted or won a contract could
   simply never deploy a party, and nothing ever reclaimed it — `expireOldContracts` only

@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { HIRE_REPUTATION_REQUIREMENTS, computeHireCost, computeDailyWage, computeRosterCap } from '@axes-actuaries/types';
 import { getBootstrapStatus, claimDesperateHire } from '../services/bootstrap.js';
 import { getAdventurerHistory } from '../services/adventurerHistory.js';
+import { upgradeGear } from '../services/adventurerGear.js';
 import { ClaimConflictError } from '../lib/errors.js';
 import { publish, CHANNELS } from '../lib/redis.js';
 
@@ -243,6 +244,18 @@ router.post('/:id/fire', requireAuth, async (req, res) => {
     .catch(() => { /* non-fatal if Redis is unavailable */ });
 
   res.json({ adventurer: updatedAdventurer });
+});
+
+// POST /api/v1/adventurers/:id/gear/upgrade
+// Purchase the next gear tier — a late-game gold sink. See services/adventurerGear.ts for the
+// validation/atomic-purchase logic.
+router.post('/:id/gear/upgrade', requireAuth, async (req, res) => {
+  const result = await upgradeGear(req.playerId, req.params.id);
+  if (!result.ok) {
+    res.status(result.status).json({ error: result.error, ...(result.details ?? {}) });
+    return;
+  }
+  res.json({ player: result.player, adventurer: result.adventurer });
 });
 
 export default router;

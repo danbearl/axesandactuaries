@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.ts';
-import { XP_TO_LEVEL, MAX_LEVEL } from '@axes-actuaries/types';
+import {
+  XP_TO_LEVEL, MAX_LEVEL, MAX_GEAR_TIER, GEAR_TIER_LEVEL_REQUIREMENT, GEAR_TIER_POWER_BONUS,
+  computeGearUpgradeCost,
+} from '@axes-actuaries/types';
 import type { Adventurer } from '@axes-actuaries/types';
 import AdventurerCard from '../components/AdventurerCard.tsx';
 import './AdventurerDetail.css';
@@ -95,13 +98,83 @@ function LoyaltyStatus({ baseLoyalty, penalty }: { baseLoyalty: number; penalty:
   );
 }
 
+// A late-game gold sink: each gear tier is gated by the adventurer's own level, and costs
+// more the higher their power already is — see GEAR_TIER_LEVEL_REQUIREMENT/
+// computeGearUpgradeCost in @axes-actuaries/types.
+function EquipmentPanel({
+  adventurer, gold, onUpgrade, isPending,
+}: {
+  adventurer: { gearTier: number; level: number; powerRating: number };
+  gold: number;
+  onUpgrade: () => void;
+  isPending: boolean;
+}) {
+  const atMaxTier = adventurer.gearTier >= MAX_GEAR_TIER;
+  const nextTier = adventurer.gearTier + 1;
+  const levelRequired = GEAR_TIER_LEVEL_REQUIREMENT[nextTier];
+  const upgradeCost = atMaxTier ? 0 : computeGearUpgradeCost(nextTier, adventurer.powerRating);
+  const meetsLevel = atMaxTier || adventurer.level >= levelRequired;
+  const canUpgrade = !atMaxTier && meetsLevel && gold >= upgradeCost;
+
+  return (
+    <div className="panel">
+      <h2>Equipment</h2>
+      <hr className="divider" />
+      <div className="mt-md">
+        <div className="level-pips flex gap-xs">
+          {Array.from({ length: MAX_GEAR_TIER }, (_, i) => i + 1).map(t => (
+            <div key={t} className={`level-pip ${t <= adventurer.gearTier ? 'active' : ''}`} />
+          ))}
+          <span className="label">
+            {adventurer.gearTier === 0 ? 'No gear equipped' : `Gear Tier ${adventurer.gearTier}`}
+            {adventurer.gearTier > 0 && ` (+${Math.round(GEAR_TIER_POWER_BONUS[adventurer.gearTier] * 100)}% power)`}
+          </span>
+        </div>
+
+        <div className="mt-md">
+          {atMaxTier ? (
+            <span className="badge badge-vocation">MAX GEAR</span>
+          ) : (
+            <button
+              className="btn btn-secondary btn-sm"
+              disabled={!canUpgrade || isPending}
+              title={!meetsLevel ? `Requires level ${levelRequired}` : !canUpgrade ? `Requires ${upgradeCost} gp` : undefined}
+              onClick={onUpgrade}
+            >
+              Upgrade to Tier {nextTier} — {upgradeCost} gp
+              {!meetsLevel && ` (requires level ${levelRequired})`}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdventurerDetail() {
   const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
+  const [gearError, setGearError] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['adventurers', id],
     queryFn: () => api.adventurers.get(id!),
     enabled: !!id,
+  });
+
+  const { data: playerData } = useQuery({
+    queryKey: ['player'],
+    queryFn: () => api.player.me(),
+  });
+
+  const upgradeGearMutation = useMutation({
+    mutationFn: () => api.adventurers.upgradeGear(id!),
+    onSuccess: () => {
+      setGearError(null);
+      queryClient.invalidateQueries({ queryKey: ['adventurers', id] });
+      queryClient.invalidateQueries({ queryKey: ['player'] });
+    },
+    onError: (err) => setGearError(err instanceof Error ? err.message : 'Gear upgrade failed'),
   });
 
   if (isLoading) {
@@ -156,6 +229,18 @@ export default function AdventurerDetail() {
               </div>
             </div>
           </div>
+
+          <EquipmentPanel
+            adventurer={adventurer}
+            gold={playerData?.player.gold ?? 0}
+            onUpgrade={() => upgradeGearMutation.mutate()}
+            isPending={upgradeGearMutation.isPending}
+          />
+          {gearError && (
+            <div className="panel panel-sm" style={{ color: 'var(--danger)' }}>
+              {gearError}
+            </div>
+          )}
 
           {adventurer.status === 'injured' && adventurer.injuryRecoveryUntil && (
             <InjuryStatus recoveryUntil={adventurer.injuryRecoveryUntil} />

@@ -63,6 +63,7 @@ enum TransactionReason {
   starting_gold
   admin_adjustment
   contract_abandoned
+  gear_upgrade
 }
 
 // ── Models ────────────────────────────────────────────────────────────────────
@@ -113,6 +114,12 @@ model Adventurer {
   // idle loyalty decay (see services/economy.ts). Reset to 0 the instant they're deployed
   // (startAdventure); does not accrue while on_adventure, injured, or resting.
   daysIdle            Int              @default(0) @map("days_idle")
+  // Equipment tier (0 = none, up to MAX_GEAR_TIER) — a per-adventurer power bonus purchased
+  // with gold, gated by the adventurer's own level. See packages/types/src/game.ts's
+  // GEAR_TIER_LEVEL_REQUIREMENT/GEAR_TIER_POWER_BONUS and computePartyPower's use of
+  // computeGearBonus. Deliberately not folded into powerRating itself (same "computed at use,
+  // not stored" pattern as Cohesion/Training Hall bonuses).
+  gearTier            Int              @default(0) @map("gear_tier")
   height              String
   build               String
   complexion          String

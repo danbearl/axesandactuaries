@@ -6,7 +6,7 @@ import {
   TEMPERAMENT_BONUS_CHANCE_PER_POINT, TEMPERAMENT_BONUS_GOLD_PER_TRIGGER,
   TEMPERAMENT_INJURY_BONUS_PER_POINT,
   computeCohesionBonus, computeCohesionIncrement, COHESION_MAX,
-  computeTrainingHallBonus, findRolePropertyBonus,
+  computeTrainingHallBonus, findRolePropertyBonus, computeGearBonus,
 } from '@axes-actuaries/types';
 import type { StatBlock, ContractTier, PropertyBonus, Vocation } from '@axes-actuaries/types';
 import { publish, CHANNELS } from '../lib/redis.js';
@@ -164,7 +164,10 @@ async function computePartyPower(
     computePartyCohesionBonus(adventurerIds),
   ]);
 
-  const basePower = adventurers.reduce((sum, a) => sum + a.powerRating, 0);
+  // Gear is a per-adventurer bonus (unlike Training Hall/Cohesion, which apply uniformly to
+  // the whole party) — each adventurer's own gearTier boosts only their own contribution to
+  // basePower, before the party-wide bonuses below are layered on top.
+  const basePower = adventurers.reduce((sum, a) => sum + a.powerRating * (1 + computeGearBonus(a.gearTier)), 0);
 
   // Combined additively with cohesion (not multiplicatively/compounded) so the total bonus
   // stays easy to reason about as more power-affecting mechanics are added.
@@ -390,7 +393,7 @@ export async function resolveAdventure(
       goldDelta,
     }).catch(() => { /* non-fatal if Redis is unavailable */ });
 
-    logPlayerEvent({
+    await logPlayerEvent({
       playerId:    adventure.playerId,
       type:        success ? 'contract_completed' : 'contract_failed',
       summary:     success

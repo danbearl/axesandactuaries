@@ -63,6 +63,8 @@ export const api = {
       request<{ adventurer: AdventurerResponse }>(`/adventurers/${id}/fire`, { method: 'POST' }),
     desperateHire: () =>
       request<{ adventurer: AdventurerResponse }>('/adventurers/desperate-hire', { method: 'POST' }),
+    upgradeGear: (id: string) =>
+      request<{ player: PlayerResponse; adventurer: AdventurerResponse }>(`/adventurers/${id}/gear/upgrade`, { method: 'POST' }),
   },
   contracts: {
     market: () => request<{ contracts: ContractResponse[] }>('/contracts/market'),
@@ -178,6 +180,7 @@ export interface AdventurerResponse {
   restUntil: string | null;
   loyaltyPenalty: number;
   daysIdle: number;
+  gearTier: number;
   employerId: string | null;
   height: string;
   build: string;

@@ -619,7 +619,60 @@ open to a small trusted player pool (Phase 0 below).
     verified clean across all three packages; `pnpm test` requires the schema migration to be
     applied first (`pnpm db:migrate`, user's own action per this repo's convention) before it
     can pass — not yet run end-to-end at the time of this entry.
-- Adventurer equipment system (from original TODO.md, Game Mechanics).
+- [x] Adventurer equipment — a late-game gold sink (2026-07-09) — raised in a design
+  discussion about what a fully-built guild has left to spend gold on: 7 properties cap at
+  level 3 (~6,350 gold total, then a fixed 166 gold/day maintenance forever) and leveling is
+  free (XP is a contract byproduct, not a spend), so a maxed 16-adventurer roster hits a wall
+  with nothing left to do with surplus income. Weighed several directions in the same
+  conversation — monetized cosmetics (blocked on an actual art/asset decision, see Beta Phase
+  3 below), a Regions & World Map "office" buy-in (deliberately out of phase order, see
+  Post-Beta below), reputation-buying/donations, mission risk-reduction spend, deeper
+  property/roster tiers, an infamous-contract buy-in — and chose equipment first since it
+  needs no new art pipeline and is structurally the best fit for a *recurring* sink rather
+  than a one-time build.
+  - **Single gear tier per adventurer** (not multi-slot, not a full itemized inventory) — one
+    upgrade path 0-5, chosen deliberately as the simplest shape to build and balance for a
+    first pass. New `Adventurer.gearTier` column (no new table).
+  - **The mechanic that makes this a genuine late-game sink**: each tier requires a minimum
+    adventurer level (`GEAR_TIER_LEVEL_REQUIREMENT`, tier 5 requires `MAX_LEVEL`), and cost
+    scales with the adventurer's *current* power (`computeGearUpgradeCost`, same power-scaling
+    posture as `computeHireCost`/`computeDailyWage`). Power rises with level, so the top tiers
+    are both level-gated *and* the most expensive purchases in the game — the bulk of the
+    spend lands exactly where a maxed-out roster already sits. Illustrative starting costs
+    (not a final balance pass): tier 5 alone costs ~9,000 gold for a level-10 adventurer;
+    fully gearing a 16-adventurer roster lands in the hundreds of thousands of gold, versus
+    today's ~26k roster + ~6k property total.
+  - **One-time purchase only for v1** — no repair/degradation/upkeep mechanic; can be layered
+    on later if the sink still isn't deep enough once this has been live a while.
+  - Bonus applies per-adventurer (unlike Training Hall/Cohesion, which apply uniformly to the
+    whole party) to that adventurer's own power contribution before the party-wide bonuses in
+    `computePartyPower` are layered on top (`services/adventure.ts`). Deliberately **not**
+    written back into the stored `powerRating` — same "computed at use, not stored" pattern as
+    Cohesion/Training Hall — so gear doesn't inflate hire cost, wages, or the Leaderboard's
+    `avgPower` term (consistent with how Training Hall/Cohesion investment already don't move
+    that score either, not a new inconsistency). Scoped to power only for v1, not contract
+    stat/vocation requirement matching.
+  - New `services/adventurerGear.ts` (`upgradeGear`) — a discriminated-result function rather
+    than throwing, since the four failure modes here (not found, not your employ, already max
+    tier, level too low, insufficient gold) map to four different HTTP statuses, not one
+    uniform 409 the way `services/contracts.ts`'s `acceptContract` does. `routes/adventurers.ts`
+    stays a thin wrapper (`POST /:id/gear/upgrade`) over it, keeping this codebase's
+    business-logic-lives-in-services convention even though this file's older `/hire`/`/fire`
+    endpoints predate that convention and remain untested/inline.
+  - Frontend: new "Equipment" panel on `AdventurerDetail.tsx` (tier pips, bonus %, next
+    tier's level requirement + cost, an upgrade button disabled with a clear reason when
+    ineligible) mirroring `Properties.tsx`'s upgrade-button UX; a small "Gear T*n*" badge on
+    `AdventurerCard.tsx` for at-a-glance roster visibility.
+  - New `gear_upgrade` `TransactionReason` (Prisma enum + `packages/types` union, together,
+    per the enum-sync gotcha documented in `CLAUDE.md`).
+  - Test-covered: `packages/types/src/game.test.ts` (`computeGearBonus`,
+    `computeGearUpgradeCost`, level-requirement ordering), new
+    `packages/api/test/adventurerGear.test.ts` (successful purchase, all four rejection
+    modes), and `packages/api/test/adventure.test.ts` (gear bonus changing a success/failure
+    outcome, mirroring the existing Cohesion/Training Hall regression tests in the same
+    file). `pnpm typecheck` verified clean across all three packages; `pnpm test` requires
+    the schema migration to be applied first (`pnpm db:migrate`) before it can pass — not yet
+    run end-to-end at the time of this entry.
 - Adventurer traits/abilities (2026-07-07, user's idea, captured for later — no scoping
   done) — non-stat tags or abilities adventurers earn as they level up, giving each one a
   distinct bonus rather than just a bigger version of the same six stats. User's own
@@ -1445,6 +1498,12 @@ already working.
 - Full custom/rare player avatar system (from original TODO.md, Social Elements /
   Gamification) — more speculative/lower-priority within this phase; depends on the
   cosmetics infrastructure above landing first.
+- **Gold-sink angle** (noted 2026-07-09, during the late-game-gold-sink discussion that
+  produced Adventurer Equipment above): attaching a gold cost to these cosmetics once built
+  would double as another late-game sink, purely cosmetic so it sidesteps power-balance
+  concerns entirely. Not scoped further — blocked on an actual art/asset production decision
+  (procedural generation, a curated image set, or similar) before design can meaningfully
+  proceed, which is why this wasn't chosen to build first.
 
 ---
 
@@ -1491,6 +1550,13 @@ criteria fuzzy.
 - Legendary-contract story elements affecting the game world (from original TODO.md, Game
   Mechanics) — grouped here rather than Beta Phase 2 since "affecting the game world"
   presumes a persistent multi-region world state to affect.
+- **Gold-sink angle** (noted 2026-07-09, during the late-game-gold-sink discussion that
+  produced Adventurer Equipment in Beta Phase 2): the "build an office" language above
+  already implies a real gold cost to expand into each new region — a naturally large,
+  later-payoff sink once this phase is actually reached. Deliberately not chosen to build
+  first: this is the roadmap's single largest item, several phases ahead of where the game
+  currently is, and building even just the office cost now would mean scoping real region
+  infrastructure ahead of everything else queued first.
 
 ## Post-Beta — Native Mobile App
 **Goal:** a native mobile client listed on the Apple App Store and Google Play, so players

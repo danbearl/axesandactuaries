@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { XP_PER_GOLD, computeAmbitionXpMultiplier } from '@axes-actuaries/types';
+import { XP_PER_GOLD, computeAmbitionXpMultiplier, MAX_GEAR_TIER } from '@axes-actuaries/types';
 
 // The createAdventurer fixture defaults to ambition: 3, which now carries a real XP
 // multiplier (+5% per point above 1) — tests that don't override personality need to
@@ -757,6 +757,34 @@ describe('resolveAdventure', () => {
       data: { playerId: player.id, type: 'training_hall', level: 3, maintenanceCostDaily: 20, bonus: { powerRatingBonus: 0.1 } },
     });
     const adventurer = await createAdventurer({ employerId: player.id, status: 'on_adventure', powerRating: 100 });
+    const contract = await createContract({ requiredPower: 200, status: 'in_progress' });
+    const adventure = await prisma.adventure.create({
+      data: {
+        contractId: contract.id, playerId: player.id,
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        completesAt: new Date(Date.now() - 1000),
+        status: 'in_progress',
+      },
+    });
+    await prisma.adventureAdventurer.create({
+      data: { adventureId: adventure.id, adventurerId: adventurer.id },
+    });
+
+    await resolveAdventure(adventure.id);
+
+    const updatedAdventure = await prisma.adventure.findUniqueOrThrow({ where: { id: adventure.id } });
+    expect(updatedAdventure.status).toBe('completed');
+  });
+
+  it('raises party power via equipped gear, changing the outcome', async () => {
+    // ratio 0.5 -> base successChance 0.55. Max gear tier -> +25% power -> ratio 0.625 ->
+    // successChance 0.6125. A roll of 0.58 fails at 0.55 but succeeds once gear applies.
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0.58).mockReturnValue(0.99);
+
+    const player = await createPlayer({ gold: 500 });
+    const adventurer = await createAdventurer({
+      employerId: player.id, status: 'on_adventure', powerRating: 100, level: 10, gearTier: MAX_GEAR_TIER,
+    });
     const contract = await createContract({ requiredPower: 200, status: 'in_progress' });
     const adventure = await prisma.adventure.create({
       data: {

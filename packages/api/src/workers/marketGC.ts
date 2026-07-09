@@ -134,7 +134,7 @@ export async function runMarketGC(): Promise<void> {
       where: { id: adv.id },
       data:  { status: 'hired', injuryRecoveryUntil: null },
     });
-    logPlayerEvent({
+    await logPlayerEvent({
       playerId:    adv.employerId!,
       type:        'adventurer_recovered',
       summary:     `${adv.name} has recovered from injury and is ready to deploy.`,
@@ -168,7 +168,7 @@ export async function runMarketGC(): Promise<void> {
       where: { id: adv.id },
       data:  { restUntil: null },
     });
-    logPlayerEvent({
+    await logPlayerEvent({
       playerId:    adv.employerId!,
       type:        'adventurer_rest_complete',
       summary:     `${adv.name} has finished resting and is ready to deploy.`,

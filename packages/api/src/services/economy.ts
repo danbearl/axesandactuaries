@@ -250,7 +250,7 @@ async function processPlayerWages(
       const reason = p.wagesOwed > 0
         ? `unpaid wages (${p.wagesOwed} gp owed)`
         : 'sought better opportunities elsewhere';
-      logPlayerEvent({
+      await logPlayerEvent({
         playerId:    player.id,
         type:        'adventurer_quit',
         summary:     `${adv.name} left the guild — ${reason} (-${repPenalty} reputation).`,

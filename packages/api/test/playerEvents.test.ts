@@ -34,10 +34,20 @@ describe('listPlayerEvents', () => {
   it('returns only the given player\'s events, newest first', async () => {
     const player = await createPlayer();
     const other = await createPlayer();
+    const now = Date.now();
 
-    await logPlayerEvent({ playerId: other.id, type: 'adventurer_quit', summary: 'Not mine.' });
-    await logPlayerEvent({ playerId: player.id, type: 'contract_completed', summary: 'First.' });
-    await logPlayerEvent({ playerId: player.id, type: 'contract_failed', summary: 'Second.' });
+    // Explicit, distinct createdAt values (bypassing logPlayerEvent's own now()) — two real
+    // calls made back-to-back can land in the same millisecond on a fast local DB, which
+    // would make DESC ordering between them ambiguous and this assertion flaky.
+    await prisma.playerEvent.create({
+      data: { playerId: other.id, type: 'adventurer_quit', summary: 'Not mine.', createdAt: new Date(now) },
+    });
+    await prisma.playerEvent.create({
+      data: { playerId: player.id, type: 'contract_completed', summary: 'First.', createdAt: new Date(now + 1000) },
+    });
+    await prisma.playerEvent.create({
+      data: { playerId: player.id, type: 'contract_failed', summary: 'Second.', createdAt: new Date(now + 2000) },
+    });
 
     const { events, total } = await listPlayerEvents(player.id, { limit: 20, offset: 0 });
 

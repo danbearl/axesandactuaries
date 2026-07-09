@@ -126,6 +126,7 @@ export interface Adventurer {
   wagesOwed?:      number; // back wages owed; accumulates when daily pay fails
   daysUnpaid?:     number; // consecutive days without full pay
   loyaltyPenalty?: number; // cumulative loyalty reduction from non-payment
+  gearTier?:   number; // 0 = none, up to MAX_GEAR_TIER — see computeGearBonus
   // Physical appearance
   height:      string;
   build:       string;
@@ -331,6 +332,57 @@ export function levelForXp(xp: number): number {
 // XP awarded per gold earned on a contract
 export const XP_PER_GOLD = 0.1;
 
+// ── Equipment ─────────────────────────────────────────────────────────────────
+// A late-game gold sink: a single per-adventurer gear tier (0 = none), each tier gated by the
+// adventurer's own level and costing more the higher that adventurer's power already is. Power
+// rises with level, so the top tiers are both level-gated *and* the most expensive purchases in
+// the game — the bulk of the spend lands exactly where a maxed-out roster already sits, unlike
+// properties (fixed cap at level 3) or leveling itself (free, a contract-income byproduct).
+// Deliberately a flat tier rather than a full item/inventory system — see the design writeup
+// captured in ROADMAP.md for the fuller rationale and the options not taken.
+export const MAX_GEAR_TIER = 5;
+
+export const GEAR_TIER_LEVEL_REQUIREMENT: Record<number, number> = {
+  1: 1,
+  2: 3,
+  3: 5,
+  4: 7,
+  5: MAX_LEVEL,
+};
+
+export const GEAR_TIER_POWER_BONUS: Record<number, number> = {
+  1: 0.05,
+  2: 0.10,
+  3: 0.15,
+  4: 0.20,
+  5: 0.25,
+};
+
+// Illustrative starting costs, not a final balance pass — tune once there's real playtesting
+// data, same as contract power ranges were recalibrated earlier this project.
+const GEAR_TIER_COST: Record<number, { base: number; perPower: number }> = {
+  1: { base: 200,  perPower: 3 },
+  2: { base: 500,  perPower: 6 },
+  3: { base: 1000, perPower: 10 },
+  4: { base: 2000, perPower: 15 },
+  5: { base: 4000, perPower: 25 },
+};
+
+// Bonus fraction applied to this adventurer's own power contribution — combined additively
+// alongside Training Hall/Cohesion in computePartyPower, same pattern, not written back into
+// the adventurer's stored powerRating (so it doesn't affect hire cost, wages, or the
+// Leaderboard's avgPower term, matching how Training Hall/Cohesion already don't either).
+export function computeGearBonus(gearTier: number): number {
+  return GEAR_TIER_POWER_BONUS[gearTier] ?? 0;
+}
+
+// Gold cost to upgrade to `nextTier`, scaled by the adventurer's current power rating.
+export function computeGearUpgradeCost(nextTier: number, currentPower: number): number {
+  const cfg = GEAR_TIER_COST[nextTier];
+  if (!cfg) return 0;
+  return Math.round(cfg.base + currentPower * cfg.perPower);
+}
+
 // ── Ambition / Loyalty ──────────────────────────────────────────────────────────
 // First personality trait with real gameplay effects beyond Loyalty's existing unpaid-wage
 // quit risk. High Ambition is a genuine trade-off: faster leveling, but a growing risk of
@@ -447,7 +499,8 @@ export type TransactionReason =
   | 'debt_forgiven'
   | 'starting_gold'
   | 'admin_adjustment'
-  | 'contract_abandoned';
+  | 'contract_abandoned'
+  | 'gear_upgrade';
 
 export interface Transaction {
   id:          string;

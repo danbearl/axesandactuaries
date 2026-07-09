@@ -50,6 +50,7 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
             <span className={`badge ${statusBadgeClass}`}>{statusLabel}</span>
             <span className="badge badge-heritage">{a.heritage}</span>
             <span className="badge badge-vocation">{title}</span>
+            {!!a.gearTier && <span className="badge badge-vocation">Gear T{a.gearTier}</span>}
           </div>
         </div>
         <div className="character-compact-right" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -80,6 +81,7 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
             <span className={`badge ${statusBadgeClass}`}>{statusLabel}</span>
             <span className="badge badge-heritage">{a.heritage}</span>
             <span className="badge badge-vocation">{title}</span>
+            {!!a.gearTier && <span className="badge badge-vocation">Gear T{a.gearTier}</span>}
           </div>
         </div>
         <div className="character-header-right">

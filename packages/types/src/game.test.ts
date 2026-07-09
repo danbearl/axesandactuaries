@@ -4,6 +4,7 @@ import {
   computeCohesionIncrement, computeCohesionBonus, COHESION_MAX, COHESION_MAX_POWER_BONUS,
   computeTrainingHallBonus, findRolePropertyBonus,
   VOCATION_PARTY_ROLE, VOCATIONS,
+  MAX_GEAR_TIER, GEAR_TIER_LEVEL_REQUIREMENT, computeGearBonus, computeGearUpgradeCost,
 } from './game.js';
 import type { Vocation } from './game.js';
 
@@ -82,6 +83,50 @@ describe('computeTrainingHallBonus', () => {
     expect(computeTrainingHallBonus([
       { type: 'alchemy_lab', level: 3, bonus: { powerRatingBonus: 3 } },
     ])).toBe(0);
+  });
+});
+
+describe('computeGearBonus', () => {
+  it('is zero with no gear', () => {
+    expect(computeGearBonus(0)).toBe(0);
+  });
+
+  it('scales with gear tier', () => {
+    expect(computeGearBonus(1)).toBeCloseTo(0.05);
+    expect(computeGearBonus(MAX_GEAR_TIER)).toBeCloseTo(0.25);
+  });
+
+  it('is zero for an out-of-range tier rather than throwing', () => {
+    expect(computeGearBonus(99)).toBe(0);
+  });
+});
+
+describe('computeGearUpgradeCost', () => {
+  it('rises with tier for the same power', () => {
+    const costs = Array.from({ length: MAX_GEAR_TIER }, (_, i) => computeGearUpgradeCost(i + 1, 100));
+    for (let i = 1; i < costs.length; i++) {
+      expect(costs[i]).toBeGreaterThan(costs[i - 1]);
+    }
+  });
+
+  it('rises with the adventurer\'s current power for the same tier', () => {
+    expect(computeGearUpgradeCost(1, 200)).toBeGreaterThan(computeGearUpgradeCost(1, 50));
+  });
+
+  it('is zero for an out-of-range tier rather than throwing', () => {
+    expect(computeGearUpgradeCost(99, 100)).toBe(0);
+  });
+});
+
+describe('GEAR_TIER_LEVEL_REQUIREMENT', () => {
+  it('gates the final tier behind MAX_LEVEL', () => {
+    expect(GEAR_TIER_LEVEL_REQUIREMENT[MAX_GEAR_TIER]).toBe(MAX_LEVEL);
+  });
+
+  it('rises strictly with tier', () => {
+    for (let t = 2; t <= MAX_GEAR_TIER; t++) {
+      expect(GEAR_TIER_LEVEL_REQUIREMENT[t]).toBeGreaterThan(GEAR_TIER_LEVEL_REQUIREMENT[t - 1]);
+    }
   });
 });
 

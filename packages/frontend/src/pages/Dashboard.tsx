@@ -65,7 +65,7 @@ export default function Dashboard() {
   const dailyWages = hired.reduce((sum, a) => sum + a.dailyWage, 0);
   const dailyMaintenance = properties.reduce((sum, p) => sum + p.maintenanceCostDaily, 0);
   const dailyBurn = dailyWages + dailyMaintenance;
-  const daysOfRunway = dailyBurn > 0 ? Math.floor(player.gold / dailyBurn) : Infinity;
+  const daysOfRunway = dailyBurn > 0 ? Math.max(0, Math.floor(player.gold / dailyBurn)) : Infinity;
 
   const recentTx = txData?.transactions ?? [];
   const recentEvents = feedData?.events ?? [];

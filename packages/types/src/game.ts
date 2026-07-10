@@ -400,14 +400,27 @@ export function computeAmbitionXpMultiplier(ambition: number): number {
 }
 
 // Minimum contract tier an adventurer's level will tolerate without feeling under-used.
-// Levels 1-2 take anything; 3-4 want standard+; 5-6 want dangerous+ (legendary is never a
-// floor — nothing should require the single best tier just to feel adequate).
+// Levels 1-2 take anything; 3-4 want standard+; 5-8 want dangerous+; 9-10 want legendary+.
+// These breakpoints mirror VOCATION_TIERS' title tiers and CONTRACT_TIER_CONFIG's power-range
+// calibration (both split 1-4/5-8/9-10 — see contracts.ts), so tolerance now actually reflects
+// the tier of work the game expects someone that level to be doing.
+//
+// Legendary *does* act as a floor for levels 9-10 — a deliberate reversal of this function's
+// original "legendary should never be a hard floor" framing, which predates MAX_LEVEL being
+// raised from 6 to 10 (2026-07-08). Back when 6 was the cap, the old uncapped "5+ -> dangerous"
+// branch only ever covered a tight 2-level top band; once the cap rose, that same branch
+// silently swallowed the new 7-10 range too, so a level-10 adventurer (the current ceiling)
+// was tolerated by the exact same floor as a level-5 one, and legendary could never register
+// as expected work for anyone. Since CONTRACT_TIER_CONFIG already calibrates legendary
+// specifically as levels 9-10's home difficulty, it's the more correct floor for that band now,
+// not an exception to avoid.
 const TIER_ORDER: readonly ContractTier[] = ['errand', 'standard', 'dangerous', 'legendary'];
 
 export function minSatisfyingTier(level: number): ContractTier {
   if (level <= 2) return 'errand';
   if (level <= 4) return 'standard';
-  return 'dangerous';
+  if (level <= 8) return 'dangerous';
+  return 'legendary';
 }
 
 export function isTierBelowTolerance(contractTier: ContractTier, adventurerLevel: number): boolean {

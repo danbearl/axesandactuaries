@@ -5,6 +5,7 @@ import {
   computeTrainingHallBonus, findRolePropertyBonus,
   VOCATION_PARTY_ROLE, VOCATIONS,
   MAX_GEAR_TIER, GEAR_TIER_LEVEL_REQUIREMENT, computeGearBonus, computeGearUpgradeCost,
+  minSatisfyingTier, isTierBelowTolerance,
 } from './game.js';
 import type { Vocation } from './game.js';
 
@@ -185,5 +186,44 @@ describe('VOCATION_PARTY_ROLE', () => {
     for (const vocation of VOCATIONS) {
       expect(VOCATION_PARTY_ROLE[vocation]).toBeDefined();
     }
+  });
+});
+
+describe('minSatisfyingTier', () => {
+  it('maps each level band to the expected tier floor', () => {
+    expect(minSatisfyingTier(1)).toBe('errand');
+    expect(minSatisfyingTier(2)).toBe('errand');
+    expect(minSatisfyingTier(3)).toBe('standard');
+    expect(minSatisfyingTier(4)).toBe('standard');
+    expect(minSatisfyingTier(5)).toBe('dangerous');
+    expect(minSatisfyingTier(8)).toBe('dangerous');
+    expect(minSatisfyingTier(9)).toBe('legendary');
+    expect(minSatisfyingTier(MAX_LEVEL)).toBe('legendary');
+  });
+
+  it('gives a level-9 and a level-10 (max) adventurer different floors', () => {
+    // Regression guard for the exact bug this was fixed for: before the MAX_LEVEL 6->10
+    // rebalance, levels 5 and up (including the new 7-10 range) all mapped to the same
+    // "dangerous" floor, so the current level cap was indistinguishable from a level barely
+    // above the old threshold.
+    expect(minSatisfyingTier(8)).not.toBe(minSatisfyingTier(9));
+  });
+});
+
+describe('isTierBelowTolerance', () => {
+  it('is false when the contract tier meets or exceeds what the level tolerates', () => {
+    expect(isTierBelowTolerance('dangerous', 5)).toBe(false);
+    expect(isTierBelowTolerance('legendary', 5)).toBe(false);
+    expect(isTierBelowTolerance('legendary', MAX_LEVEL)).toBe(false);
+  });
+
+  it('is true when the contract tier falls short of what the level tolerates', () => {
+    expect(isTierBelowTolerance('standard', 5)).toBe(true);
+    expect(isTierBelowTolerance('dangerous', MAX_LEVEL)).toBe(true);
+  });
+
+  it('a max-level adventurer now tolerates only legendary, not dangerous', () => {
+    expect(isTierBelowTolerance('dangerous', MAX_LEVEL)).toBe(true);
+    expect(isTierBelowTolerance('legendary', MAX_LEVEL)).toBe(false);
   });
 });

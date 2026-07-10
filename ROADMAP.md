@@ -1546,9 +1546,10 @@ open to a small trusted player pool (Phase 0 below).
   - **Flagged but not touched, since they weren't part of what was asked**: `minSatisfyingTier`
     (the Ambition mechanic's contract-tolerance curve) still caps out at "dangerous" for any
     level above 4 — a level 10 adventurer has the identical tolerance floor as a level 5 one,
-    so the new level range doesn't get its own tolerance stratification. Still open. (The
-    other flagged item — contract power ranges being too low for the new level ceiling — was
-    resolved the same day; see the entry directly below.)
+    so the new level range doesn't get its own tolerance stratification. (The other flagged
+    item — contract power ranges being too low for the new level ceiling — was resolved the
+    same day; see the entry directly below.) **Resolved 2026-07-10 — see the dedicated entry
+    further below.**
 - [x] Recalibrated Standard/Dangerous/Legendary power ranges against the adventurer title
   tiers (2026-07-08) — the previous ranges (standard 25-70, dangerous 70-140, legendary
   140-280) were flagged as a balance concern right after the level-cap change, and the user
@@ -1589,6 +1590,35 @@ open to a small trusted player pool (Phase 0 below).
     dynamically from `CONTRACT_TIER_CONFIG` rather than hardcoding the old bounds, and no
     API test relies on tier-derived `requiredPower` (`createContract`'s fixture default is
     a fixed, tier-independent value), so the new ranges needed no test updates to stay green.
+- [x] Fixed stale Ambition tier-tolerance thresholds after the level cap raise (2026-07-10) —
+  the gap flagged but deliberately left open in the level-cap entry above. User asked how the
+  Ambition/Loyalty tier-mismatch mechanic (`minSatisfyingTier`/`isTierBelowTolerance`,
+  `packages/types/src/game.ts`) currently maps out and whether the `MAX_LEVEL` 6→10 change
+  had affected it — investigation confirmed it had: the function's own comment still read
+  "5-6 want dangerous+", stale from when 6 was the cap, while the actual code
+  (`level <= 4 ? standard : dangerous`, no upper bound) silently absorbed the entire new 7-10
+  range into the same "dangerous satisfies" bucket. A level-10 adventurer (the current
+  ceiling) and a level-5 one were tolerance-identical, and legendary could never register as
+  expected work for anyone — directly inconsistent with the *other* level-cap follow-up
+  (recalibrated power ranges, entry above), which already calibrates legendary specifically
+  as levels 9-10's home difficulty.
+  - Added a fourth bucket: levels 9-10 now require legendary to feel adequately used,
+    mirroring the same 1-4/5-8/9-10 boundaries `VOCATION_TIERS` and the power-range
+    recalibration already use. This is a deliberate, intentional reversal of the function's
+    original "legendary should never be a hard floor" framing for that top band specifically
+    — now that the game's own difficulty calibration expects levels 9-10 to be doing
+    legendary work, treating it as an exception to avoid no longer made sense. Levels 1-4
+    untouched.
+  - No API-level behavior needed re-verifying beyond a typecheck/test run — `startAdventure`
+    (`services/adventure.ts`) already calls `isTierBelowTolerance` generically, with no
+    tier-specific logic of its own that could've silently depended on the old 3-bucket shape.
+  - **Zero prior test coverage existed for either function** — added a full suite in
+    `packages/types/src/game.test.ts` (every level-band boundary, plus a regression guard
+    specifically asserting a level-9 and level-10 adventurer now get *different* tolerance
+    floors, the exact case that was broken). `pnpm typecheck` and `pnpm test` verified clean
+    across all three packages; the two existing API-level tests exercising this mechanic
+    (`test/adventure.test.ts`, using a level-6 adventurer) were unaffected since level 6 sits
+    within the unchanged 5-8 bucket.
 - [x] Contract market scales with player population; capped direct-accept hoarding
   (2026-07-09) — raised as a scaling concern: errand/standard generated a fixed daily batch
   (5/8) regardless of how many players were actually on the guild roster, which wouldn't

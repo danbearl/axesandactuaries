@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.ts';
@@ -8,6 +8,8 @@ import {
 } from '@axes-actuaries/types';
 import type { Adventurer } from '@axes-actuaries/types';
 import AdventurerCard from '../components/AdventurerCard.tsx';
+import { useCountdown } from '../hooks/useCountdown.ts';
+import { formatDuration } from '../lib/time.ts';
 import './AdventurerDetail.css';
 
 const formatDate = (iso: string): string =>
@@ -18,22 +20,8 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function InjuryStatus({ recoveryUntil }: { recoveryUntil: string }) {
-  const [remaining, setRemaining] = useState(new Date(recoveryUntil).getTime() - Date.now());
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setRemaining(new Date(recoveryUntil).getTime() - Date.now());
-    }, 30_000);
-    return () => clearInterval(id);
-  }, [recoveryUntil]);
-
-  const formatted = (() => {
-    if (remaining <= 0) return 'Recovered — refresh to update';
-    const totalMin = Math.floor(remaining / 60_000);
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-    return h > 0 ? `${h}h ${m}m remaining` : `${m}m remaining`;
-  })();
+  const remaining = useCountdown(recoveryUntil);
+  const formatted = remaining <= 0 ? 'Recovered — refresh to update' : `${formatDuration(remaining)} remaining`;
 
   return (
     <div className="panel panel-sm" style={{ borderColor: 'var(--crimson)' }}>
@@ -46,22 +34,8 @@ function InjuryStatus({ recoveryUntil }: { recoveryUntil: string }) {
 }
 
 function RestStatus({ restUntil }: { restUntil: string }) {
-  const [remaining, setRemaining] = useState(new Date(restUntil).getTime() - Date.now());
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setRemaining(new Date(restUntil).getTime() - Date.now());
-    }, 30_000);
-    return () => clearInterval(id);
-  }, [restUntil]);
-
-  const formatted = (() => {
-    if (remaining <= 0) return 'Rested — refresh to update';
-    const totalMin = Math.floor(remaining / 60_000);
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-    return h > 0 ? `${h}h ${m}m remaining` : `${m}m remaining`;
-  })();
+  const remaining = useCountdown(restUntil);
+  const formatted = remaining <= 0 ? 'Rested — refresh to update' : `${formatDuration(remaining)} remaining`;
 
   return (
     <div className="panel panel-sm" style={{ borderColor: 'var(--slate-light)' }}>

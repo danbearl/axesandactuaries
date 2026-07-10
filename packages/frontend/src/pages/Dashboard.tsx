@@ -8,6 +8,8 @@ import DailyResetTimer from '../components/DailyResetTimer.tsx';
 import DeployByCountdown from '../components/DeployByCountdown.tsx';
 import { computeRosterCap, countUnmetRequirements, adventurerMeetsAnyRequirement, estimateSuccessChance, PROPERTY_PARTY_ROLE, type Adventurer } from '@axes-actuaries/types';
 import { partyCohesionBonus, trainingHallBonus } from '../lib/cohesion.ts';
+import { computeAvailableAt } from '../lib/availability.ts';
+import AvailabilityProjection from '../components/AvailabilityProjection.tsx';
 import './Dashboard.css';
 
 export default function Dashboard() {
@@ -72,6 +74,12 @@ export default function Dashboard() {
   const isDeployable = (a: AdventurerResponse) =>
     a.status === 'hired' && (!a.restUntil || new Date(a.restUntil) <= new Date());
   const hiredAdventurers = hired.filter(isDeployable);
+
+  // Soonest-available first (already-deployable adventurers sort to the front, dead ones to
+  // the back) — so a player can see at a glance who's coming back online next.
+  const rosterByAvailability = [...hired].sort(
+    (a, b) => computeAvailableAt(a, adventures) - computeAvailableAt(b, adventures)
+  );
 
   const dormitory = properties.find(p => p.type === 'dormitory');
   const rosterCap = computeRosterCap(dormitory?.level ?? 0);
@@ -187,6 +195,9 @@ export default function Dashboard() {
           )}
         </section>
 
+        {/* Power availability projection */}
+        <AvailabilityProjection adventurers={hired} adventures={adventures} properties={properties} />
+
         {/* Roster */}
         <section className="panel">
           <div className="flex items-center justify-between mb-md">
@@ -198,11 +209,12 @@ export default function Dashboard() {
             <div className="empty-state">Your roster is empty. Visit the market to hire adventurers.</div>
           ) : (
             <div className="flex-col gap-sm">
-              {hired.map(adv => (
+              {rosterByAvailability.map(adv => (
                 <AdventurerCard
                   key={adv.id}
                   adventurer={adv as unknown as Adventurer}
                   compact
+                  availableAt={computeAvailableAt(adv, adventures)}
                   onClick={() => navigate(`/adventurers/${adv.id}`)}
                   onFire={adv.status !== 'on_adventure'
                     ? () => fireMutation.mutate(adv.id)

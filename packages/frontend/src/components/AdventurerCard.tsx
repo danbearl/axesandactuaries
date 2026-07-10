@@ -1,5 +1,7 @@
 import type { Adventurer } from '@axes-actuaries/types';
 import { VOCATION_TIERS } from '@axes-actuaries/types';
+import { useCountdown } from '../hooks/useCountdown.ts';
+import { formatDuration } from '../lib/time.ts';
 import './AdventurerCard.css';
 
 interface Props {
@@ -9,6 +11,10 @@ interface Props {
   onFire?: () => void;
   onClick?: () => void;
   repRequired?: number;
+  // Epoch ms this adventurer next becomes deployable — see lib/availability.ts's
+  // computeAvailableAt. Only rendered (compact mode) when it's a finite future time; already-
+  // deployable or dead adventurers don't get a countdown.
+  availableAt?: number;
 }
 
 const STAT_MAX = 20;
@@ -20,7 +26,10 @@ const PERSONALITY_LABELS = {
   disposition: ['Gruff', 'Reserved', 'Neutral', 'Friendly', 'Amiable'],
 };
 
-export default function AdventurerCard({ adventurer: a, compact, onHire, onFire, onClick, repRequired }: Props) {
+export default function AdventurerCard({ adventurer: a, compact, onHire, onFire, onClick, repRequired, availableAt }: Props) {
+  const availableIn = useCountdown(Number.isFinite(availableAt) ? availableAt : null);
+  const showCountdown = Number.isFinite(availableAt) && availableIn > 0;
+
   // Tier boundaries: 1-4 -> base title, 5-8 -> mid title, 9-10 -> top title. Now that
   // MAX_LEVEL is 10 (raised from 6, a placeholder from initial design), the top tier is
   // actually reachable — it previously required level 10 while the level cap was 6, making
@@ -51,6 +60,11 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
             <span className="badge badge-heritage">{a.heritage}</span>
             <span className="badge badge-vocation">{title}</span>
             {!!a.gearTier && <span className="badge badge-vocation">Gear T{a.gearTier}</span>}
+            {showCountdown && (
+              <span className="label" style={{ color: 'var(--ink-light)' }}>
+                Available in {formatDuration(availableIn)}
+              </span>
+            )}
           </div>
         </div>
         <div className="character-compact-right" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

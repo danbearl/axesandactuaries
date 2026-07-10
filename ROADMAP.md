@@ -1140,6 +1140,111 @@ open to a small trusted player pool (Phase 0 below).
     even if generation logic changes later, but needs a new column/table). Leans toward
     persisting at resolution, matching how `AdventureAdventurer` already snapshots
     per-adventurer outcomes at resolution time rather than deriving them live.
+- Chained contracts (2026-07-10, user's idea, captured for later — no scoping done) — a
+  series of contracts of escalating difficulty forming a single-player narrative arc, visible
+  only to the player currently working through the chain (not claimable by anyone else, unlike
+  every contract today, which is either sitting in the shared market or already awarded to
+  someone). Completing the full chain grants a reward independent of the individual contracts'
+  own `rewardGold`/`reputationReward` payouts. Distinct from the "Contract narratives" item
+  above — that's flavor text on a single already-existing contract's outcome; this is a whole
+  contract *structure* spanning several contracts in sequence, with its own visibility model.
+  Open questions for whenever this gets scoped for real:
+  - **Visibility/ownership is the biggest architectural gap**: every contract today is either
+    public (`status: 'available'`/`'bidding'` in the shared market) or already claimed
+    (`awardedTo` set once accepted/won). Nothing currently models "generated for, and visible
+    only to, one specific player from the moment it's created" — would need a new field
+    (something like an owning `playerId` set at generation time, distinct from `awardedTo`,
+    which today only ever gets set at claim time) and a market-query change so chain contracts
+    never show up in `GET /contracts/market` for anyone but their owner.
+  - What actually escalates between links in the chain — `requiredPower`/reward scaling similar
+    to jumping tiers within `CONTRACT_TIER_CONFIG`, or its own independent difficulty curve not
+    tied to the existing four tiers at all?
+  - What triggers a chain to start (opt-in vs. automatically offered at some milestone), and
+    whether a player can have more than one chain active/available at once.
+  - What the completion reward actually is — a large one-off gold/reputation bonus, or
+    something with no other source in the game (a title/cosmetic, once Beta Phase 3's
+    customization work exists; ties naturally to the also-unscoped Achievements item below).
+  - Whether the chain narrative uses fixed, hand-written contracts (simpler, but a finite
+    number of chains before repetition) or leans on the procedural flavor system
+    (`packages/types/src/contracts.ts`) extended with chain-aware continuity (each link's
+    flavor referencing the same location/client/threat as the one before it, rather than
+    independently random every time).
+- Party vocation/role synergies (2026-07-10, user's idea, fleshed out in design discussion —
+  no scoping done). **Not to be confused with "Chained contracts" directly above** — that's a
+  sequence of *separate* contracts forming a narrative arc across multiple accept/complete
+  cycles; this is about a *single* contract's resolution becoming a sequence of encounters
+  internally. Promotes the "contracts favoring certain party compositions by role" note
+  flagged as a planned future feature during the property overhaul work (2026-07-08, see
+  above) into an actual design.
+  - **Two-fold intent, from the user directly**: (1) encourage players to hire more
+    deliberately for a *balanced roster*, not just the highest-power adventurers available —
+    today, power rating is the only thing that matters for `estimateSuccessChance`
+    (`packages/types/src/contracts.ts`), so an all-Sellsword roster is strictly optimal if
+    their power is high enough; (2) add depth to party assignment on top of the existing
+    Cohesion (`computeCohesionBonus`) and stat/vocation requirement (`countUnmetRequirements`)
+    mechanics, which are the only two things currently rewarding *which specific adventurers*
+    get deployed together beyond raw summed power.
+  - **The synergy design space** — specific vocations/roles doing specific things well, per
+    the user's own examples: a **Mender** in the party reduces injury/death chance (today
+    injury/death is a flat roll off `FAILURE_INJURY_CHANCE`/`SUCCESS_INJURY_CHANCE`/
+    `DEATH_SHARE_OF_INJURY` in `services/adventure.ts`, with no adventurer-composition input
+    at all); **Fighter**-role vocations (Sellsword, Outrider — see `VOCATION_PARTY_ROLE`) help
+    disproportionately on combat-heavy contracts; **Rogue**-role vocations (Trickster,
+    Alchemist) help on contracts about subterfuge/skullduggery. Wizard's (Arcanist, Invoker)
+    specific angle wasn't specified — open question. This reuses the `PartyRole` taxonomy that
+    already exists for property bonuses, just applied to contract *outcomes* instead of
+    passive XP/loyalty gains.
+  - **May replace the current stat/vocation requirement system**, per the user — today's
+    `requiredStats`/`requiredVocation` (a contract wants e.g. Might 15, or a Sellsword
+    specifically, checked by `countUnmetRequirements`/`adventurerMeetsAnyRequirement`) is a
+    flat pass/fail gate. The user's framing is that role-synergy effects would be "a more
+    natural and narrative implementation" of the same underlying idea (the party's makeup
+    should matter to a contract's outcome) — worth a real design decision on replace-vs-
+    coexist once this gets scoped, not assumed either way here.
+  - **The bigger proposed mechanism — chained encounters instead of one roll**: rather than a
+    single `estimateSuccessChance(partyPower, requiredPower, unmetRequirements)` check
+    (current model, one `Math.random()` roll decides the whole contract), a contract's
+    resolution becomes a short *series* of separate encounters chained together — closer to
+    how a tabletop RPG session actually runs a job (several distinct beats, not one skill
+    check). Each encounter's own outcome is influenced by overall party power *and* by
+    whether specific vocations/roles/stats relevant to that particular encounter are present
+    in the party — a combat encounter cares about Fighter presence, a subterfuge encounter
+    cares about Rogue presence, and so on. The contract's overall success (and the detail fed
+    into its report) comes from how the party fared across the whole chain, not one number.
+    - **Natural fit with "Contract narratives" above**: that item's own open questions
+      struggled with how to make two completions of the same contract read as genuinely
+      different stories rather than a templated Mad Lib. A per-encounter outcome sequence is
+      exactly the structured data a narrative generator needs — "the party was ambushed at
+      the ford (failed encounter 2, injury), but recovered to clear the pass (encounter 3
+      success)" is a real beat-by-beat story, not achievable from today's single win/lose
+      flag.
+    - **Resolution stays a black box to the player**, explicitly, per the user — no new UI
+      showing encounters play out live. The player's role is unchanged: get the contract,
+      assemble a party, wait for the result. The richer simulation is entirely server-side;
+      it only surfaces after the fact, through the (also unbuilt) narrative report.
+    - **Promising, not-yet-confirmed implementation angle**: the procedural flavor system
+      overhauled 2026-07-10 (see the "Fixed grammar/repetition bugs" entry above) already
+      tags each contract's flavor hook with a `subject` (`'thing' | 'hostile' | 'friendly'`)
+      and draws from thematically distinct flavor pools (combat-flavored hooks like Wyvern/
+      Bandit Ambush vs. subterfuge-flavored ones like Smuggling Ring/Crooked Game vs. rescue-
+      flavored ones like Missing Healer/Escort Risk). That existing thematic tagging could
+      plausibly seed what *kind* of encounters a given contract's chain contains, tying
+      generation, resolution, and narrative together — worth evaluating when this is
+      actually scoped, not a settled design.
+  - Open questions still unresolved:
+    - How many encounters per contract, and does that vary by tier/duration, or is it fixed?
+    - Do injury/death rolls move to per-encounter (more granular, more narrative material —
+      "injured in the second encounter") instead of the current single post-resolution roll?
+    - `CONTRACT_TIER_CONFIG`'s `powerRange`s were carefully calibrated (2026-07-08) against
+      the current single-roll `estimateSuccessChance` formula — a chained-encounter model
+      changes the underlying difficulty math entirely and would need its own fresh balancing
+      pass, not a reuse of today's numbers.
+    - Does this apply to all four tiers, or only to dangerous/legendary (errand/standard's
+      short duration and low stakes may not suit multi-encounter treatment)?
+    - Mechanically, how does "a relevant role helps this encounter" actually modify the math —
+      a flat bonus to that encounter's effective power, a bonus to its success chance
+      directly, or something closer to today's unmet-requirement penalty but inverted (a
+      bonus for a *met* affinity instead of just a penalty for an unmet requirement)?
 - Property system overhaul (2026-07-08, in progress — working through one property at a
   time with the user). **Audit finding that kicked this off**: of the six property types,
   only Dormitory (roster cap) and Training Hall (power rating) actually do anything
@@ -1244,7 +1349,8 @@ open to a small trusted player pool (Phase 0 below).
     classical fantasy party roles (fighter/wizard/rogue/priest), and each role gets its own
     property. This also lays groundwork for a **planned future feature**: contracts favoring
     certain party compositions by role — not built yet, but the taxonomy below is designed to
-    support it without rework.
+    support it without rework. (Fleshed out into its own full entry, "Party vocation/role
+    synergies," in Beta Phase 2 below.)
     - New shared taxonomy in `packages/types/src/game.ts`: `PartyRole` type,
       `VOCATION_PARTY_ROLE` (vocation -> role), `PROPERTY_PARTY_ROLE` (property type -> role
       it serves), and `findRolePropertyBonus()` (shared lookup used by both `resolveAdventure`

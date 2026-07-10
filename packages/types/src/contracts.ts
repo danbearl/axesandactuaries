@@ -131,15 +131,29 @@ export const CONTRACT_TIER_CONFIG: Record<ContractTier, TierConfig> = {
 // `label` (for titles) and a lowercase `hook` fragment (for prose) so interpolation never
 // has to guess at capitalization or grammar.
 
-const CONTRACT_LOCATIONS = [
+export const CONTRACT_LOCATIONS = [
   'Ironhaven', 'Duskfort', 'Ashveil', 'Thornwood', 'Greyspire', 'Ashfield Keep',
   'Coldmere', 'Greyfen', 'Ironspire', 'Thornwall', 'Ironmoor', 'Blackmere',
   'Ravenscar', 'Hollowfen', 'Wyrmwatch', 'Stonereach', 'Duskhollow', 'Grimwater',
 ] as const;
 
+// What kind of noun the hook's head word actually is — patterns that refer back to the hook
+// (a pronoun, or a "what needs to happen to it" verb) need to know this, or they produce
+// grammatically broken or backwards-sounding prose: "it" doesn't fit a person or a plural
+// ("needs it handled" applied to "a debtor"), and "put to rest" reads as an elimination order
+// when pointed at someone the party is meant to protect or rescue, not confront.
+// - 'thing'    — an impersonal situation, creature, or organization ("a vermin infestation",
+//                "a smuggling ring") — "it" and "put to rest"/"handled" both fit naturally.
+// - 'hostile'  — a person or people to be confronted, singular or plural ("a debtor",
+//                "bandits") — needs "them", and a confrontation-flavored verb.
+// - 'friendly' — someone the party is meant to help, not fight ("a lorekeeper who needs safe
+//                passage") — needs "them", and a protective, not adversarial, verb.
+export type FlavorSubject = 'thing' | 'hostile' | 'friendly';
+
 interface FlavorEntry {
-  label: string; // Title Case noun phrase — drops cleanly into a contract title
-  hook:  string; // lowercase noun phrase — drops cleanly into prose ("X is dealing with {hook}")
+  label:   string; // Title Case noun phrase — drops cleanly into a contract title
+  hook:    string; // lowercase noun phrase — drops cleanly into prose ("X is dealing with {hook}")
+  subject: FlavorSubject;
 }
 
 interface FlavorPattern {
@@ -149,18 +163,36 @@ interface FlavorPattern {
 
 const capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
+// "needs/wants ___ before it gets worse/becomes a bigger problem" framing.
+export function resolutionObject(subject: FlavorSubject): string {
+  switch (subject) {
+    case 'thing':    return 'it handled';
+    case 'hostile':  return 'them dealt with';
+    case 'friendly': return 'them looked after';
+  }
+}
+
+// "a party that can ___" framing.
+export function confrontPhrase(subject: FlavorSubject): string {
+  switch (subject) {
+    case 'thing':    return 'put it to rest';
+    case 'hostile':  return 'bring them to heel';
+    case 'friendly': return 'see them to safety';
+  }
+}
+
 // ── Errand ──
 const ERRAND_FLAVORS: readonly FlavorEntry[] = [
-  { label: 'Vermin Infestation',    hook: 'a vermin infestation working through the storerooms' },
-  { label: 'Petty Theft',           hook: 'a string of petty thefts nobody has caught yet' },
-  { label: 'Silent Debtor',         hook: 'a debtor who has gone conveniently quiet' },
-  { label: 'Squatters',             hook: 'squatters holed up in an empty granary' },
-  { label: 'Stray Dog Pack',        hook: 'a stray dog pack menacing the market stalls' },
-  { label: 'Foul Well',             hook: 'a well that has gone foul overnight' },
-  { label: 'Harvest Troublemakers', hook: 'a knot of drunks causing trouble at the harvest fair' },
-  { label: 'Missing Pouch',         hook: 'a courier pouch that never arrived' },
-  { label: 'Overdue Shipment',      hook: 'a wagon shipment that never showed' },
-  { label: 'Crooked Game',          hook: 'a rigged game of chance fleecing the regulars' },
+  { label: 'Vermin Infestation',    hook: 'a vermin infestation working through the storerooms', subject: 'thing' },
+  { label: 'Petty Theft',           hook: 'a string of petty thefts nobody has caught yet', subject: 'thing' },
+  { label: 'Silent Debtor',         hook: 'a debtor who has gone conveniently quiet', subject: 'hostile' },
+  { label: 'Squatters',             hook: 'squatters holed up in an empty granary', subject: 'hostile' },
+  { label: 'Stray Dog Pack',        hook: 'a stray dog pack menacing the market stalls', subject: 'thing' },
+  { label: 'Foul Well',             hook: 'a well that has gone foul overnight', subject: 'thing' },
+  { label: 'Harvest Troublemakers', hook: 'a knot of drunks causing trouble at the harvest fair', subject: 'hostile' },
+  { label: 'Missing Pouch',         hook: 'a courier pouch that never arrived', subject: 'thing' },
+  { label: 'Overdue Shipment',      hook: 'a wagon shipment that never showed', subject: 'thing' },
+  { label: 'Crooked Game',          hook: 'a rigged game of chance fleecing the regulars', subject: 'thing' },
 ];
 const ERRAND_CLIENTS = [
   'a warehouse owner', 'a tavern keeper', 'a worried parent', 'the courier office',
@@ -173,7 +205,7 @@ const ERRAND_PATTERNS: readonly FlavorPattern[] = [
   },
   {
     title:       (f) => f.label,
-    description: (f, _l, c) => `${capitalize(c)} has ${f.hook} and needs it handled before it becomes a bigger problem.`,
+    description: (f, _l, c) => `${capitalize(c)} has ${f.hook} and needs ${resolutionObject(f.subject)} before it becomes a bigger problem.`,
   },
   {
     title:       (f) => `Errand: ${f.label}`,
@@ -183,25 +215,25 @@ const ERRAND_PATTERNS: readonly FlavorPattern[] = [
 
 // ── Standard ──
 const STANDARD_FLAVORS: readonly FlavorEntry[] = [
-  { label: 'Warg Pack',        hook: 'a warg pack that has decimated three flocks this month' },
-  { label: 'Bandit Ambush',    hook: 'bandits ambushing traders on the road' },
-  { label: 'Smuggling Ring',   hook: 'a smuggling ring moving contraband through the district' },
-  { label: 'Deserter Camp',    hook: 'armed deserters squatting in a fortified ruin' },
-  { label: 'Missing Caravan',  hook: 'a trade caravan that vanished without a trace' },
-  { label: 'Missing Healer',   hook: 'the only healer for three villages, gone missing' },
-  { label: 'Ledger Raid',      hook: 'a bandit raid that made off with irreplaceable ledgers' },
-  { label: 'Land Dispute',     hook: 'a land dispute between two farmsteading families turning violent' },
-  { label: 'Cave Threat',      hook: 'something driving miners out of a profitable vein' },
-  { label: 'Escort Risk',      hook: 'a lorekeeper who needs safe passage through contested roads' },
+  { label: 'Warg Pack',        hook: 'a warg pack that has decimated three flocks this month', subject: 'thing' },
+  { label: 'Bandit Ambush',    hook: 'bandits ambushing traders on the road', subject: 'hostile' },
+  { label: 'Smuggling Ring',   hook: 'a smuggling ring moving contraband through the district', subject: 'thing' },
+  { label: 'Deserter Camp',    hook: 'armed deserters squatting in a fortified ruin', subject: 'hostile' },
+  { label: 'Missing Caravan',  hook: 'a trade caravan that vanished without a trace', subject: 'thing' },
+  { label: 'Missing Healer',   hook: 'the only healer for three villages, gone missing', subject: 'friendly' },
+  { label: 'Ledger Raid',      hook: 'a bandit raid that made off with irreplaceable ledgers', subject: 'thing' },
+  { label: 'Land Dispute',     hook: 'a land dispute between two farmsteading families turning violent', subject: 'thing' },
+  { label: 'Cave Threat',      hook: 'something driving miners out of a profitable vein', subject: 'thing' },
+  { label: 'Escort Risk',      hook: 'a lorekeeper who needs safe passage through contested roads', subject: 'friendly' },
 ];
 const STANDARD_CLIENTS = [
   'a shepherd', 'a trading post', 'the town council', 'a caravan master',
-  'a lorekeeper', 'a mining guild', 'two feuding families', 'a village elder',
+  'a lorekeeper', 'a mining guild', 'a pair of feuding families', 'a village elder',
 ] as const;
 const STANDARD_PATTERNS: readonly FlavorPattern[] = [
   {
     title:       (f, l) => `${f.label}: ${l}`,
-    description: (f, l, c) => `${l} has a problem with ${f.hook}. ${capitalize(c)} is offering solid pay for a party that can put it to rest.`,
+    description: (f, l, c) => `${l} has a problem with ${f.hook}. ${capitalize(c)} is offering solid pay for a party that can ${confrontPhrase(f.subject)}.`,
   },
   {
     title:       (f, l) => `${f.label} Near ${l}`,
@@ -209,20 +241,20 @@ const STANDARD_PATTERNS: readonly FlavorPattern[] = [
   },
   {
     title:       (f) => `Standard Contract: ${f.label}`,
-    description: (f, l, c) => `Reports from ${l} describe ${f.hook}. ${capitalize(c)} wants it resolved before it gets worse.`,
+    description: (f, l, c) => `Reports from ${l} describe ${f.hook}. ${capitalize(c)} wants ${resolutionObject(f.subject)} before it gets worse.`,
   },
 ];
 
 // ── Dangerous ──
 const DANGEROUS_FLAVORS: readonly FlavorEntry[] = [
-  { label: 'Wyvern',                hook: 'a territorial wyvern that has downed two merchant vessels' },
-  { label: 'Cultist Enclave',       hook: 'a cult conducting escalating rituals in the salt flats' },
-  { label: 'Vault Guardian',        hook: 'something inhuman guarding a half-submerged vault' },
-  { label: 'Blight',                hook: 'a spreading corruption killing everything it touches' },
-  { label: 'Siege Company',         hook: 'a mercenary company laying siege for tribute' },
-  { label: 'Rival Agents',          hook: 'agents of a rival lord operating in the shadows' },
-  { label: 'Guarded Ruin',          hook: 'whatever has kept every prior expedition out of a fallen keep\'s ruins' },
-  { label: 'Contested Passage',     hook: 'contested territory no diplomatic party has crossed safely' },
+  { label: 'Wyvern',                hook: 'a territorial wyvern that has downed two merchant vessels', subject: 'thing' },
+  { label: 'Cultist Enclave',       hook: 'a cult conducting escalating rituals in the salt flats', subject: 'thing' },
+  { label: 'Vault Guardian',        hook: 'something inhuman guarding a half-submerged vault', subject: 'thing' },
+  { label: 'Blight',                hook: 'a spreading corruption killing everything it touches', subject: 'thing' },
+  { label: 'Siege Company',         hook: 'a mercenary company laying siege for tribute', subject: 'thing' },
+  { label: 'Rival Agents',          hook: 'agents of a rival lord operating in the shadows', subject: 'hostile' },
+  { label: 'Guarded Ruin',          hook: 'whatever has kept every prior expedition out of a fallen keep\'s ruins', subject: 'thing' },
+  { label: 'Contested Passage',     hook: 'contested territory no diplomatic party has crossed safely', subject: 'thing' },
 ];
 const DANGEROUS_CLIENTS = [
   'a coalition of traders', 'the Crown', 'a besieged garrison',
@@ -235,7 +267,7 @@ const DANGEROUS_PATTERNS: readonly FlavorPattern[] = [
   },
   {
     title:       (_f, l) => `Breach ${l}`,
-    description: (f, l, c) => `${l} holds ${f.hook}. ${capitalize(c)} needs it dealt with — permanently.`,
+    description: (f, l, c) => `${l} holds ${f.hook}. ${capitalize(c)} needs ${resolutionObject(f.subject)} — permanently.`,
   },
   {
     title:       (f) => `Dangerous Contract: ${f.label}`,
@@ -243,26 +275,37 @@ const DANGEROUS_PATTERNS: readonly FlavorPattern[] = [
   },
 ];
 
-// ── Legendary ── (fewer patterns deliberately, so these still feel rare and singular)
+// ── Legendary ── (fewer patterns deliberately, so these still feel rare and singular — but
+// both patterns now always include the location, unlike before: the second pattern's title
+// used to be flavor-only, meaning its title didn't vary with location or client at all — the
+// dominant source of legendary's title repetition, since every other tier's patterns all
+// include location. Flavor/client pools were also both widened, roughly doubling this tier's
+// combinatorics: it was the thinnest of the four, and generates least often (target of 2), so
+// it's the tier most exposed to running out of fresh combinations.)
 const LEGENDARY_FLAVORS: readonly FlavorEntry[] = [
-  { label: 'Ancient Rift',      hook: 'a rift that tore open weeks ago and has not stopped growing' },
-  { label: 'Risen Lichknight',  hook: 'a knight-commander who never stopped defending his post, even in death' },
-  { label: 'Awakened Horror',   hook: 'something ancient that has woken and is pulling ships off course from leagues away' },
-  { label: 'Archive Race',      hook: 'a repository of pre-Collapse knowledge that every faction wants first' },
-  { label: 'Brink of War',      hook: 'two great powers weeks from open war over disputed land' },
-  { label: 'World-Ending Threat', hook: 'a threat the scholars believe can be destroyed, if anyone can get close enough' },
+  { label: 'Ancient Rift',      hook: 'a rift that tore open weeks ago and has not stopped growing', subject: 'thing' },
+  { label: 'Risen Lichknight',  hook: 'a knight-commander who never stopped defending his post, even in death', subject: 'hostile' },
+  { label: 'Awakened Horror',   hook: 'something ancient that has woken and is pulling ships off course from leagues away', subject: 'thing' },
+  { label: 'Archive Race',      hook: 'a repository of pre-Collapse knowledge that every faction wants first', subject: 'thing' },
+  { label: 'Brink of War',      hook: 'two great powers weeks from open war over disputed land', subject: 'thing' },
+  { label: 'World-Ending Threat', hook: 'a threat the scholars believe can be destroyed, if anyone can get close enough', subject: 'thing' },
+  { label: 'Drowned City',      hook: 'a city that sank whole a century ago and has just resurfaced', subject: 'thing' },
+  { label: 'False God',         hook: 'someone gathering worshippers and calling itself divine', subject: 'hostile' },
+  { label: 'Sundered Bloodline', hook: 'the last heir to a throne that three kingdoms are hunting', subject: 'friendly' },
+  { label: 'Star Fall',         hook: 'something that fell from the sky and is still burning three days later', subject: 'thing' },
 ];
 const LEGENDARY_CLIENTS = [
   'a neutral coalition', 'the last scholars who understand it',
   'a desperate garrison', 'three converging factions', 'those who remember what it did the first time',
+  'the crownless heirs', 'a pact of desperate mages',
 ] as const;
 const LEGENDARY_PATTERNS: readonly FlavorPattern[] = [
   {
     title:       (f, l) => `${f.label}: ${l}`,
-    description: (f, l, c) => `${capitalize(c)} say ${f.hook}. It is centered on ${l}. Nobody has come back from a serious attempt yet.`,
+    description: (f, l, c) => `${capitalize(c)} say ${f.hook}. Centered on ${l}. Nobody has come back from a serious attempt yet.`,
   },
   {
-    title:       (f) => `Legendary Contract: ${f.label}`,
+    title:       (f, l) => `Legendary Contract: ${f.label} — ${l}`,
     description: (f, l, c) => `${l} is ground zero. ${capitalize(c)} say ${f.hook}. Whoever takes this will be remembered — one way or another.`,
   },
 ];
@@ -301,30 +344,40 @@ function renderContractFlavor(tier: ContractTier): ContractFlavor {
 // a hard uniqueness guarantee (retries a fixed number of times, then accepts whatever it
 // gets), but the word-bank combinatorics are large enough that this comfortably prevents the
 // same title from resurfacing back-to-back.
+//
+// Kept **per tier**, not as one shared history — errand/standard generate far more often than
+// dangerous/legendary (standing targets of 5-8 vs. 2-5), so a single shared window used to let
+// their titles flood it and evict dangerous/legendary's own recent entries almost immediately,
+// leaving the low-volume tiers with the least effective protection despite needing it most.
 const TITLE_HISTORY_SIZE = 20;
 const MAX_TITLE_RETRIES = 5;
-const titleHistory = new Set<string>();
-const titleHistoryOrder: string[] = [];
+const titleHistory: Record<ContractTier, { seen: Set<string>; order: string[] }> = {
+  errand:    { seen: new Set(), order: [] },
+  standard:  { seen: new Set(), order: [] },
+  dangerous: { seen: new Set(), order: [] },
+  legendary: { seen: new Set(), order: [] },
+};
 
-function recordTitle(title: string): void {
-  if (titleHistory.has(title)) return;
-  titleHistory.add(title);
-  titleHistoryOrder.push(title);
-  if (titleHistoryOrder.length > TITLE_HISTORY_SIZE) {
-    titleHistory.delete(titleHistoryOrder.shift()!);
+function recordTitle(tier: ContractTier, title: string): void {
+  const history = titleHistory[tier];
+  if (history.seen.has(title)) return;
+  history.seen.add(title);
+  history.order.push(title);
+  if (history.order.length > TITLE_HISTORY_SIZE) {
+    history.seen.delete(history.order.shift()!);
   }
 }
 
 function generateContractFlavor(tier: ContractTier): ContractFlavor {
   for (let i = 0; i < MAX_TITLE_RETRIES; i++) {
     const flavor = renderContractFlavor(tier);
-    if (!titleHistory.has(flavor.title)) {
-      recordTitle(flavor.title);
+    if (!titleHistory[tier].seen.has(flavor.title)) {
+      recordTitle(tier, flavor.title);
       return flavor;
     }
   }
   const flavor = renderContractFlavor(tier);
-  recordTitle(flavor.title);
+  recordTitle(tier, flavor.title);
   return flavor;
 }
 

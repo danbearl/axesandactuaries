@@ -4,7 +4,7 @@ import {
   countUnmetRequirements, adventurerMeetsAnyRequirement, estimateSuccessChance,
   MIN_SUCCESS_CHANCE, MAX_SUCCESS_CHANCE, REQUIREMENT_PENALTY_PER_UNMET,
   DIRECT_ACCEPT_CONTRACT_EXPIRY_HOURS, BIDDING_CONTRACT_BACKSTOP_EXPIRY_HOURS,
-  CONTRACT_MARKET_BASE_RATE,
+  CONTRACT_MARKET_BASE_RATE, resolutionObject, confrontPhrase, CONTRACT_LOCATIONS,
 } from './contracts.js';
 import { BIDDING_CONTRACT_TIERS } from './game.js';
 import type { ContractTier } from './game.js';
@@ -68,10 +68,97 @@ describe('generateContract procedural naming', () => {
   // accepts whatever it gets — a deliberate best-effort design, not a hard uniqueness
   // guarantee (see the comment above generateContractFlavor in contracts.ts). An earlier
   // version of this test asserted exactly that guarantee across 20 real-random draws per
-  // tier and failed intermittently in CI — legendary's pool is thin enough (one of its two
-  // patterns ignores location entirely, leaving only 6 "hot" title values out of ~114) that
-  // a genuine, expected collision surfaces often enough to make the assertion flaky rather
-  // than a real regression signal.
+  // tier and failed intermittently in CI — legendary's pool was thin enough (one of its two
+  // patterns used to ignore location entirely, leaving only 6 "hot" title values out of ~114)
+  // that a genuine, expected collision surfaced often enough to make the assertion flaky
+  // rather than a real regression signal. Both issues (the location-less pattern, and a
+  // shared-across-tiers dedup window that let errand/standard's volume evict legendary's own
+  // recent history) were fixed 2026-07-10 — legendary's combinatorics and dedup fairness are
+  // both meaningfully better now, but the assertion here is still left loose rather than
+  // reintroducing a hard uniqueness guarantee.
+
+  it('every legendary title includes a location', () => {
+    // Regression guard for the specific bug that made legendary the most repetitive tier:
+    // one of its two title patterns used to ignore location/client entirely, so every title
+    // from that pattern was identical for a given flavor regardless of which of the 18
+    // locations got picked.
+    for (let i = 0; i < 100; i++) {
+      const { title } = generateContract('legendary');
+      expect(CONTRACT_LOCATIONS.some((loc) => title.includes(loc))).toBe(true);
+    }
+  });
+});
+
+describe('resolutionObject', () => {
+  it('uses "it" for an impersonal thing', () => {
+    expect(resolutionObject('thing')).toBe('it handled');
+  });
+
+  it('uses "them" for a hostile person or people, with a confrontational verb', () => {
+    expect(resolutionObject('hostile')).toBe('them dealt with');
+  });
+
+  it('uses "them" for someone the party is meant to help, with a protective verb', () => {
+    expect(resolutionObject('friendly')).toBe('them looked after');
+  });
+});
+
+describe('confrontPhrase', () => {
+  it('never uses a violent verb ("put to rest") for someone the party is meant to protect', () => {
+    expect(confrontPhrase('friendly')).not.toContain('rest');
+    expect(confrontPhrase('friendly')).not.toContain('heel');
+  });
+
+  it('differs across all three subjects', () => {
+    const phrases = new Set([confrontPhrase('thing'), confrontPhrase('hostile'), confrontPhrase('friendly')]);
+    expect(phrases.size).toBe(3);
+  });
+});
+
+describe('generateContract grammar correctness', () => {
+  // Regression guard for the actual reported bug: hooks describing a person or people (e.g.
+  // "a debtor who has gone conveniently quiet") used to be spliced into sentences with a
+  // generic "it" ("needs it handled") and violent verbs ("put it to rest") regardless of
+  // whether the hook was a hostile target or someone to protect. Each hook string below is
+  // unique enough to identify which flavor was picked, so once it shows up in a generated
+  // description, the surrounding phrasing can be checked directly rather than relying on
+  // random luck to eventually hit every case.
+  const HOSTILE_HOOKS = [
+    'a debtor who has gone conveniently quiet', // errand: Silent Debtor
+    'squatters holed up in an empty granary', // errand: Squatters
+    'bandits ambushing traders on the road', // standard: Bandit Ambush
+    'armed deserters squatting in a fortified ruin', // standard: Deserter Camp
+    'agents of a rival lord operating in the shadows', // dangerous: Rival Agents
+  ];
+  const FRIENDLY_HOOKS = [
+    'the only healer for three villages, gone missing', // standard: Missing Healer
+    'a lorekeeper who needs safe passage through contested roads', // standard: Escort Risk
+  ];
+
+  it('never refers to a hostile-person hook with "it", and never uses "put ... to rest" on one', () => {
+    const tiers: ContractTier[] = ['errand', 'standard', 'dangerous'];
+    for (const tier of tiers) {
+      for (let i = 0; i < 300; i++) {
+        const { description } = generateContract(tier);
+        const matchedHook = HOSTILE_HOOKS.find((hook) => description.includes(hook));
+        if (!matchedHook) continue;
+        expect(description).not.toContain('needs it');
+        expect(description).not.toContain('put it to rest');
+      }
+    }
+  });
+
+  it('never refers to a friendly hook with "it", and never uses a confrontational verb on one', () => {
+    for (let i = 0; i < 300; i++) {
+      const { description } = generateContract('standard');
+      const matchedHook = FRIENDLY_HOOKS.find((hook) => description.includes(hook));
+      if (!matchedHook) continue;
+      expect(description).not.toContain('needs it');
+      expect(description).not.toContain('put it to rest');
+      expect(description).not.toContain('dealt with');
+      expect(description).not.toContain('bring them to heel');
+    }
+  });
 });
 
 describe('generateContract requirements', () => {

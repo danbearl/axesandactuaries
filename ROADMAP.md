@@ -1060,6 +1060,60 @@ open to a small trusted player pool (Phase 0 below).
     patterns ignores location entirely, leaving only 6 "hot" values) that a genuine collision
     surfaces often enough to make that specific assertion flaky rather than a real regression
     signal. The variety test above remains the meaningful coverage.
+- [x] Fixed grammar/repetition bugs in procedural contract generation (2026-07-10) — user
+  report: descriptions were "sometimes nonsensical" and titles felt repetitive despite the
+  word-bank system above. Root-caused two distinct bugs by sampling real generated output
+  rather than reasoning about the templates abstractly:
+  - **Pronoun/verb-agreement bug**: several flavor `hook`s describe a person or people ("a
+    debtor who has gone conveniently quiet", "bandits ambushing traders"), but every pattern
+    that refers back to the hook used a generic "it" and verbs like "put to rest"/"handled"
+    that only make sense for an impersonal situation. Produced real broken output like *"The
+    village elder has the only healer for three villages, gone missing and needs **it**
+    handled"* (a missing person called "it"), and — worse — *"...a party that can put
+    **it** to rest"* applied to **Escort Risk**'s hook (a lorekeeper who needs protecting),
+    which reads as a kill order for a protection job, backwards from the contract's actual
+    intent. Fixed by tagging every `FlavorEntry` with a `subject: 'thing' | 'hostile' |
+    'friendly'` (thing = impersonal situation/creature/organization, "it"/"put to rest" fit
+    fine; hostile = a person or people to confront, needs "them" and a confrontational verb;
+    friendly = someone the party is meant to help, needs "them" and a protective verb — "put
+    to rest" specifically reads as violent when pointed at someone to rescue, not fight) and
+    routing every pronoun/verb reference through two new small helpers
+    (`resolutionObject`/`confrontPhrase`) instead of hardcoding the phrase in each pattern.
+    Tagged all 34 flavor entries across all four tiers by hand.
+  - **Repetition — two separate causes, both fixed**: (1) the recent-title dedup
+    (`titleHistory`) was one 20-slot window **shared across all four tiers**, so
+    errand/standard's high generation volume (targets of 5 and 8) evicted dangerous/
+    legendary's own recent entries almost immediately — the tiers that most needed dedup
+    protection (lowest volume, thinnest pools) were getting the least of it. Switched to a
+    `Record<ContractTier, {...}>` — one independent 20-slot window per tier. (2) legendary's
+    second title pattern ignored location/client entirely (`` `Legendary Contract: ${f.label}` ``),
+    so every title from that pattern was identical for a given flavor regardless of which of
+    the 18 locations got picked — already flagged as a known weak spot in this file's
+    2026-07-07 entry above, now actually fixed (both legendary patterns include location).
+    Also widened legendary's own pools while in there, since it was already the thinnest of
+    the four and the one most exposed by bug (1): 6→10 flavors, 5→7 clients (pattern count
+    deliberately left at 2 — that was an intentional choice for legendary to feel rarer, not
+    an oversight).
+  - Also fixed a smaller, related grammar bug spotted while sampling output for the above:
+    `STANDARD_CLIENTS` included `'two feuding families'`, a plural client colliding with
+    patterns hardcoding singular verbs (`wants`, `is offering`) — produced *"Two feuding
+    families **wants** it handled..."*. Reworded to `'a pair of feuding families'` (a
+    singular collective noun) rather than adding a second grammatical-agreement tagging
+    system for what was really one bad string. **Not otherwise audited**: a few legendary
+    clients (`'a neutral coalition'`, `'a desperate garrison'`) are singular collective nouns
+    paired with the plural-agreeing verb "say" (`"A neutral coalition say..."`) — left as-is,
+    since collective-noun-plus-plural-verb is a long-established, accepted English
+    convention (especially in narrative prose), unlike the "families wants" case, which was
+    unambiguously wrong in any variety of English.
+  - Test-covered in `packages/types/src/contracts.test.ts`: unit tests for
+    `resolutionObject`/`confrontPhrase` (now exported) covering all three subject types; a
+    black-box regression guard that generates 300 contracts per tier and checks that whenever
+    a known hostile or friendly hook's exact text appears in the description, the broken
+    "needs it"/"put it to rest"/wrong-direction verb never does; and a legendary-specific
+    test confirming every generated title now contains a real location (`CONTRACT_LOCATIONS`,
+    now exported), the direct regression guard for the location-less-pattern bug. `pnpm
+    typecheck` and `pnpm test` both verified clean, and real sample output was generated and
+    read manually to confirm the fix beyond just the automated assertions.
 - Contract narratives in the completion report (2026-07-07, captured — not yet built):
   procedurally generate a short narrative paragraph for the "Party Report" section shown
   once an adventure resolves (`AdventureDetail.tsx`, currently a plain per-adventurer table —

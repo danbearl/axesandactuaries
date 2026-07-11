@@ -198,8 +198,8 @@ export default function AdventurerDetail() {
                   {isMaxLevel ? 'Max Level' : `${adventurer.experience} / ${nextLevelXp} XP`}
                 </span>
               </div>
-              <div className="at-progress-track">
-                <div className="at-progress-fill" style={{ width: `${levelProgress}%` }} />
+              <div className="detail-progress-track">
+                <div className="detail-progress-fill" style={{ width: `${levelProgress}%` }} />
               </div>
             </div>
           </div>

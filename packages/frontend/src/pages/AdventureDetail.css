@@ -13,13 +13,19 @@
   color:       var(--gold-dark);
 }
 
-.at-progress-track {
+/* Named distinctly from AdventureTimer.css's .at-progress-track/.at-progress-fill
+   (same concept, different component) — they used to share this exact class name,
+   which silently collided across lazy-loaded page chunks: whichever page's CSS was
+   inserted into the document most recently won the cascade for both, regardless of
+   which page was actually being viewed. See index.css's "Cross-Page Shared Classes"
+   note for the general version of this bug. */
+.detail-progress-track {
   height:        8px;
   background:    var(--parchment-dark);
   border-radius: 4px;
   overflow:      hidden;
 }
-.at-progress-fill {
+.detail-progress-fill {
   height:     100%;
   background: linear-gradient(to right, var(--gold-dark), var(--gold-light));
   border-radius: 4px;

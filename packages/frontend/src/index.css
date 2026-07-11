@@ -18,6 +18,13 @@
   --shadow:          rgba(44, 26, 14, 0.15);
   --shadow-deep:     rgba(44, 26, 14, 0.35);
 
+  /* Semantic aliases — reuse the same colors already meaning "success"/"danger"
+     elsewhere in this file (.badge-status-completed/.badge-status-failed) rather than
+     introducing new hex values, so inline-style usages (var(--success)/var(--danger))
+     stay visually consistent with the badge system. */
+  --success:         var(--emerald);
+  --danger:          var(--crimson);
+
   /* Tier colors */
   --tier-errand:     #6a7a8c;
   --tier-standard:   #2e8b4a;
@@ -319,6 +326,39 @@ p  { font-size: 1.05rem; line-height: 1.6; color: var(--ink-light); }
   font-style:  italic;
   font-size:   1.05rem;
 }
+
+/* ── Cross-Page Shared Classes ───────────────────────────────────────────────────
+   Every page lazy-loads as its own chunk (see App.tsx) and only imports its own
+   same-named .css file — a page's chunk never pulls in another page's stylesheet.
+   Classes used by more than one page therefore MUST live in this global file, not in
+   a single "owning" page's .css, or they render unstyled on any page whose chunk
+   loads without that owner's chunk having already loaded (e.g. a deep link or hard
+   refresh straight into a non-Dashboard page). Found as a real bug 2026-07-10 —
+   .page-header/.property-row/.level-pip were each defined only in the one page that
+   introduced them (Dashboard.css, Dashboard.css, Properties.css respectively) despite
+   being consumed by several other pages. Add new genuinely-shared classes here, not
+   to whichever page happens to use them first. */
+.page-header { margin-bottom: 0.25rem; }
+.page-header h1 { margin-bottom: 0.15rem; }
+
+.property-row {
+  display:         flex;
+  justify-content: space-between;
+  align-items:     center;
+  padding:         0.6rem 0.75rem;
+  background:      var(--parchment-mid);
+  border-radius:   var(--radius);
+  border:          1px solid var(--parchment-dark);
+}
+
+.level-pips { align-items: center; }
+.level-pip {
+  width: 14px; height: 14px;
+  border-radius: 3px;
+  background: var(--parchment-dark);
+  border: 1px solid var(--gold-dark);
+}
+.level-pip.active { background: var(--gold); }
 
 /* ── Utility ─────────────────────────────────────────────────────────────────── */
 .flex        { display: flex; }

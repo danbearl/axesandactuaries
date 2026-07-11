@@ -128,8 +128,8 @@ export default function AdventureDetail() {
             <div className="label">Returns: {formatDate(adventure.completesAt)}</div>
           </div>
 
-          <div className="at-progress-track mt-md">
-            <div className="at-progress-fill" style={{ width: `${isResolved ? 100 : progress}%` }} />
+          <div className="detail-progress-track mt-md">
+            <div className="detail-progress-fill" style={{ width: `${isResolved ? 100 : progress}%` }} />
           </div>
 
           {!isResolved && (

@@ -416,6 +416,80 @@ open to a small trusted player pool (Phase 0 below).
   - Confirmed working end-to-end in a real browser at 375px/390px/768px/1024px+ by the user.
     `pnpm typecheck` and a full production `pnpm build` both clean. This closes out the
     mobile-friendly-layout item captured 2026-07-08 in full — no further phases planned.
+- [x] CSS re-audit — fix the three real cross-page bugs found while closing out the mobile
+  layout work (2026-07-10) — the mobile-friendly-layout passes above touched nearly every
+  page's CSS and surfaced architectural issues unrelated to responsiveness. Re-audited fresh,
+  independently verified the top findings rather than trusting the audit agent at face value
+  (one of its claims — that `.badge-tier-standard`/`.tier-tab-standard.active` disagreed with
+  each other — turned out wrong on direct inspection; they already agreed, the real issue was
+  just unused `--tier-*` tokens), then fixed the three that were genuine bugs rather than
+  cosmetic drift:
+  - **`--success`/`--danger` custom properties were referenced (`var(--success)`,
+    `var(--danger)`) in ~10 places across 6+ TSX files but never defined anywhere** — an
+    undefined custom property with no fallback makes the whole declaration invalid, so every
+    success/danger-colored element (bid-placed badges, error panels, danger labels) was
+    silently rendering with no color at all. Fixed by aliasing both to the existing
+    `--emerald`/`--crimson` tokens already used for the same semantic meaning elsewhere
+    (`.badge-status-completed`/`.badge-status-failed`), rather than inventing new hex values.
+  - **Route-level code splitting (`App.tsx`'s `React.lazy()` per page) broke any CSS class
+    shared across pages but defined in only one page's stylesheet** — each page's chunk only
+    imports its own same-named `.css` file, so `.page-header`/`.page-header h1` and
+    `.property-row` (defined only in `Dashboard.css`) and `.level-pips`/`.level-pip`/
+    `.level-pip.active` (defined only in `Properties.css`) rendered unstyled on any other page
+    that used them, whenever that page's chunk loaded without the owning page's chunk having
+    already loaded first (e.g. a deep link or hard refresh straight into a non-Dashboard
+    page). Fixed by moving all three into a new "Cross-Page Shared Classes" section in
+    `index.css` (always loaded, never chunk-gated), with a comment explaining the constraint
+    so future genuinely-shared classes land there instead of in whichever page happens to
+    introduce them first.
+  - **`.at-progress-track`/`.at-progress-fill` were independently defined three times with
+    different values** (`AdventureTimer.css` at 5px/`gold`-to-`gold-dark`, vs.
+    `AdventureDetail.css` and `AdventurerDetail.css` both at 8px/`gold-dark`-to-`gold-light`)
+    — same name, same cascade-loaded-globally-once problem as above, so whichever page's chunk
+    loaded most recently won for *all* progress bars regardless of which was actually on
+    screen. `AdventureTimer.css` kept its name (compact multi-item Dashboard list context,
+    genuinely a different size than the detail pages need); `AdventureDetail.css` and
+    `AdventurerDetail.css` were renamed to `.detail-progress-track`/`.detail-progress-fill`
+    (their values were already identical to each other, just needed a name no longer shared
+    with `AdventureTimer`).
+  - `pnpm typecheck` and a production `pnpm build` both clean. Manual browser verification
+    (success/danger colors render, shared classes style correctly when landing directly on a
+    non-owner page, the three progress bars keep their distinct sizing) confirmed working by
+    the user.
+- CSS audit — remaining lower-severity findings, captured for later (2026-07-10, not fixed —
+  none are functional bugs, just drift/dead-code cleanup deferred in favor of the three real
+  bugs above):
+  - **Drifted-but-not-broken duplicate values**: label/value gap spacing is `0.05rem` in
+    `ContractCard.css`'s `.cc-stat`/`.cc-reward`, `AdventureDetail.css`/`AdventurerDetail.css`'s
+    `.detail-stat`, and `AdventurerMarket.css`'s `.toolbar-stat`, but `0.15rem` in
+    `Profile.css`'s `.ps-item`, `Transactions.css`'s `.ls-item`, and `Dashboard.css`'s
+    `.summary-sub`. Text-input padding also drifted: `0.5rem 0.65rem` (`Admin.css`,
+    `Wiki.css`) vs. `0.55rem 0.7rem` (`Onboarding.css`) vs. `0.45rem 0.75rem`
+    (`AdventurerMarket.css`'s `.market-search`). `Admin.css`'s `.admin-roster-table` uses
+    smaller padding/font-size (`0.4rem 0.6rem`, `0.9rem`) than its four near-identical sibling
+    tables (`0.5rem 0.75rem`, `0.95rem`).
+  - **Dead CSS**: unused utility classes `.scroll-list` (+ its `::-webkit-scrollbar*`
+    children), `.mt-lg`, `.text-center`, `.w-full`, `.grid-3` (+ its mobile override) in
+    `index.css`; unused font token `--font-accent`; four unused `--tier-*` color custom
+    properties (`--tier-errand`/`--tier-standard`/`--tier-dangerous`/`--tier-legendary`) — the
+    actual tier colors are hardcoded consistently via `--emerald`/`--crimson`/etc. directly
+    instead, so these tokens are dead, not a visual bug.
+  - ~15 hardcoded `rgba(201,151,58,X)` / `rgba(244,234,213,X)` values in `Navigation.css` that
+    exactly match `--gold`/`--parchment`'s RGB but have no reusable alpha-capable token to
+    reference instead.
+  - Minor, possibly-intentional divergence: `.badge-tier-legendary` uses
+    `color: var(--parchment)` while `.tier-tab-legendary.active` uses `color: var(--ink)` on
+    the identical `var(--gold-dark)` background — the only tier where badge vs. tab
+    text-color choice diverges.
+  - Dead classNames with no CSS rule anywhere (not a wrong-chunk issue — genuinely unstyled):
+    `.profile-page`, `.wiki-page`, `.wiki-content`, `.dashboard-ledger`, `.ledger-summary`
+    (only `.ledger-summary-grid` exists), `.properties-summary`, `.success-breakdown`,
+    `.character-compact-left`.
+  - Already-known: the `.tier-tab` pattern is independently duplicated three times with no
+    shared base — `ContractMarket.css` as a bare top-level selector vs. `Feed.css`/
+    `Transactions.css` scoped as `.feed-filters .tier-tab`/`.ledger-filters .tier-tab`, a
+    specificity-level architectural inconsistency, not just value drift. `.admin-actions`/
+    `.admin-error` are also verbatim-duplicated between `Admin.css` and `Wiki.css`.
 
 ## Beta Phase 2 — Game Mechanics Depth
 **Goal:** the core loop is deep and balanced enough to hold a trusted pool's attention.

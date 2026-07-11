@@ -185,6 +185,22 @@
 
 .nav-icon { font-size: 0.9rem; }
 
+.nav-badge {
+  margin-left:     auto;
+  min-width:       18px;
+  height:          18px;
+  padding:         0 5px;
+  border-radius:   999px;
+  background:      var(--crimson);
+  color:           var(--parchment);
+  font-size:       0.65rem;
+  font-weight:     700;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  line-height:     1;
+}
+
 .nav-footer {
   margin-top: auto;
   padding-top: 0.75rem;

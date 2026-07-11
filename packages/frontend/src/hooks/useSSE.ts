@@ -59,6 +59,12 @@ export function useSSE() {
         void queryClient.invalidateQueries({ queryKey: ['feed'] });
       });
 
+      // Fired when an admin publishes an announcement — prefix-matches both ['announcements']
+      // (the feed list) and ['announcements', 'unread-count'] (the nav badge).
+      es.addEventListener('announcement_published', () => {
+        void queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      });
+
       es.onerror = () => {
         es?.close();
         es = null;

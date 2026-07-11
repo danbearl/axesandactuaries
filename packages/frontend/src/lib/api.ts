@@ -147,6 +147,18 @@ export const api = {
   leaderboard: {
     get: () => request<LeaderboardResponse>('/leaderboard'),
   },
+  announcements: {
+    list: () => request<{ announcements: AnnouncementResponse[] }>('/announcements'),
+    unreadCount: () => request<{ count: number }>('/announcements/unread-count'),
+    markViewed: () => request<{ lastAnnouncementsViewedAt: string }>('/announcements/mark-viewed', { method: 'POST' }),
+    create: (data: { title: string; body: string }) =>
+      request<{ announcement: AnnouncementResponse }>('/announcements', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<{ title: string; body: string }>) =>
+      request<{ announcement: AnnouncementResponse }>(`/announcements/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    publish: (id: string) =>
+      request<{ announcement: AnnouncementResponse }>(`/announcements/${id}/publish`, { method: 'POST' }),
+    remove: (id: string) => request<{ success: true }>(`/announcements/${id}`, { method: 'DELETE' }),
+  },
 };
 
 // ── Response types (mirror the DB shapes returned by the API) ─────────────────
@@ -387,4 +399,14 @@ export interface LeaderboardResponse {
   top: LeaderboardEntry[];
   me: LeaderboardEntry;
   nearby: LeaderboardEntry[];
+}
+
+export interface AnnouncementResponse {
+  id: string;
+  title: string;
+  body: string;
+  status: 'draft' | 'published';
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }

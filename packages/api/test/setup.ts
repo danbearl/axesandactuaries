@@ -20,6 +20,7 @@ const TABLES = [
   'properties',
   'contracts',
   'adventurers',
+  'announcements',
   'players',
 ];
 

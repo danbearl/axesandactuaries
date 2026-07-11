@@ -62,7 +62,12 @@ jobs:
       cancel-in-progress: true
 
     steps:
+      # fetch-depth: 0 (full history), not the default shallow clone — the deploy-summary
+      # step below needs `git log` to walk from github.event.before, which a depth-1 clone
+      # wouldn't have.
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
@@ -74,3 +79,40 @@ jobs:
             --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # Nice-to-have, not required for a successful deploy: posts a draft announcement
+      # summarizing commits since the last deploy, for an admin to review/clean up and
+      # publish via the Announcements page — never auto-published (see
+      # routes/announcements.ts's /webhook handler). continue-on-error so a hiccup here
+      # (e.g. secret not yet configured, transient network failure) never fails a deploy
+      # that already succeeded.
+      - name: Post deploy summary announcement
+        continue-on-error: true
+        env:
+          WEBHOOK_SECRET: ${{ secrets.ANNOUNCEMENTS_WEBHOOK_SECRET }}
+        run: |
+          BEFORE="${{ github.event.before }}"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            # First push to the branch, or a force-push with no known prior SHA — fall back
+            # to a bounded recent-history window instead of the full since-last-deploy range.
+            COMMITS=$(git log -20 --no-merges --pretty=format:'- %s')
+          else
+            COMMITS=$(git log "$BEFORE"..HEAD --no-merges --pretty=format:'- %s')
+          fi
+
+          if [ -z "$COMMITS" ]; then
+            echo "No commits to summarize — skipping announcement."
+            exit 0
+          fi
+          if [ -z "$WEBHOOK_SECRET" ]; then
+            echo "ANNOUNCEMENTS_WEBHOOK_SECRET not set — skipping announcement."
+            exit 0
+          fi
+
+          TITLE_JSON=$(printf 'Deploy update — %s' "$(date -u +%Y-%m-%d)" | jq -Rs .)
+          BODY_JSON=$(printf '%s' "$COMMITS" | jq -Rs .)
+
+          curl --fail-with-body -sS -X POST https://axesandactuaries.com/api/v1/announcements/webhook \
+            -H "Authorization: Bearer $WEBHOOK_SECRET" \
+            -H "Content-Type: application/json" \
+            -d "{\"title\": ${TITLE_JSON}, \"body\": ${BODY_JSON}}"

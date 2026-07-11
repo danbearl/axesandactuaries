@@ -21,6 +21,7 @@ const Wiki = lazy(() => import('./pages/Wiki.tsx'));
 const Leaderboard = lazy(() => import('./pages/Leaderboard.tsx'));
 const Onboarding = lazy(() => import('./pages/Onboarding.tsx'));
 const Admin = lazy(() => import('./pages/Admin.tsx'));
+const Announcements = lazy(() => import('./pages/Announcements.tsx'));
 
 const PageFallback = () => (
   <div className="panel" style={{ marginTop: '2rem', textAlign: 'center' }}>Loading…</div>
@@ -89,6 +90,7 @@ function AuthenticatedApp() {
             <Route path="/wiki" element={<Wiki />} />
             <Route path="/wiki/:slug" element={<Wiki />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="/announcements" element={<Announcements />} />
             {data.player.isAdmin && <Route path="/admin" element={<Admin />} />}
           </Routes>
         </Suspense>

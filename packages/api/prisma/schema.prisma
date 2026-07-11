@@ -77,6 +77,10 @@ model Player {
   gold          Int       @default(500)
   reputation    Int       @default(0)
   lastWelfareAt DateTime? @map("last_welfare_at")
+  // Cursor, not a per-announcement join table: an announcement is "unread" if its
+  // publishedAt is after this timestamp. Same simple-cursor shape as lastWelfareAt above —
+  // sufficient for a "new announcements" nav badge without needing individual read receipts.
+  lastAnnouncementsViewedAt DateTime? @map("last_announcements_viewed_at")
   createdAt     DateTime  @default(now()) @map("created_at")
 
   adventurers  Adventurer[]
@@ -313,4 +317,27 @@ model WikiPage {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("wiki_pages")
+}
+
+enum AnnouncementStatus {
+  draft
+  published
+}
+
+// Admin-authored, Markdown-rendered updates shown to every player in a reverse-chronological
+// feed. publishedAt is set exactly once, the first time status flips to published, and never
+// cleared or refreshed afterward — it's the stable "published since" instant that
+// Player.lastAnnouncementsViewedAt's unread-cursor comparison and the feed's ordering both
+// depend on, so a later edit doesn't reshuffle the list or make an already-seen post look new.
+model Announcement {
+  id          String             @id @default(cuid())
+  title       String
+  body        String
+  status      AnnouncementStatus @default(draft)
+  publishedAt DateTime?          @map("published_at")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  @@index([status, publishedAt])
+  @@map("announcements")
 }

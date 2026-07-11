@@ -543,3 +543,9 @@ export interface PlayerEvent {
   referenceId?: string;
   createdAt:   string;
 }
+
+// ── Announcements ─────────────────────────────────────────────────────────────
+// Kept in sync with the matching Prisma enum (see CLAUDE.md: a cross-stack enum value
+// needs both sides updated together).
+
+export type AnnouncementStatus = 'draft' | 'published';

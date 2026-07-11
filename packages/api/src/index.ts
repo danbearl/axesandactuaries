@@ -33,6 +33,7 @@ import feedRouter from './routes/feed.js';
 import wikiRouter from './routes/wiki.js';
 import adminRouter from './routes/admin.js';
 import leaderboardRouter from './routes/leaderboard.js';
+import announcementsRouter from './routes/announcements.js';
 import { registerWorkers, stopWorkers } from './workers/index.js';
 import { connectRedis, disconnectRedis } from './lib/redis.js';
 import { sseHub } from './lib/sse.js';
@@ -115,6 +116,7 @@ app.use('/api/v1/feed', feedRouter);
 app.use('/api/v1/wiki', wikiRouter);
 app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/leaderboard', leaderboardRouter);
+app.use('/api/v1/announcements', announcementsRouter);
 
 // In production the compiled frontend lives two directories up from dist/
 if (process.env.NODE_ENV === 'production') {

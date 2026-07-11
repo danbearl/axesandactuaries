@@ -529,23 +529,77 @@ open to a small trusted player pool (Phase 0 below).
   adventures, and adjust any player's gold/reputation by username. Verified end-to-end in a
   real browser in both local dev and production (including promoting the production user
   via the Neon console directly).
-- Announcements / newsletter feature (2026-07-06) — lets an admin publish game updates,
-  balance changes, and general announcements that all players see in-game, rather than
-  relying on out-of-band channels. Natural fit once scoped: reuse the existing `isAdmin`
-  flag and Admin panel (`routes/admin.ts` / `pages/Admin.tsx`) for authoring, the same way
-  the admin testing toolkit does — no need to wait for the full Gate-phase Admin/Moderator
-  roles system just to let the one admin post updates. Likely a freeform, Markdown-rendered
-  content model similar to the Wiki feature (`react-markdown` is already a frontend
-  dependency), but feed-style (reverse-chronological, timestamped entries) rather than the
-  Wiki's static reference pages. Open questions to resolve when this gets scoped for real:
-  - Read/unread tracking per player, or just a simple public feed everyone sees the same way?
-  - Should posting a new announcement push a real-time notification via the existing SSE
-    infrastructure (`lib/sse.ts`), or is players noticing it next time they open the app
-    (e.g. a nav badge) good enough?
-  - Dismissible/pinned entries, or a plain unbounded feed (would eventually want the same
-    kind of pagination the Adventure Log already uses)?
-  - Where does it live in the nav — its own tab, or folded into an existing one (Dashboard
-    banner, Wiki)?
+- [x] Announcements / newsletter feature (2026-07-11) — closes out the idea captured
+  2026-07-06 below (this replaces that entry with what actually shipped). Lets an admin
+  draft/publish/edit/delete Markdown-rendered announcements that every player sees in a
+  dedicated reverse-chronological feed, plus per-player unread tracking and a GitHub Actions
+  integration that drafts a post-deploy commit summary for an admin to review. Resolved the
+  open questions the captured idea had left:
+  - **Read tracking**: a single `Player.lastAnnouncementsViewedAt` cursor (mirrors the
+    existing `lastWelfareAt` field's shape), not a per-announcement read-receipt join table —
+    "unread" is just "published after my cursor," which is all a nav badge needs and avoids a
+    second table entirely. Advanced by `POST /announcements/mark-viewed`, called once when the
+    Announcements page mounts.
+  - **Real-time**: reused the existing SSE broadcast channel (`lib/sse.ts`'s `CHANNELS.market`,
+    already used for `market_update`) — publishing fires an `announcement_published` event
+    that both the nav badge and the feed list invalidate on, so both update live for every
+    connected client, not just on next page load. One handler in `useSSE.ts`, no new
+    infrastructure.
+  - **Nav placement**: dedicated nav item (📣 Announcements) with an unread-count pill
+    (`.nav-badge` in `Navigation.css`), not folded into Wiki — makes the badge visible without
+    a sub-navigation click.
+  - **Pagination**: skipped for v1 — a single unpaginated list, since announcement volume is
+    expected to be low (unlike the high-volume Adventure Log this idea originally compared
+    against). Revisit if that assumption stops holding.
+  - Publish/draft is a real state machine, not just a boolean: `AnnouncementStatus`
+    (`draft`/`published`) enum in both `schema.prisma` and `packages/types` per this repo's
+    cross-stack-enum convention. `publishedAt` is stamped exactly once, the first time status
+    flips to `published`, and never refreshed by a later edit or a second publish call — this
+    matters because both the feed's ordering and the unread-cursor comparison depend on it
+    being a stable "published since" instant, not something a routine edit could quietly
+    bump forward and make reappear as unread. Test-covered in
+    `test/announcements.test.ts` (`publishAnnouncement > never refreshes publishedAt on a
+    second publish call`).
+  - New `services/announcements.ts` (list/create/update/delete/publish/unread-count/
+    mark-viewed) behind thin `routes/announcements.ts` handlers, matching this repo's
+    services-hold-logic convention — chosen over `routes/wiki.ts`'s route-only pattern
+    (the closest existing analog) because Announcements has real logic beyond CRUD (the
+    publish-once-timestamp invariant, unread-count computation) worth unit-testing in
+    isolation.
+  - **GitHub Actions integration** (`.github/workflows/deploy.yml`): after a successful
+    `flyctl deploy`, a new step formats `git log`'s commit messages since the previous deploy
+    (`github.event.before`..`HEAD`, with a bounded-recent-history fallback for a first push or
+    force-push with no known prior SHA) into a plain bulleted list — no AI summarization, to
+    avoid a new `ANTHROPIC_API_KEY` secret and an external call on every deploy for what's
+    meant to be a quick human-reviewed draft anyway — and POSTs it to a new
+    `POST /api/v1/announcements/webhook` endpoint. **Always creates a draft, never publishes
+    automatically** — an admin reviews/cleans it up on the Announcements page before it goes
+    out, so a bad deploy message never reaches players unreviewed. `continue-on-error: true`
+    on this step so a failure here (secret not yet configured, transient network issue) never
+    fails a deploy that already succeeded.
+  - **New auth mechanism, deliberately not reusing `requireAuth`/`requireAdmin`**: a GitHub
+    Actions job has no Clerk session, so the webhook endpoint checks a shared-secret bearer
+    token (`ANNOUNCEMENTS_WEBHOOK_SECRET`, compared with `crypto.timingSafeEqual` to avoid a
+    timing side-channel) instead — confirmed via research that no API-key/service-auth pattern
+    existed anywhere else in the codebase to reuse, so this is genuinely new surface, kept as
+    narrow as possible (one endpoint, one secret, draft-only). **Requires manual setup the
+    user needs to do**: generate a secret (`openssl rand -hex 32`), set it as both the
+    `ANNOUNCEMENTS_WEBHOOK_SECRET` GitHub Actions repo secret and a Fly app secret
+    (`flyctl secrets set ANNOUNCEMENTS_WEBHOOK_SECRET=...`) — documented in `.env.example`.
+    Until that's set, the deploy step logs "not set — skipping" and no-ops harmlessly.
+  - Schema: new `Announcement` model + `AnnouncementStatus` enum + `Player.
+    lastAnnouncementsViewedAt`. Migration `20260711204441_add_announcements` was generated
+    and applied against the local `_test` database only (to unblock running the test suite
+    per this repo's verify-before-done convention) — **not** run against the real local dev
+    database or production; the user still needs to run `prisma migrate dev` locally and rely
+    on `fly.toml`'s existing `release_command` (`prisma migrate deploy`) for production, same
+    as every other migration in this repo. Flagged explicitly since CLAUDE.md reserves
+    migration commands for the user to run themselves — noting the exception made here and why.
+  - `pnpm typecheck`, a full `pnpm test` (122 tests passing, 11 new for the announcements
+    service), and a production `pnpm build` all clean. Manual browser verification (draft →
+    publish flow, edit, delete, unread badge clearing on visit, live SSE update across two
+    tabs, GitHub Actions webhook end-to-end after the user sets the shared secret) not yet
+    done — handed off to the user, no browser automation available in this environment.
 - [x] Daily reset countdown (2026-07-06) — quality-of-life addition from player feedback, to
   help plan cashflow around when wages/maintenance get collected. New `DailyResetTimer`
   component (`components/DailyResetTimer.tsx`), a self-contained live countdown (ticks every

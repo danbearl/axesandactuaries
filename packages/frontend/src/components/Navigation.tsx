@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useClerk } from '@clerk/react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../lib/api.ts';
 import './Navigation.css';
 
 interface Props {
@@ -14,6 +16,14 @@ export default function Navigation({ player }: Props) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [navOpen, setNavOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
+
+  // Invalidated by useSSE's 'announcement_published' handler and by the Announcements page's
+  // own mark-viewed call, so this badge clears without a manual refresh either way.
+  const { data: unreadData } = useQuery({
+    queryKey: ['announcements', 'unread-count'],
+    queryFn: () => api.announcements.unreadCount(),
+  });
+  const unreadCount = unreadData?.count ?? 0;
 
   // Close the user menu on any click outside it.
   useEffect(() => {
@@ -154,6 +164,13 @@ export default function Navigation({ player }: Props) {
           <NavLink to="/wiki" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
             <span className="nav-icon">📖</span>
             Wiki
+          </NavLink>
+        </li>
+        <li>
+          <NavLink to="/announcements" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            <span className="nav-icon">📣</span>
+            Announcements
+            {unreadCount > 0 && <span className="nav-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
           </NavLink>
         </li>
         {player.isAdmin && (

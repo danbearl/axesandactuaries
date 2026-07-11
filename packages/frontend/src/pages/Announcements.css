@@ -1,0 +1,65 @@
+.announcements-page { display: flex; flex-direction: column; gap: 0.25rem; }
+
+.announcements-section-title {
+  font-size:      1rem;
+  color:          var(--ink-light);
+  margin-bottom:  0.25rem;
+}
+
+.announcement-card { display: flex; flex-direction: column; }
+
+.announcement-body h2 { font-size: 1.1rem; margin-top: 1rem; margin-bottom: 0.5rem; }
+.announcement-body h2:first-child { margin-top: 0; }
+.announcement-body p { margin-bottom: 0.75rem; line-height: 1.6; }
+.announcement-body ul, .announcement-body ol { margin: 0 0 0.75rem 1.25rem; line-height: 1.6; }
+.announcement-body li { margin-bottom: 0.3rem; }
+.announcement-body strong { color: var(--ink); }
+
+.announcement-field {
+  display:        flex;
+  flex-direction: column;
+  gap:            0.35rem;
+}
+
+.announcement-field input,
+.announcement-field textarea {
+  font-family:   var(--font-body);
+  font-size:     0.95rem;
+  padding:       0.5rem 0.65rem;
+  border:        1px solid var(--parchment-dark);
+  border-radius: var(--radius);
+  background:    var(--parchment);
+  color:         var(--ink);
+}
+.announcement-field input:focus,
+.announcement-field textarea:focus {
+  outline:      none;
+  border-color: var(--gold-dark);
+}
+
+.announcement-editor-textarea {
+  font-family: var(--font-mono, monospace);
+  resize:      vertical;
+}
+
+.announcement-editor-preview {
+  border:        1px solid var(--parchment-dark);
+  border-radius: var(--radius);
+  padding:       0.75rem 1rem;
+}
+
+.announcement-editor-actions {
+  display:     flex;
+  align-items: center;
+  gap:         0.75rem;
+}
+
+.announcement-error {
+  color:     var(--crimson);
+  font-size: 0.85rem;
+}
+
+/* Breakpoints: 768px tablet, 480px phone — see index.css header */
+@media (max-width: 768px) {
+  .announcements-page .page-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+}

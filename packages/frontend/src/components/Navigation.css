@@ -195,3 +195,68 @@
   color:     rgba(244,234,213,0.3);
   font-size: 0.62rem;
 }
+
+/* ── Mobile nav (breakpoints: 768px tablet, 480px phone — see index.css header) ── */
+.mobile-topbar { display: none; }
+.nav-backdrop  { display: none; }
+
+@media (max-width: 768px) {
+  .mobile-topbar {
+    display:      flex;
+    align-items:  center;
+    gap:          0.75rem;
+    position:     fixed;
+    top: 0; left: 0; right: 0;
+    height:       52px;
+    padding:      0 1rem;
+    background:   var(--ink);
+    border-bottom: 2px solid var(--gold-dark);
+    z-index:      30;
+  }
+  .hamburger-btn {
+    width:  44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border:     2px solid var(--gold-dark);
+    border-radius: var(--radius);
+    color:      var(--parchment);
+    font-size:  1.3rem;
+    cursor:     pointer;
+  }
+  .mobile-topbar-title {
+    font-family: var(--font-heading);
+    font-size:   0.9rem;
+    font-weight: 700;
+    color:       var(--gold);
+  }
+
+  .nav-backdrop {
+    display:  block;
+    position: fixed;
+    inset:    0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index:  35;
+  }
+
+  .nav-sidebar {
+    position:  fixed;
+    top: 0; left: 0;
+    height:    100vh;
+    width:     260px;
+    min-width: 260px;
+    max-width: 80vw;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index:   40;
+    overflow-y: auto;
+  }
+  .nav-sidebar.nav-open {
+    transform: translateX(0);
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.4);
+  }
+
+  .nav-link { min-height: 44px; }
+}

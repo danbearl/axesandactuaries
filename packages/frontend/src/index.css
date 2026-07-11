@@ -34,6 +34,14 @@
   --radius-lg:       10px;
 }
 
+/* ── Responsive Breakpoints (documentation only) ────────────────────────────────
+   CSS custom properties cannot be referenced inside @media conditions, so these are
+   NOT usable as var(--bp-*) — they are a convention. Every @media rule in this
+   codebase must use one of these two literal values. Do not introduce others.
+     Tablet / nav-collapse / touch-target threshold:  max-width: 768px
+     Phone / secondary grid collapse:                 max-width: 480px
+*/
+
 /* ── Reset & Base ────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -73,6 +81,14 @@ body {
 .main-content {
   flex:    1;
   padding: 1.5rem 1.5rem 3rem;
+}
+
+/* Breakpoints: 768px tablet, 480px phone — see index.css header */
+@media (max-width: 768px) {
+  .main-content {
+    /* 4rem top clears the fixed mobile topbar (see Navigation.css) */
+    padding: 4rem 1rem 3rem;
+  }
 }
 
 /* ── Parchment Panels ────────────────────────────────────────────────────────── */
@@ -185,6 +201,18 @@ p  { font-size: 1.05rem; line-height: 1.6; color: var(--ink-light); }
 .btn:disabled {
   opacity: 0.45;
   cursor:  not-allowed;
+}
+
+/* Breakpoints: 768px tablet, 480px phone — see index.css header */
+@media (max-width: 768px) {
+  .btn {
+    min-height: 44px;
+    padding:    0.65rem 1.1rem;
+  }
+  .btn-sm {
+    min-height: 44px;
+    padding:    0.55rem 0.9rem;
+  }
 }
 
 /* ── Stat Bars ───────────────────────────────────────────────────────────────── */

@@ -283,25 +283,90 @@ open to a small trusted player pool (Phase 0 below).
     first, since teaching mechanics that are about to deepen would mean redoing it.
 - Whatever other UX friction surfaces from real trusted-pool usage — this phase should stay
   open to feedback-driven items, not just the list above.
-- Mobile-friendly layout (2026-07-08, user's idea, captured for later — no scoping done):
-  the app has never had a responsive-design pass. Checked the current state before writing
-  this: the viewport meta tag is already present in `index.html` (so it's not starting from
-  zero), but there are **zero `@media` queries anywhere in the codebase**, and several
-  layouts are built on fixed assumptions that would break on a narrow screen —
-  `Navigation.css`'s sidebar is a hard `width: 220px` with no collapse/hamburger behavior,
-  and multiple pages use fixed-column grids (`AdventureDetail.css`'s `.detail-grid`/
-  `.detail-stats` at `1fr 1fr`, `Dashboard.css`'s stat grid at `repeat(4, 1fr)`, `Wiki.tsx`'s
-  nav+content two-column layout) that would squeeze rather than reflow. A few grids already
-  use `repeat(auto-fill/auto-fit, minmax(...))` (`AdventurerMarket.css`, `Profile.css`),
-  which is inherently more mobile-friendly and could be a pattern to extend elsewhere rather
-  than starting from scratch everywhere.
-  - Open questions to resolve when this gets scoped for real: responsive breakpoints
-    (reflow existing layouts at narrow widths) vs. a dedicated mobile-specific UI (more work,
-    but can make deliberately different UX choices — e.g. bottom nav instead of a collapsed
-    sidebar); whether this is a full pass across every page or starts with the highest-traffic
-    ones (Dashboard, Contract Market, Adventurer Market); and whether native-app-adjacent
-    concerns (PWA installability, touch-target sizing, viewport-height quirks on mobile
-    Safari) are in scope or a separate follow-up.
+- [x] Dashboard adventurer-availability QOL: roster sort + timers, power projection widget
+  (2026-07-10) — players had no way to see when resting/injured adventurers become available
+  again except opening each one's detail page individually; the dashboard roster wasn't
+  sorted by availability and showed no timer at all. Two complementary ideas, both built:
+  - **Sort + per-tile timer**: the dashboard roster now sorts ascending by availability
+    (already-deployable first, dead last), and each tile shows a compact "Available in Xh Ym"
+    countdown when not currently deployable.
+  - **Availability projection widget** — new "Power Availability" panel projecting how much
+    deployable power comes back online over the next several unlocks, so a player can
+    anticipate when they'll next be able to take on a demanding contract. Renders as a
+    lightweight timeline list (`"Now: 340 power. In 3h 20m (Kessa Vane) → 425 total"`), not a
+    charted graph — this project has zero charting dependencies and a hand-rolled panel/badge
+    visual style throughout, so a new charting library for one widget wasn't worth it.
+    Deliberately excludes Cohesion (depends on which specific adventurers end up paired
+    together on a future contract, not known yet) but includes gear and the flat, known
+    Training Hall bonus, mirroring `computePartyPower`'s formula shape. For an `on_adventure`
+    adventurer the projected time is an optimistic estimate (their actual post-mission
+    `restUntil`/`injuryRecoveryUntil` isn't set until the mission resolves) — surfaced to the
+    player as a caveat line rather than presented as exact.
+  - No new backend work needed for either — `GET /player/me` already returned everything
+    both ideas needed in one call (`restUntil`/`injuryRecoveryUntil`/`powerRating`/`gearTier`
+    per adventurer, and in-progress adventures pre-filtered server-side).
+  - New shared `lib/availability.ts` (`computeAvailableAt`) used by both the sort and the
+    projection widget, so the two don't drift. Also extracted a shared `hooks/useCountdown.ts`
+    + `lib/time.ts` (`formatDuration`) — this codebase had **three** near-identical
+    `useState`+`useEffect`+`setInterval` countdown implementations already
+    (`InjuryStatus`/`RestStatus` on the adventurer detail page, `DeployByCountdown` on the
+    dashboard itself) before this change; all three were refactored onto the shared hook
+    rather than adding a fourth bespoke copy for the new per-tile timer.
+  - No frontend automated test infra exists in this repo — verified via `pnpm typecheck`
+    (clean) and manual browser testing, confirmed working by the user.
+- [x] Mobile-friendly layout — Phase 1: shell + highest-traffic pages (2026-07-10) —
+  captured 2026-07-08 (original note preserved in git history), scoped and built this pass.
+  A full audit ahead of implementation confirmed and substantially extended the original
+  note: 13 page stylesheets + 4 component stylesheets had fixed-width/fixed-column layouts
+  that would squeeze or overflow on a narrow screen, six tables had no horizontal-scroll
+  wrapper, and there was no PWA infrastructure of any kind (confirmed out of scope — that's
+  the separate, later, independent Native Mobile App phase, not this one).
+  - **Confirmed approach**: reflow the existing design at breakpoints rather than build a
+    separate dedicated mobile UI — extends the two patterns already proven in this codebase
+    (`auto-fill`/`auto-fit` grids, `flex-wrap` filter rows) instead of inventing new ones.
+    **Navigation is the one deliberate exception**: a sidebar has no sensible "shrink," so it
+    got its own mobile-specific pattern regardless of the reflow-first philosophy elsewhere.
+  - **Breakpoint convention**: `768px` (tablet / nav-collapse / touch-target threshold) and
+    `480px` (phone / secondary grid collapse), documented as a comment block in `index.css`
+    since CSS custom properties can't be referenced inside `@media` conditions in plain CSS
+    (no preprocessor in this project) — every touched file repeats a one-line pointer comment
+    above its own `@media` blocks, the pattern Phase 2 should copy.
+  - **Navigation** (`Navigation.tsx`/`.css`): off-canvas drawer via `transform: translateX()`,
+    triggered by a new fixed mobile topbar + hamburger button below 768px. Reuses the exact
+    outside-click-to-close technique the file already had for its user-profile dropdown
+    (`menuOpen`/`menuRef`/`mousedown` listener) for the new `navOpen`/`navRef` pair. Closes on
+    backdrop tap or on any nav-link click (via event bubbling to the `<ul>`) — without the
+    latter, the drawer would stay open covering the newly-routed page.
+  - **`index.css`**: no `.app-shell` flex-direction change needed — once Navigation exits
+    normal flow (`position: fixed`), `.main-content` naturally fills the row alone.
+    `.main-content` gets top padding below 768px to clear the fixed topbar. Global
+    `.btn`/`.btn-sm` touch-target override (44px min-height, WCAG 2.5.5/Apple HIG convention)
+    covers every button across all three pages below with no per-file duplication, since
+    `.btn` is defined once here and used everywhere.
+  - **Dashboard**: `.dashboard-grid` → single column, `.summary-row` → 2 cols at 768px, 1 col
+    at 480px.
+  - **Contract Market**: `ContractCard`'s header/actions gain `flex-wrap`; its stat/reward
+    grid drops to one column at 480px with the divider flipping from a left border to a top
+    border (cleaner once stacked). `.tier-tab` got its own explicit touch-target rule — it
+    isn't a `.btn`, so the global override didn't reach it.
+  - **Adventurer Market**: toolbar stacks and the search box goes full-width below 768px.
+    `.market-grid`'s `auto-fill, minmax(340px, …)` floor drops to an unconstrained single
+    column at 480px — a real, not hypothetical, overflow bug: that 340px floor, once
+    `.app-shell`/`.main-content` padding is subtracted, overflows horizontally on 375-390px
+    phone viewports. `AdventurerCard`'s header/footer/economics rows gain `flex-wrap` at
+    480px (this card is also used in Dashboard's compact roster view, so the fix covers both).
+  - Confirmed working end-to-end in a real browser at 375px/390px/768px/1024px+ by the user.
+    `pnpm typecheck` and a full production `pnpm build` (catches CSS syntax errors typecheck
+    wouldn't) both clean.
+  - **Explicitly deferred to Phase 2** (not done in this pass): AdventureDetail,
+    AdventurerDetail, Wiki, Admin, Feed, Leaderboard, Transactions, Properties, Onboarding
+    (including `AdventurerDetail.css`'s undocumented-until-now duplicate of
+    `AdventureDetail.css`'s broken `.detail-grid`/`.detail-stats` `1fr 1fr` pattern), the
+    global `.grid-2`/`.grid-3` utility classes, and horizontal-scroll wrappers for the six
+    tables identified in the audit (`AdventureDetail`, `Admin`, `Feed`, `Leaderboard`,
+    `Transactions`, and — highest risk since its width is unbounded/markdown-driven —
+    `Wiki`). Phase 1 already established the breakpoint convention and touch-target pattern
+    Phase 2 should reuse verbatim rather than re-deciding.
 
 ## Beta Phase 2 — Game Mechanics Depth
 **Goal:** the core loop is deep and balanced enough to hold a trusted pool's attention.

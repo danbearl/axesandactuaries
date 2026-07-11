@@ -48,3 +48,21 @@
 .character-economics { display: flex; gap: 1.25rem; }
 .character-economics > div { display: flex; flex-direction: column; gap: 0.05rem; }
 .character-actions { display: flex; gap: 0.5rem; }
+
+/* Breakpoints: 768px tablet, 480px phone — see index.css header */
+@media (max-width: 480px) {
+  .character-header,
+  .character-footer,
+  .character-card-compact {
+    flex-wrap: wrap;
+    row-gap:   0.5rem;
+  }
+  .character-economics {
+    flex-wrap: wrap;
+    row-gap:   0.5rem;
+  }
+  .character-header-right,
+  .character-actions {
+    width: 100%;
+  }
+}

@@ -53,3 +53,20 @@
 }
 
 .contract-expanded { border-color: var(--gold); }
+
+/* Breakpoints: 768px tablet, 480px phone — see index.css header */
+@media (max-width: 768px) {
+  .cc-header  { flex-wrap: wrap; row-gap: 0.5rem; }
+  .cc-actions { flex-wrap: wrap; justify-content: flex-start; }
+  .cc-actions .btn { flex: 1 1 auto; }
+}
+@media (max-width: 480px) {
+  .cc-details { grid-template-columns: 1fr; }
+  .cc-rewards {
+    border-left: none;
+    padding-left: 0;
+    border-top:  1px solid var(--parchment-dark);
+    padding-top: 0.75rem;
+    margin-top:  0.25rem;
+  }
+}

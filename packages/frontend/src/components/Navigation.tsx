@@ -12,6 +12,8 @@ export default function Navigation({ player }: Props) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [navOpen, setNavOpen] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
 
   // Close the user menu on any click outside it.
   useEffect(() => {
@@ -25,8 +27,33 @@ export default function Navigation({ player }: Props) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [menuOpen]);
 
+  // Close the mobile nav drawer on any click outside it (same pattern as the user menu above).
+  useEffect(() => {
+    if (!navOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) {
+        setNavOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [navOpen]);
+
   return (
-    <nav className="nav-sidebar">
+    <>
+      <div className="mobile-topbar">
+        <button
+          className="hamburger-btn"
+          onClick={() => setNavOpen((open) => !open)}
+          aria-label="Toggle navigation"
+          aria-expanded={navOpen}
+        >
+          ☰
+        </button>
+        <span className="mobile-topbar-title">Axes &amp; Actuaries</span>
+      </div>
+      {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} />}
+      <nav className={`nav-sidebar ${navOpen ? 'nav-open' : ''}`} ref={navRef}>
       <div className="nav-guild-seal">
         <img src="/images/logo.png" alt="Axes & Actuaries" className="seal-logo" />
         <div className="seal-text">
@@ -80,7 +107,7 @@ export default function Navigation({ player }: Props) {
 
       <div className="divider-ornate">NAVIGATION</div>
 
-      <ul className="nav-links">
+      <ul className="nav-links" onClick={() => setNavOpen(false)}>
         <li>
           <NavLink to="/" end className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
             <span className="nav-icon">⚔</span>
@@ -143,5 +170,6 @@ export default function Navigation({ player }: Props) {
         <span className="label">Guild Charter · Season I</span>
       </div>
     </nav>
+    </>
   );
 }

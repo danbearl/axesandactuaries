@@ -32,6 +32,15 @@
   gap: 1rem;
 }
 
+/* Breakpoints: 768px tablet, 480px phone — see index.css header */
+@media (max-width: 768px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .summary-row    { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .summary-row { grid-template-columns: 1fr; }
+}
+
 .dashboard-link {
   font-family: var(--font-heading);
   font-size:   0.78rem;

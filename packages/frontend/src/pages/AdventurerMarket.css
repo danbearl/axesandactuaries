@@ -29,6 +29,24 @@
   gap: 1rem;
 }
 
+/* Breakpoints: 768px tablet, 480px phone — see index.css header */
+@media (max-width: 768px) {
+  .market-toolbar {
+    flex-direction: column;
+    align-items:    stretch;
+  }
+  .market-toolbar .flex {
+    flex-wrap: wrap;
+    row-gap:   0.5rem;
+  }
+  .market-search { width: 100%; }
+}
+@media (max-width: 480px) {
+  /* The 340px minmax floor overflows below ~404px of available width once app-shell/
+     main-content padding is subtracted — drop it to an unconstrained single column. */
+  .market-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
 .market-notice {
   background: var(--parchment-mid);
   border:     1px solid var(--parchment-dark);

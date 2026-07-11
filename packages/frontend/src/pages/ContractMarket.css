@@ -7,23 +7,9 @@
   align-items: center;
 }
 
-.tier-tab {
-  font-family:    var(--font-heading);
-  font-size:      0.75rem;
-  font-weight:    600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding:        0.35rem 0.85rem;
-  border-radius:  var(--radius);
-  border:         1px solid var(--parchment-dark);
-  background:     transparent;
-  color:          var(--ink-faint);
-  cursor:         pointer;
-  transition:     all 0.15s;
-}
-.tier-tab:hover       { border-color: var(--ink-faint); color: var(--ink-light); }
-.tier-tab.active      { background: var(--ink); color: var(--parchment); border-color: var(--ink); }
-
+/* Base .tier-tab shape/hover/active now live in index.css's Cross-Page Shared Classes
+   (shared with Feed.css/Transactions.css) — these tier-colored .active overrides are the
+   one part of the pattern only this page uses. */
 .tier-tab-errand.active    { background: var(--slate-light); }
 .tier-tab-standard.active  { background: var(--emerald); }
 .tier-tab-dangerous.active { background: var(--crimson); }
@@ -31,10 +17,6 @@
 
 .contract-info p { font-size: 0.9rem; line-height: 1.55; }
 
-/* Breakpoints: 768px tablet, 480px phone — see index.css header */
-@media (max-width: 768px) {
-  .tier-tab { min-height: 44px; }
-}
 .contract-info strong { color: var(--ink); }
 
 .contract-list { display: flex; flex-direction: column; gap: 0.75rem; }

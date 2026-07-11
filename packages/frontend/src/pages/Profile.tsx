@@ -9,7 +9,7 @@ export default function Profile() {
   });
 
   if (isLoading || !data) {
-    return <div className="profile-page"><div className="empty-state">Loading…</div></div>;
+    return <div className="empty-state">Loading…</div>;
   }
 
   const { player, stats } = data;
@@ -22,7 +22,7 @@ export default function Profile() {
     : null;
 
   return (
-    <div className="profile-page">
+    <div>
       <div className="page-header">
         <h1>{player.username}</h1>
         <span className="label">Guild Charter holder since {memberSince}</span>

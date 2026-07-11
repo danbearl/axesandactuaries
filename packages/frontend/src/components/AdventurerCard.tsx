@@ -53,7 +53,7 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
         className={`character-card-compact ${a.status === 'injured' ? 'character-injured' : ''} ${onClick ? 'character-card-clickable' : ''}`}
         onClick={onClick}
       >
-        <div className="character-compact-left">
+        <div>
           <div className="character-name">{a.name}</div>
           <div className="flex gap-xs items-center mt-sm">
             <span className={`badge ${statusBadgeClass}`}>{statusLabel}</span>

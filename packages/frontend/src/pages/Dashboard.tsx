@@ -226,7 +226,7 @@ export default function Dashboard() {
         </section>
 
         {/* Recent transactions */}
-        <section className="panel dashboard-ledger">
+        <section className="panel">
           <div className="flex items-center justify-between mb-md">
             <h2>Recent Ledger</h2>
             <Link to="/transactions" className="btn btn-sm btn-secondary">Full Ledger</Link>
@@ -246,7 +246,7 @@ export default function Dashboard() {
         </section>
 
         {/* Recent events */}
-        <section className="panel dashboard-ledger">
+        <section className="panel">
           <div className="flex items-center justify-between mb-md">
             <h2>Recent Events</h2>
             <Link to="/adventures" className="btn btn-sm btn-secondary">Full Feed</Link>

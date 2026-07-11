@@ -22,7 +22,7 @@
 .onboarding-field input {
   font-family:   var(--font-body);
   font-size:     0.95rem;
-  padding:       0.55rem 0.7rem;
+  padding:       0.5rem 0.65rem;
   border:        1px solid var(--parchment-dark);
   border-radius: var(--radius);
   background:    var(--parchment);

@@ -134,7 +134,7 @@ export default function Properties() {
         </div>
       )}
 
-      <div className="properties-summary panel panel-sm">
+      <div className="panel panel-sm">
         <div className="flex gap-lg items-center">
           <div><span className="label">Treasury</span><br /><span className="currency">{gold.toLocaleString()} gp</span></div>
           <div><span className="label">Daily Maintenance</span><br /><span className="currency negative">{dailyMaintenance} gp/day</span></div>

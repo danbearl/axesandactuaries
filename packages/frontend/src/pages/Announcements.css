@@ -48,16 +48,8 @@
   padding:       0.75rem 1rem;
 }
 
-.announcement-editor-actions {
-  display:     flex;
-  align-items: center;
-  gap:         0.75rem;
-}
-
-.announcement-error {
-  color:     var(--crimson);
-  font-size: 0.85rem;
-}
+/* .admin-actions/.admin-error (index.css's Cross-Page Shared Classes) cover the save/cancel
+   row and inline error message — no page-local equivalents needed here. */
 
 /* Breakpoints: 768px tablet, 480px phone — see index.css header */
 @media (max-width: 768px) {

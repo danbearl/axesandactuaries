@@ -3,7 +3,7 @@
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 
 .detail-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-.detail-stat { display: flex; flex-direction: column; gap: 0.05rem; }
+.detail-stat { display: flex; flex-direction: column; gap: 0.15rem; }
 
 .timer-display { display: flex; flex-direction: column; gap: 0.2rem; }
 .timer-big {

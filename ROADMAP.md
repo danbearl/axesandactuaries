@@ -456,40 +456,60 @@ open to a small trusted player pool (Phase 0 below).
     (success/danger colors render, shared classes style correctly when landing directly on a
     non-owner page, the three progress bars keep their distinct sizing) confirmed working by
     the user.
-- CSS audit — remaining lower-severity findings, captured for later (2026-07-10, not fixed —
-  none are functional bugs, just drift/dead-code cleanup deferred in favor of the three real
-  bugs above):
-  - **Drifted-but-not-broken duplicate values**: label/value gap spacing is `0.05rem` in
+- [x] CSS audit — remaining lower-severity findings closed out (2026-07-11) — this replaces
+  the entry captured 2026-07-10 with what actually got fixed. None of these were functional
+  bugs (unlike the three real ones fixed alongside the mobile-layout work), so this was pure
+  drift/dead-code/duplication cleanup:
+  - **Drifted duplicate values standardized**: label/value gap spacing was `0.05rem` in
     `ContractCard.css`'s `.cc-stat`/`.cc-reward`, `AdventureDetail.css`/`AdventurerDetail.css`'s
-    `.detail-stat`, and `AdventurerMarket.css`'s `.toolbar-stat`, but `0.15rem` in
-    `Profile.css`'s `.ps-item`, `Transactions.css`'s `.ls-item`, and `Dashboard.css`'s
-    `.summary-sub`. Text-input padding also drifted: `0.5rem 0.65rem` (`Admin.css`,
-    `Wiki.css`) vs. `0.55rem 0.7rem` (`Onboarding.css`) vs. `0.45rem 0.75rem`
-    (`AdventurerMarket.css`'s `.market-search`). `Admin.css`'s `.admin-roster-table` uses
-    smaller padding/font-size (`0.4rem 0.6rem`, `0.9rem`) than its four near-identical sibling
-    tables (`0.5rem 0.75rem`, `0.95rem`).
-  - **Dead CSS**: unused utility classes `.scroll-list` (+ its `::-webkit-scrollbar*`
-    children), `.mt-lg`, `.text-center`, `.w-full`, `.grid-3` (+ its mobile override) in
-    `index.css`; unused font token `--font-accent`; four unused `--tier-*` color custom
-    properties (`--tier-errand`/`--tier-standard`/`--tier-dangerous`/`--tier-legendary`) — the
-    actual tier colors are hardcoded consistently via `--emerald`/`--crimson`/etc. directly
-    instead, so these tokens are dead, not a visual bug.
-  - ~15 hardcoded `rgba(201,151,58,X)` / `rgba(244,234,213,X)` values in `Navigation.css` that
-    exactly match `--gold`/`--parchment`'s RGB but have no reusable alpha-capable token to
-    reference instead.
-  - Minor, possibly-intentional divergence: `.badge-tier-legendary` uses
-    `color: var(--parchment)` while `.tier-tab-legendary.active` uses `color: var(--ink)` on
-    the identical `var(--gold-dark)` background — the only tier where badge vs. tab
-    text-color choice diverges.
-  - Dead classNames with no CSS rule anywhere (not a wrong-chunk issue — genuinely unstyled):
-    `.profile-page`, `.wiki-page`, `.wiki-content`, `.dashboard-ledger`, `.ledger-summary`
-    (only `.ledger-summary-grid` exists), `.properties-summary`, `.success-breakdown`,
-    `.character-compact-left`.
-  - Already-known: the `.tier-tab` pattern is independently duplicated three times with no
-    shared base — `ContractMarket.css` as a bare top-level selector vs. `Feed.css`/
-    `Transactions.css` scoped as `.feed-filters .tier-tab`/`.ledger-filters .tier-tab`, a
-    specificity-level architectural inconsistency, not just value drift. `.admin-actions`/
-    `.admin-error` are also verbatim-duplicated between `Admin.css` and `Wiki.css`.
+    `.detail-stat`, and `AdventurerMarket.css`'s `.toolbar-stat` vs. `0.15rem` elsewhere —
+    standardized on `0.15rem` (the majority value, and the one with more breathing room).
+    Text-input padding was `0.5rem 0.65rem` (`Admin.css`, `Wiki.css`) vs. `0.55rem 0.7rem`
+    (`Onboarding.css`) vs. `0.45rem 0.75rem` (`AdventurerMarket.css`'s `.market-search`) —
+    standardized on `0.5rem 0.65rem` (the majority value). `Admin.css`'s
+    `.admin-roster-table` (`0.4rem 0.6rem` th / `0.5rem 0.6rem` td / `0.9rem` font) brought up
+    to match its four sibling tables (`0.5rem 0.75rem` th / `0.55rem 0.75rem` td / `0.95rem`
+    font).
+  - **Dead CSS removed**: `.scroll-list` (+ its `::-webkit-scrollbar*` children), `.mt-lg`,
+    `.text-center`, `.w-full`, `.grid-3` (+ its mobile override) from `index.css`; the unused
+    `--font-accent` font token; the four unused `--tier-errand`/`--tier-standard`/
+    `--tier-dangerous`/`--tier-legendary` color custom properties (actual tier colors were
+    already hardcoded consistently via `--emerald`/`--crimson`/etc. directly — these tokens
+    were simply never referenced). Grepped each for zero usage before deleting.
+  - **Reusable alpha tokens added**: new `--gold-rgb`/`--parchment-rgb` RGB-triplet custom
+    properties in `index.css`, so `rgba(var(--gold-rgb), X)` can vary alpha per use site — a
+    plain hex token can't. Replaced all ~15 hardcoded `rgba(201,151,58,X)`/
+    `rgba(244,234,213,X)` occurrences in `Navigation.css` with the new tokens.
+  - **`.badge-tier-legendary`/`.tier-tab-legendary.active` color divergence resolved, not just
+    made consistent for its own sake**: computed WCAG contrast ratios for both candidate text
+    colors against the shared `--gold-dark` background — `var(--ink)` gives 3.98:1 vs.
+    `var(--parchment)`'s 3.5:1 — so standardized `.badge-tier-legendary` onto `var(--ink)`
+    (matching what the tab variant already used), which is both more consistent and measurably
+    more readable, not an arbitrary pick.
+  - **Dead classNames removed** (`.profile-page`, `.wiki-page`, `.wiki-content`,
+    `.dashboard-ledger` ×2, `.ledger-summary`, `.properties-summary`, `.success-breakdown`,
+    `.character-compact-left`) — each had zero matching CSS rule anywhere (confirmed by grep
+    before touching), so removing the className attribute from its JSX site
+    (`Profile.tsx`/`Wiki.tsx`/`Dashboard.tsx`/`Transactions.tsx`/`Properties.tsx`/
+    `AdventureDetail.tsx`/`AdventurerCard.tsx`) was a zero-visual-impact cleanup, not a
+    behavior change. Kept any co-applied classes (e.g. `panel`, `panel-sm`) that were doing
+    real work on the same element.
+  - **`.tier-tab` triple duplication consolidated**: `ContractMarket.css`'s copy was the only
+    one ever meant to be canonical; `Feed.css` and `Transactions.css` each had their own
+    verbatim-duplicated copy, and both files' own comments admitted they'd meant to reuse a
+    global version that was never actually created (`"reuse tier-tab shape ... via global
+    index.css — define locally"`). Moved the shared base shape/hover/generic-active state
+    into `index.css`'s existing "Cross-Page Shared Classes" section (established during the
+    2026-07-11 CSS-bug-fix pass above); `ContractMarket.css` keeps only its
+    `.tier-tab-<tier>.active` tier-color overrides, which are the one part of the pattern
+    only it uses. Also consolidated `.admin-actions`/`.admin-error`, verbatim-duplicated
+    between `Admin.css` and `Wiki.css`, into the same shared section — and in the process
+    noticed `Announcements.tsx`/`.css` (built the same session as the original audit) had
+    independently reinvented the identical pair as `.announcement-editor-actions`/
+    `.announcement-error`, so switched it onto the now-shared classes too rather than leaving
+    a fourth copy standing.
+  - `pnpm typecheck`, a full `pnpm test` (122 passing, unchanged — this was a frontend-only
+    pass), and a production `pnpm build` all clean.
 
 ## Beta Phase 2 — Game Mechanics Depth
 **Goal:** the core loop is deep and balanced enough to hold a trusted pool's attention.
@@ -596,10 +616,11 @@ open to a small trusted player pool (Phase 0 below).
     as every other migration in this repo. Flagged explicitly since CLAUDE.md reserves
     migration commands for the user to run themselves — noting the exception made here and why.
   - `pnpm typecheck`, a full `pnpm test` (122 tests passing, 11 new for the announcements
-    service), and a production `pnpm build` all clean. Manual browser verification (draft →
-    publish flow, edit, delete, unread badge clearing on visit, live SSE update across two
-    tabs, GitHub Actions webhook end-to-end after the user sets the shared secret) not yet
-    done — handed off to the user, no browser automation available in this environment.
+    service), and a production `pnpm build` all clean. User applied the migration locally,
+    set the `ANNOUNCEMENTS_WEBHOOK_SECRET` on both GitHub Actions and Fly, deployed to
+    production, and confirmed there: full admin draft/publish/edit/delete CRUD works, and the
+    deploy workflow's webhook step is successfully posting a draft deploy-summary
+    announcement on push to master.
 - [x] Daily reset countdown (2026-07-06) — quality-of-life addition from player feedback, to
   help plan cashflow around when wages/maintenance get collected. New `DailyResetTimer`
   component (`components/DailyResetTimer.tsx`), a self-contained live countdown (ticks every

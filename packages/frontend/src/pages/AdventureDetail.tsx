@@ -140,7 +140,7 @@ export default function AdventureDetail() {
                   {successChance}%
                 </span>
               </div>
-              <div className="success-breakdown">
+              <div>
                 <div className="detail-stat">
                   <span className="label">Party Power</span>
                   <span className="value">{partyPower} vs. {contract.requiredPower} required</span>

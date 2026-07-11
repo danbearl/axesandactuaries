@@ -46,7 +46,7 @@ export default function Transactions() {
         <span className="label">All guild transactions</span>
       </div>
 
-      <div className="ledger-summary panel">
+      <div className="panel">
         <div className="ledger-summary-grid">
           <div className="ls-item">
             <span className="label">Current Balance</span>

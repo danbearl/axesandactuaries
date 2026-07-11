@@ -164,7 +164,7 @@ export default function Wiki() {
   }
 
   return (
-    <div className="wiki-page">
+    <div>
       <div className="page-header">
         <h1>Guild Wiki</h1>
         <span className="label">Reference material on heritages, vocations, and characteristics</span>
@@ -192,7 +192,7 @@ export default function Wiki() {
           )}
         </nav>
 
-        <div className="panel wiki-content">
+        <div className="panel">
           {mode === 'create' && (
             <>
               <h2>New Page</h2>

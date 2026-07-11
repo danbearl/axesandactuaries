@@ -9,6 +9,11 @@
   --gold:            #c9973a;
   --gold-dark:       #9e7520;
   --gold-light:      #e8bc5a;
+  /* RGB triplets, for rgba(var(--gold-rgb), X) where a variable-alpha version of a solid
+     token is needed (e.g. Navigation.css's translucent gold/parchment overlays) — a plain
+     hex custom property can't have its alpha varied per use site. */
+  --gold-rgb:        201, 151, 58;
+  --parchment-rgb:   244, 234, 213;
   --crimson:         #8b1a1a;
   --crimson-light:   #c04040;
   --emerald:         #1a5c2e;
@@ -25,16 +30,9 @@
   --success:         var(--emerald);
   --danger:          var(--crimson);
 
-  /* Tier colors */
-  --tier-errand:     #6a7a8c;
-  --tier-standard:   #2e8b4a;
-  --tier-dangerous:  #c04040;
-  --tier-legendary:  #9e7520;
-
   /* Fonts */
   --font-heading:    'Cinzel', 'Georgia', serif;
   --font-body:       'Crimson Text', 'Georgia', serif;
-  --font-accent:     'MedievalSharp', 'Georgia', serif;
 
   /* Spacing */
   --radius:          6px;
@@ -282,7 +280,10 @@ p  { font-size: 1.05rem; line-height: 1.6; color: var(--ink-light); }
 .badge-tier-errand    { background: var(--slate-light); color: var(--parchment); }
 .badge-tier-standard  { background: var(--emerald);     color: var(--parchment); }
 .badge-tier-dangerous { background: var(--crimson);     color: var(--parchment); }
-.badge-tier-legendary { background: var(--gold-dark);   color: var(--parchment); }
+/* color: var(--ink), not --parchment — matches .tier-tab-legendary.active's choice
+   (ContractMarket.css) and has meaningfully better contrast against --gold-dark
+   (3.98:1 vs 3.5:1, computed 2026-07-11); was the one tier where badge/tab diverged. */
+.badge-tier-legendary { background: var(--gold-dark);   color: var(--ink); }
 
 /* ── Personality Pip Track ───────────────────────────────────────────────────── */
 .pip-track {
@@ -306,16 +307,6 @@ p  { font-size: 1.05rem; line-height: 1.6; color: var(--ink-light); }
 }
 .currency.positive { color: var(--emerald-light); }
 .currency.negative { color: var(--crimson-light); }
-
-/* ── Scrollable List ─────────────────────────────────────────────────────────── */
-.scroll-list {
-  overflow-y: auto;
-  max-height: 60vh;
-  padding-right: 0.25rem;
-}
-.scroll-list::-webkit-scrollbar { width: 5px; }
-.scroll-list::-webkit-scrollbar-track { background: var(--parchment-dark); border-radius: 3px; }
-.scroll-list::-webkit-scrollbar-thumb { background: var(--gold-dark); border-radius: 3px; }
 
 /* ── Empty State ─────────────────────────────────────────────────────────────── */
 .empty-state {
@@ -360,6 +351,39 @@ p  { font-size: 1.05rem; line-height: 1.6; color: var(--ink-light); }
 }
 .level-pip.active { background: var(--gold); }
 
+/* Base shape only — the tier-colored .tier-tab-<tier>.active overrides live in
+   ContractMarket.css, the only page that applies them. Was independently duplicated
+   verbatim in ContractMarket.css/Feed.css/Transactions.css (with a comment on the latter
+   two admitting they meant to reuse a global version that never actually got created) —
+   consolidated 2026-07-11. */
+.tier-tab {
+  font-family:    var(--font-heading);
+  font-size:      0.75rem;
+  font-weight:    600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding:        0.35rem 0.85rem;
+  border-radius:  var(--radius);
+  border:         1px solid var(--parchment-dark);
+  background:     transparent;
+  color:          var(--ink-faint);
+  cursor:         pointer;
+  transition:     all 0.15s;
+}
+.tier-tab:hover  { border-color: var(--ink-faint); color: var(--ink-light); }
+.tier-tab.active { background: var(--ink); color: var(--parchment); border-color: var(--ink); }
+
+/* Was verbatim-duplicated between Admin.css and Wiki.css; consolidated 2026-07-11. */
+.admin-actions {
+  display:     flex;
+  align-items: center;
+  gap:         0.75rem;
+}
+.admin-error {
+  color:     var(--crimson);
+  font-size: 0.85rem;
+}
+
 /* ── Utility ─────────────────────────────────────────────────────────────────── */
 .flex        { display: flex; }
 .flex-col    { display: flex; flex-direction: column; }
@@ -371,16 +395,13 @@ p  { font-size: 1.05rem; line-height: 1.6; color: var(--ink-light); }
 .justify-between { justify-content: space-between; }
 .mt-sm       { margin-top: 0.5rem; }
 .mt-md       { margin-top: 1rem; }
-.mt-lg       { margin-top: 1.5rem; }
 .mb-sm       { margin-bottom: 0.5rem; }
 .mb-md       { margin-bottom: 1rem; }
 .text-right  { text-align: right; }
-.text-center { text-align: center; }
-.w-full      { width: 100%; }
 .grid-2      { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-.grid-3      { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
 
 /* Breakpoints: 768px tablet, 480px phone — see header comment above */
 @media (max-width: 768px) {
-  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .grid-2 { grid-template-columns: 1fr; }
+  .tier-tab { min-height: 44px; }
 }

@@ -40,7 +40,7 @@ function AnnouncementEditor({
         />
       </label>
 
-      <div className="announcement-editor-actions mt-md">
+      <div className="admin-actions mt-md">
         <button
           className="btn btn-primary btn-sm"
           disabled={saving || !form.title || !form.body}
@@ -50,7 +50,7 @@ function AnnouncementEditor({
         </button>
         <button className="btn btn-secondary btn-sm" onClick={onCancel}>Cancel</button>
       </div>
-      {error && <div className="announcement-error mt-sm">{error}</div>}
+      {error && <div className="admin-error mt-sm">{error}</div>}
 
       <div className="mt-md">
         <span className="label">Preview</span>
@@ -90,7 +90,7 @@ function AnnouncementCard({
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{announcement.body}</ReactMarkdown>
       </div>
       {isAdmin && (
-        <div className="announcement-editor-actions mt-md">
+        <div className="admin-actions mt-md">
           {announcement.status === 'draft' && (
             <button className="btn btn-primary btn-sm" disabled={publishPending} onClick={onPublish}>
               {publishPending ? 'Publishing…' : 'Publish'}

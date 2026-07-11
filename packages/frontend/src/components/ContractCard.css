@@ -26,11 +26,11 @@
 
 .cc-detail-col { display: flex; flex-direction: column; gap: 0.4rem; }
 
-.cc-stat { display: flex; flex-direction: column; gap: 0.05rem; }
+.cc-stat { display: flex; flex-direction: column; gap: 0.15rem; }
 
 .cc-rewards { border-left: 1px solid var(--parchment-dark); padding-left: 1rem; }
 
-.cc-reward { display: flex; flex-direction: column; gap: 0.05rem; }
+.cc-reward { display: flex; flex-direction: column; gap: 0.15rem; }
 
 .cc-req-badge {
   font-family:    var(--font-heading);

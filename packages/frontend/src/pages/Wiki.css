@@ -91,16 +91,8 @@
   padding:       0.75rem 1rem;
 }
 
-.admin-actions {
-  display:     flex;
-  align-items: center;
-  gap:         0.75rem;
-}
-
-.admin-error {
-  color:     var(--crimson);
-  font-size: 0.85rem;
-}
+/* .admin-actions/.admin-error now live in index.css's Cross-Page Shared Classes
+   (were verbatim-duplicated here and in Admin.css). */
 
 /* Breakpoints: 768px tablet, 480px phone — see index.css header */
 @media (max-width: 768px) {

@@ -101,3 +101,10 @@
   color:     var(--crimson);
   font-size: 0.85rem;
 }
+
+/* Breakpoints: 768px tablet, 480px phone — see index.css header */
+@media (max-width: 768px) {
+  .wiki-layout    { grid-template-columns: 1fr; }
+  .wiki-nav-link  { min-height: 44px; display: flex; align-items: center; }
+  .wiki-body table { display: block; overflow-x: auto; }
+}

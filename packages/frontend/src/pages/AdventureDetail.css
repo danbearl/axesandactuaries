@@ -46,3 +46,10 @@
 .report-table-row { border-bottom: 1px solid var(--parchment-dark); }
 .report-table-row:last-child { border-bottom: none; }
 .report-table td { padding: 0.55rem 0.75rem; vertical-align: middle; }
+
+/* Breakpoints: 768px tablet, 480px phone — see index.css header */
+@media (max-width: 768px) {
+  .detail-grid  { grid-template-columns: 1fr; }
+  .detail-stats { grid-template-columns: 1fr; }
+  .report-table { display: block; overflow-x: auto; }
+}

@@ -17,3 +17,9 @@
   border-radius: 4px;
   transition:    width 1s linear;
 }
+
+/* Breakpoints: 768px tablet, 480px phone — see index.css header */
+@media (max-width: 768px) {
+  .detail-grid  { grid-template-columns: 1fr; }
+  .detail-stats { grid-template-columns: 1fr; }
+}

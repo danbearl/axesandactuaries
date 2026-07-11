@@ -32,3 +32,8 @@
   color:       var(--ink-light);
   white-space: nowrap;
 }
+
+/* Breakpoints: 768px tablet, 480px phone — see index.css header */
+@media (max-width: 768px) {
+  .leaderboard-table { display: block; overflow-x: auto; }
+}

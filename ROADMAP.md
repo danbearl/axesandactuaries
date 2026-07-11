@@ -367,6 +367,55 @@ open to a small trusted player pool (Phase 0 below).
     `Transactions`, and — highest risk since its width is unbounded/markdown-driven —
     `Wiki`). Phase 1 already established the breakpoint convention and touch-target pattern
     Phase 2 should reuse verbatim rather than re-deciding.
+- [x] Mobile-friendly layout — Phase 2: remaining pages, item now complete (2026-07-10) —
+  covered every file Phase 1 explicitly deferred. Re-verified each file directly rather than
+  trusting the Phase 1 audit blindly (some time had passed) — all findings held, plus one new
+  one: `Transactions.css`'s `.ledger-filters` was missing the `flex-wrap` its siblings
+  (`ContractMarket`, `Feed`) already had, a real cross-file inconsistency wrong at *any*
+  width, not just mobile — fixed unconditionally rather than gated in a media query.
+  `Onboarding.css` needed no changes at all (already fluid `width:100%; max-width:420px`,
+  confirmed rather than assumed). No new architectural decisions this pass — pure application
+  of Phase 1's already-established breakpoints (768px/480px) and 44px touch-target convention.
+  - **`AdventureDetail.css` + `AdventurerDetail.css`**: the identical `.detail-grid`/
+    `.detail-stats` `1fr 1fr` bug (confirmed byte-for-byte the same block, likely copy-pasted
+    between the two "detail" pages) → single column at 768px in both. One breakpoint was
+    enough here (unlike Dashboard's four-column `.summary-row`), since these are only ever
+    two columns.
+  - **Tables** (`report-table`, `admin-roster-table`, `log-table`, `leaderboard-table`,
+    `ledger-table`, `wiki-body table`) — none had a wrapping element in their TSX, so rather
+    than touching 6 files' markup just to add a scroll container, used the CSS-only
+    `display: block; overflow-x: auto;` technique directly on each table selector at 768px —
+    a table can be its own scroll container without a wrapper. Deliberately left out
+    `white-space: nowrap`, which would've forced horizontal scroll on prose-heavy cells
+    (especially `wiki-body table`, markdown-driven) even where normal wrapping would've been
+    fine — natural min-content width decides whether a scrollbar actually appears.
+  - **Admin**: `.admin-field-row` gains `flex-wrap` at 768px (its fields already have safe
+    `max-width` caps, only the row itself needed to wrap).
+  - **Wiki**: `.wiki-layout` stacks to one column at 768px (nav above content) — this is
+    Wiki's own secondary in-page nav, distinct from the primary app sidebar that got the
+    dedicated drawer treatment in Phase 1, so a simple stack was the appropriately-scoped fix
+    rather than a second hamburger/drawer system. `.wiki-nav-link` got a 44px touch target
+    (needed `display:flex; align-items:center` added alongside `min-height`, since the base
+    rule was `display:block` and wouldn't have centered the taller tap area on its own).
+  - **Feed / Leaderboard / Transactions**: table scroll treatment; both locally-duplicated
+    `tier-tab` copies (`Feed.css`, `Transactions.css` — confirmed independently duplicated,
+    not sharing a base with `ContractMarket.css`'s copy) got the same touch-target fix
+    `ContractMarket.css`'s copy got in Phase 1; `Transactions`' `.ledger-summary-grid`
+    (4-column, same shape as Dashboard's `.summary-row`) got the same 4→2→1 two-stage
+    collapse.
+  - **`index.css`**: `.grid-2`/`.grid-3` global utilities (confirmed only current consumer is
+    `Properties.tsx`, used twice) → single column at 768px. Kept as a plain breakpoint
+    override rather than converting to `auto-fit`/`minmax`, since these are generic
+    "N-equal-columns" utilities that could gain other consumers later with different
+    content-width needs.
+  - **Not addressed, flagged for a possible future cleanup, not this pass**: the tier-tab
+    pattern is now independently duplicated three times with no shared base
+    (`ContractMarket.css`, `Feed.css`, `Transactions.css`) — each got its mobile fix in
+    place, matching how Phase 1 already handled it, rather than consolidating first (a
+    refactor beyond what a responsive pass requires).
+  - Confirmed working end-to-end in a real browser at 375px/390px/768px/1024px+ by the user.
+    `pnpm typecheck` and a full production `pnpm build` both clean. This closes out the
+    mobile-friendly-layout item captured 2026-07-08 in full — no further phases planned.
 
 ## Beta Phase 2 — Game Mechanics Depth
 **Goal:** the core loop is deep and balanced enough to hold a trusted pool's attention.

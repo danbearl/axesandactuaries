@@ -10,6 +10,7 @@
 .ledger-filters {
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 /* reuse tier-tab from ContractMarket via global index.css — define locally */
 .ledger-filters .tier-tab {
@@ -64,4 +65,14 @@
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color:       var(--ink-faint);
+}
+
+/* Breakpoints: 768px tablet, 480px phone — see index.css header */
+@media (max-width: 768px) {
+  .ledger-summary-grid    { grid-template-columns: repeat(2, 1fr); }
+  .ledger-filters .tier-tab { min-height: 44px; }
+  .ledger-table            { display: block; overflow-x: auto; }
+}
+@media (max-width: 480px) {
+  .ledger-summary-grid { grid-template-columns: 1fr; }
 }

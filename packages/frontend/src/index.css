@@ -339,3 +339,8 @@ p  { font-size: 1.05rem; line-height: 1.6; color: var(--ink-light); }
 .w-full      { width: 100%; }
 .grid-2      { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .grid-3      { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+
+/* Breakpoints: 768px tablet, 480px phone — see header comment above */
+@media (max-width: 768px) {
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+}

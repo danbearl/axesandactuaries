@@ -66,3 +66,9 @@
   justify-content: center;
   gap:             1rem;
 }
+
+/* Breakpoints: 768px tablet, 480px phone — see index.css header */
+@media (max-width: 768px) {
+  .log-table { display: block; overflow-x: auto; }
+  .feed-filters .tier-tab { min-height: 44px; }
+}

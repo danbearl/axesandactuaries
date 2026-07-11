@@ -95,7 +95,7 @@ export default function Dashboard() {
   return (
     <div className="dashboard">
       <div className="page-header">
-        <h1>Guild Ledger</h1>
+        <h1>Guild Overview</h1>
         <span className="label">Active operations dashboard</span>
       </div>
 

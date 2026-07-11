@@ -329,8 +329,15 @@ p  { font-size: 1.05rem; line-height: 1.6; color: var(--ink-light); }
    introduced them (Dashboard.css, Dashboard.css, Properties.css respectively) despite
    being consumed by several other pages. Add new genuinely-shared classes here, not
    to whichever page happens to use them first. */
+/* Unlike most headings, .page-header sits directly on .main-content's dark body background
+   (not inside a .panel), so it can't use the global h1/.label dark-on-light colors — var(--ink)
+   against the body's near-black background is ~1.1:1 contrast, effectively invisible.
+   var(--gold) matches how Navigation.css's .seal-title treats a heading on the same dark
+   chrome; rgba(var(--parchment-rgb), 0.65) matches .nav-link's muted-text-on-dark treatment.
+   Found as a real readability bug 2026-07-11. */
 .page-header { margin-bottom: 0.25rem; }
-.page-header h1 { margin-bottom: 0.15rem; }
+.page-header h1 { margin-bottom: 0.15rem; color: var(--gold); }
+.page-header .label { color: rgba(var(--parchment-rgb), 0.65); }
 
 .property-row {
   display:         flex;

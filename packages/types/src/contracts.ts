@@ -1,4 +1,4 @@
-import type { ContractTier, Stat, StatBlock, Vocation } from './game.js';
+import type { ContractTier, Stat, StatBlock, Vocation, ContractEncounter, PartyPowerByRole, PartyRole } from './game.js';
 import { STATS, VOCATIONS, VOCATION_STAT_PRIORITY, BIDDING_CONTRACT_TIERS } from './game.js';
 
 // ── Utility ───────────────────────────────────────────────────────────────────
@@ -395,6 +395,7 @@ export interface GeneratedContract {
   penaltyGold:       number;
   penaltyReputation: number;
   durationHours:     number;
+  encounters:        ContractEncounter[];
   // Null for every freshly-generated contract, including bidding tiers — only set once a
   // first bid actually lands (routes/contracts.ts), never at generation time.
   bidDeadline:       Date | null;
@@ -417,6 +418,90 @@ const REQUIREMENT_CONFIG: Record<ContractTier, RequirementConfig> = {
   dangerous: { statChance: 1,   statThreshold: 14, vocationChance: 0.5 },
   legendary: { statChance: 1,   statThreshold: 16, vocationChance: 0.8 },
 };
+
+// ── Encounter chains ──────────────────────────────────────────────────────────
+// A contract resolves as a short chain of internal encounters rather than one flat check —
+// see estimateChainedSuccessChance below for how the chain feeds into a success chance, and
+// ROADMAP.md's "Party vocation/role synergies" entry for the full design rationale (including
+// why generation moved from per-encounter random noise to a fixed per-contract favored/
+// unfavored role pattern, see pickRoleBiasPattern below). More encounters at higher tiers:
+// bigger jobs feel more epic, and the chain length gives future narrative-beat work more room
+// at the tiers where it matters most.
+const ENCOUNTER_COUNT: Record<ContractTier, number> = {
+  errand:    1,
+  standard:  2,
+  dangerous: 3,
+  legendary: 4,
+};
+
+export const MIN_ROLE_MODIFIER = 0.5;
+export const MAX_ROLE_MODIFIER = 1.5;
+
+const PARTY_ROLES = ['fighter', 'wizard', 'rogue', 'priest'] as const;
+
+// A role's modifier is guaranteed a real, visible swing once it's favored/unfavored at all —
+// no "technically favored but 1.01x, indistinguishable from noise" case. Matches
+// ContractCard.tsx's encounterModifierClass thresholds exactly, so a role that's mechanically
+// favored/unfavored is always the one visually highlighted too.
+const FAVORED_MODIFIER_RANGE:   [number, number] = [1.15, MAX_ROLE_MODIFIER];
+const UNFAVORED_MODIFIER_RANGE: [number, number] = [MIN_ROLE_MODIFIER, 0.85];
+
+const randomInRange = ([min, max]: [number, number]): number => min + Math.random() * (max - min);
+
+// Fisher-Yates — `.sort(() => Math.random() - 0.5)` is a well-known biased shuffle, worth
+// avoiding even at n=4 since favored/unfavored role selection should be genuinely uniform.
+function shuffled<T>(arr: readonly T[]): T[] {
+  const result = [...arr];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+// Each contract randomly gets its own favored/unfavored role pattern — how many of each (0-4,
+// uniform) and which specific roles, independently per contract. This is a deliberate design
+// choice over the previous per-encounter-noise approach: that version's gap between a
+// well-matched and poorly-matched party was pure generation-time luck (sometimes ~0.1 points,
+// sometimes several, depending on which role happened to draw a low-variance sequence for that
+// specific contract) — see ROADMAP.md for the worked examples that motivated the switch. A
+// fixed, per-contract bias makes the gap a real, guaranteed, legible property of the contract
+// itself: 0 favored/0 unfavored contracts are fully composition-neutral (any roster, including
+// an all-one-vocation party, does equally well — a "balanced-friendly" contract in the sense
+// that nothing is punished, not that spreading out is specifically rewarded); a contract with
+// few favored roles and several unfavored ones rewards specializing hard into what's favored.
+function pickRoleBiasPattern(): { favored: PartyRole[]; unfavored: PartyRole[] } {
+  const roles = shuffled(PARTY_ROLES);
+  const favoredCount = randInt(0, PARTY_ROLES.length);
+  const unfavoredCount = randInt(0, PARTY_ROLES.length - favoredCount);
+  return {
+    favored:   roles.slice(0, favoredCount),
+    unfavored: roles.slice(favoredCount, favoredCount + unfavoredCount),
+  };
+}
+
+// The same favored/unfavored/neutral modifier applies to every encounter in the chain — a
+// contract's role preferences are a fixed property of that contract, not something that swings
+// encounter-to-encounter. The per-encounter array is retained (tier-scaled count, see
+// ENCOUNTER_COUNT above) for the existing UI display and for future narrative beats, not
+// because the modifier values themselves vary within one contract's chain — see
+// estimateChainedSuccessChance's comment for what that means for the aggregation math.
+function generateEncounters(tier: ContractTier): ContractEncounter[] {
+  const n = ENCOUNTER_COUNT[tier];
+  const modifierByRole: ContractEncounter = { fighter: 1, wizard: 1, rogue: 1, priest: 1 };
+
+  // Errand deliberately stays fully neutral — no favored/unfavored roles ever — matching
+  // CONTRACT_TIER_CONFIG's existing "stays easy, a way for new players to quickly earn gold
+  // regardless of roster strength" philosophy for this tier. A brand-new player's very first
+  // adventurer shouldn't need to think about composition strategy yet.
+  if (tier !== 'errand') {
+    const { favored, unfavored } = pickRoleBiasPattern();
+    for (const role of favored) modifierByRole[role] = randomInRange(FAVORED_MODIFIER_RANGE);
+    for (const role of unfavored) modifierByRole[role] = randomInRange(UNFAVORED_MODIFIER_RANGE);
+  }
+
+  return Array.from({ length: n }, () => ({ ...modifierByRole }));
+}
 
 export function generateContract(tier: ContractTier, now = new Date()): GeneratedContract {
   const cfg = CONTRACT_TIER_CONFIG[tier];
@@ -454,6 +539,7 @@ export function generateContract(tier: ContractTier, now = new Date()): Generate
     requiredPower,
     requiredStats,
     requiredVocation,
+    encounters:        generateEncounters(tier),
     rewardGold,
     reputationReward:  cfg.reputationReward,
     penaltyGold,
@@ -526,6 +612,57 @@ export function estimateSuccessChance(
 ): number {
   const ratio = requiredPower > 0 ? partyPower / requiredPower : 1;
   const raw = MIN_SUCCESS_CHANCE + ratio * 0.5 - unmetRequirements * REQUIREMENT_PENALTY_PER_UNMET;
+  return Math.max(MIN_SUCCESS_CHANCE, Math.min(MAX_SUCCESS_CHANCE, raw));
+}
+
+// Encounter-chain-aware version of estimateSuccessChance above — same MIN/MAX clamp and
+// unmetRequirements penalty, but the ratio fed into them is the **geometric mean** of each
+// encounter's own power ratio (party power split by role, weighted by that encounter's
+// modifiers) rather than one flat ratio.
+//
+// generateEncounters assigns each contract a fixed favored/unfavored/neutral bias per role,
+// applied identically to every encounter in the chain — so for any contract generated today,
+// there's no cross-encounter variance within a single role's own sequence, and this geometric
+// mean is mathematically a pass-through (geomean of N identical values is that value). The
+// aggregation is kept anyway rather than collapsed into a single check: it's what correctly
+// resolves the legacy empty-encounters fallback below, and it stays forward-compatible if
+// per-encounter variation is ever reintroduced on top of the per-contract bias (e.g. for
+// narrative beats). Concretely, a party's result now comes directly from how much of its power
+// sits in this specific contract's favored vs. unfavored roles: unlike an earlier per-encounter
+// -noise version of this mechanism, a well-matched party can genuinely *exceed* what raw power
+// alone would suggest (a favored role is a real bonus, not just "avoiding a penalty"), capped
+// by MAX_SUCCESS_CHANCE same as everything else — and a contract with zero favored/unfavored
+// roles (see pickRoleBiasPattern) is fully composition-neutral, behaving exactly like the flat
+// formula regardless of party makeup.
+//
+// Falls back to the flat formula when `encounters` is empty (contracts generated before this
+// field existed, migrated with a `[]` default).
+export function estimateChainedSuccessChance(
+  powerByRole: PartyPowerByRole,
+  requiredPower: number,
+  encounters: ContractEncounter[],
+  unmetRequirements = 0,
+): number {
+  if (encounters.length === 0) {
+    const totalPower = PARTY_ROLES.reduce((sum, role) => sum + powerByRole[role], 0);
+    return estimateSuccessChance(totalPower, requiredPower, unmetRequirements);
+  }
+
+  const ratios = encounters.map((encounter) => {
+    const effectivePower = PARTY_ROLES.reduce(
+      (sum, role) => sum + powerByRole[role] * encounter[role],
+      0,
+    );
+    return requiredPower > 0 ? effectivePower / requiredPower : 1;
+  });
+
+  // Geometric mean via log-space average — avoids overflow on long chains of large ratios
+  // that a direct running product could hit.
+  const logSum = ratios.reduce((sum, ratio) => sum + Math.log(Math.max(ratio, 1e-6)), 0);
+  const geometricMeanRatio = Math.exp(logSum / ratios.length);
+
+  const raw = MIN_SUCCESS_CHANCE + geometricMeanRatio * 0.5
+    - unmetRequirements * REQUIREMENT_PENALTY_PER_UNMET;
   return Math.max(MIN_SUCCESS_CHANCE, Math.min(MAX_SUCCESS_CHANCE, raw));
 }
 

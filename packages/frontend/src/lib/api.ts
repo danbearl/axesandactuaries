@@ -202,6 +202,13 @@ export interface AdventurerResponse {
   createdAt: string;
 }
 
+export interface ContractEncounter {
+  fighter: number;
+  wizard:  number;
+  rogue:   number;
+  priest:  number;
+}
+
 export interface ContractResponse {
   id: string;
   title: string;
@@ -210,6 +217,7 @@ export interface ContractResponse {
   requiredPower: number;
   requiredStats: Record<string, number>;
   requiredVocation: string | null;
+  encounters: ContractEncounter[];
   rewardGold: number;
   reputationReward: number;
   penaltyGold: number;

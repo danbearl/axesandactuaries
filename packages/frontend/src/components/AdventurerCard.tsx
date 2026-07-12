@@ -2,6 +2,7 @@ import type { Adventurer } from '@axes-actuaries/types';
 import { VOCATION_TIERS } from '@axes-actuaries/types';
 import { useCountdown } from '../hooks/useCountdown.ts';
 import { formatDuration } from '../lib/time.ts';
+import { vocationIcon } from '../lib/roleIcons.ts';
 import './AdventurerCard.css';
 
 interface Props {
@@ -58,7 +59,7 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
           <div className="flex gap-xs items-center mt-sm">
             <span className={`badge ${statusBadgeClass}`}>{statusLabel}</span>
             <span className="badge badge-heritage">{a.heritage}</span>
-            <span className="badge badge-vocation">{title}</span>
+            <span className="badge badge-vocation">{vocationIcon(a.vocation)} {title}</span>
             {!!a.gearTier && <span className="badge badge-vocation">Gear T{a.gearTier}</span>}
             {showCountdown && (
               <span className="label" style={{ color: 'var(--ink-light)' }}>
@@ -94,7 +95,7 @@ export default function AdventurerCard({ adventurer: a, compact, onHire, onFire,
           <div className="flex gap-xs items-center mt-sm">
             <span className={`badge ${statusBadgeClass}`}>{statusLabel}</span>
             <span className="badge badge-heritage">{a.heritage}</span>
-            <span className="badge badge-vocation">{title}</span>
+            <span className="badge badge-vocation">{vocationIcon(a.vocation)} {title}</span>
             {!!a.gearTier && <span className="badge badge-vocation">Gear T{a.gearTier}</span>}
           </div>
         </div>

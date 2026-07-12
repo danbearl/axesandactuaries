@@ -631,6 +631,96 @@ describe('resolveAdventure', () => {
     expect(updatedAdventure.status).toBe('failed');
   });
 
+  it('weights party power by an encounter chain\'s per-role modifiers, changing the outcome', async () => {
+    // A lone Sellsword (fighter) at ratio 1.0 against a contract with no encounters would hit
+    // successChance 0.8 (see the "resolves a successful adventure" test above) — a roll of 0.6
+    // would succeed under that flat formula. This contract's single encounter halves the
+    // fighter role specifically (0.5x), dropping effective power to 25 -> ratio 0.5 ->
+    // successChance 0.55, so the same 0.6 roll now fails. Only possible if resolveAdventure
+    // is actually splitting party power by role and weighting it by the encounter, not
+    // silently falling back to a flat sum.
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.6)  // outcomeRoll
+      .mockReturnValueOnce(0.99); // injuryRoll — no injury, keep this test focused
+
+    const player = await createPlayer({ gold: 500 });
+    const adventurer = await createAdventurer({
+      employerId: player.id,
+      status: 'on_adventure',
+      vocation: 'Sellsword',
+      powerRating: 50,
+      experience: 0,
+      level: 1,
+    });
+    const contract = await createContract({
+      requiredPower: 50,
+      encounters: [{ fighter: 0.5, wizard: 1, rogue: 1, priest: 1 }],
+      rewardGold: 300, reputationReward: 3, penaltyGold: 90, penaltyReputation: 1,
+      status: 'in_progress',
+    });
+    const adventure = await prisma.adventure.create({
+      data: {
+        contractId: contract.id,
+        playerId: player.id,
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        completesAt: new Date(Date.now() - 1000),
+        status: 'in_progress',
+      },
+    });
+    await prisma.adventureAdventurer.create({
+      data: { adventureId: adventure.id, adventurerId: adventurer.id },
+    });
+
+    await resolveAdventure(adventure.id);
+
+    const updatedAdventure = await prisma.adventure.findUniqueOrThrow({ where: { id: adventure.id } });
+    expect(updatedAdventure.status).toBe('failed');
+  });
+
+  it('falls back to the flat single-check formula when a contract has no encounter chain', async () => {
+    // Same setup and roll as the encounter-weighted test above, but with encounters left at
+    // its default ([]) — the flat formula's successChance 0.8 means this same 0.6 roll
+    // succeeds, unlike the encounter-weighted case. Covers contracts generated (or migrated)
+    // before this field existed.
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.6)  // outcomeRoll
+      .mockReturnValueOnce(0.99); // injuryRoll — no injury, keep this test focused
+
+    const player = await createPlayer({ gold: 500 });
+    const adventurer = await createAdventurer({
+      employerId: player.id,
+      status: 'on_adventure',
+      vocation: 'Sellsword',
+      powerRating: 50,
+      experience: 0,
+      level: 1,
+    });
+    const contract = await createContract({
+      requiredPower: 50,
+      rewardGold: 300, reputationReward: 3, penaltyGold: 90, penaltyReputation: 1,
+      status: 'in_progress',
+    });
+    expect(contract.encounters).toEqual([]);
+
+    const adventure = await prisma.adventure.create({
+      data: {
+        contractId: contract.id,
+        playerId: player.id,
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        completesAt: new Date(Date.now() - 1000),
+        status: 'in_progress',
+      },
+    });
+    await prisma.adventureAdventurer.create({
+      data: { adventureId: adventure.id, adventurerId: adventurer.id },
+    });
+
+    await resolveAdventure(adventure.id);
+
+    const updatedAdventure = await prisma.adventure.findUniqueOrThrow({ where: { id: adventure.id } });
+    expect(updatedAdventure.status).toBe('completed');
+  });
+
   it('builds cohesion between party members after adventuring together, regardless of outcome', async () => {
     vi.spyOn(Math, 'random').mockImplementation(() => 0.99); // never injured, always fails outcomeRoll
 

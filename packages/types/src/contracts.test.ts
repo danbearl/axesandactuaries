@@ -2,12 +2,14 @@ import { describe, it, expect } from 'vitest';
 import {
   generateContract, CONTRACT_TIER_CONFIG,
   countUnmetRequirements, adventurerMeetsAnyRequirement, estimateSuccessChance,
+  estimateChainedSuccessChance,
   MIN_SUCCESS_CHANCE, MAX_SUCCESS_CHANCE, REQUIREMENT_PENALTY_PER_UNMET,
+  MIN_ROLE_MODIFIER, MAX_ROLE_MODIFIER,
   DIRECT_ACCEPT_CONTRACT_EXPIRY_HOURS, BIDDING_CONTRACT_BACKSTOP_EXPIRY_HOURS,
   CONTRACT_MARKET_BASE_RATE, resolutionObject, confrontPhrase, CONTRACT_LOCATIONS,
 } from './contracts.js';
-import { BIDDING_CONTRACT_TIERS } from './game.js';
-import type { ContractTier } from './game.js';
+import { BIDDING_CONTRACT_TIERS, splitPowerByRole } from './game.js';
+import type { ContractTier, ContractEncounter, PartyPowerByRole } from './game.js';
 
 const TIERS: ContractTier[] = ['errand', 'standard', 'dangerous', 'legendary'];
 
@@ -304,5 +306,151 @@ describe('CONTRACT_MARKET_BASE_RATE', () => {
     expect(CONTRACT_MARKET_BASE_RATE.standard).toBe(8);
     expect(CONTRACT_MARKET_BASE_RATE.dangerous).toBe(5);
     expect(CONTRACT_MARKET_BASE_RATE.legendary).toBe(2);
+  });
+});
+
+const ROLES = ['fighter', 'wizard', 'rogue', 'priest'] as const;
+const EXPECTED_ENCOUNTER_COUNT: Record<ContractTier, number> = {
+  errand: 1, standard: 2, dangerous: 3, legendary: 4,
+};
+
+describe('generateContract encounters', () => {
+  for (const tier of TIERS) {
+    it(`generates exactly the tier-scaled encounter count for ${tier}`, () => {
+      const contract = generateContract(tier);
+      expect(contract.encounters).toHaveLength(EXPECTED_ENCOUNTER_COUNT[tier]);
+    });
+
+    it(`every ${tier} encounter's role modifiers stay within [${MIN_ROLE_MODIFIER}, ${MAX_ROLE_MODIFIER}]`, () => {
+      const contract = generateContract(tier);
+      for (const encounter of contract.encounters) {
+        for (const role of ROLES) {
+          expect(encounter[role]).toBeGreaterThanOrEqual(MIN_ROLE_MODIFIER);
+          expect(encounter[role]).toBeLessThanOrEqual(MAX_ROLE_MODIFIER);
+        }
+      }
+    });
+
+    it(`every role's modifier is identical across all of a ${tier} contract's encounters`, () => {
+      // A contract's favored/unfavored pattern is a fixed property of that contract, not
+      // something that varies encounter-to-encounter — see pickRoleBiasPattern's design
+      // comment. Only meaningful to check when there's more than one encounter.
+      if (EXPECTED_ENCOUNTER_COUNT[tier] < 2) return;
+      const contract = generateContract(tier);
+      for (const role of ROLES) {
+        const values = contract.encounters.map(e => e[role]);
+        expect(new Set(values).size).toBe(1);
+      }
+    });
+
+    it(`every ${tier} role modifier is either exactly neutral or a real, visible swing (no near-1.0 dead zone)`, () => {
+      const contract = generateContract(tier);
+      for (const encounter of contract.encounters) {
+        for (const role of ROLES) {
+          const v = encounter[role];
+          expect(v === 1 || v >= 1.15 || v <= 0.85).toBe(true);
+        }
+      }
+    });
+  }
+
+  it('the number of favored roles varies across contracts, from none to all four', () => {
+    // Statistical check across many draws — pickRoleBiasPattern samples 0-4 favored roles
+    // uniformly, so with enough samples both extremes (and everything between) should appear.
+    const favoredCounts = new Set<number>();
+    for (let i = 0; i < 300; i++) {
+      const contract = generateContract('legendary');
+      const favored = contract.encounters[0]
+        ? ROLES.filter(role => contract.encounters[0][role] >= 1.15).length
+        : 0;
+      favoredCounts.add(favored);
+    }
+    expect(favoredCounts.has(0)).toBe(true);
+    expect(favoredCounts.has(4)).toBe(true);
+  });
+});
+
+function uniformParty(role: keyof PartyPowerByRole, count: number, powerRating: number) {
+  const vocationByRole: Record<string, string> = {
+    fighter: 'Sellsword', wizard: 'Arcanist', rogue: 'Trickster', priest: 'Mender',
+  };
+  return Array.from({ length: count }, () => ({ vocation: vocationByRole[role], powerRating }));
+}
+
+describe('estimateChainedSuccessChance', () => {
+  it('falls back to the flat formula when encounters is empty', () => {
+    const powerByRole: PartyPowerByRole = { fighter: 60, wizard: 40, rogue: 0, priest: 0 };
+    const chained = estimateChainedSuccessChance(powerByRole, 100, [], 0);
+    const flat = estimateSuccessChance(100, 100, 0);
+    expect(chained).toBe(flat);
+  });
+
+  it('matches the flat formula for a zero-variance chain (every encounter yields the same ratio)', () => {
+    const powerByRole = splitPowerByRole(uniformParty('fighter', 6, 20));
+    const totalPower = Object.values(powerByRole).reduce((a, b) => a + b, 0);
+    // Every encounter weights the party's only present role identically — no variance.
+    const encounters: ContractEncounter[] = [
+      { fighter: 1.2, wizard: 1, rogue: 1, priest: 1 },
+      { fighter: 1.2, wizard: 1, rogue: 1, priest: 1 },
+      { fighter: 1.2, wizard: 1, rogue: 1, priest: 1 },
+    ];
+    const chained = estimateChainedSuccessChance(powerByRole, 100, encounters, 0);
+    const flat = estimateSuccessChance(totalPower * 1.2, 100, 0);
+    expect(chained).toBeCloseTo(flat, 10);
+  });
+
+  it('scores a role-balanced party higher than an equal-power single-role party against the same chain', () => {
+    const requiredPower = 100;
+    // Alternates which single role a given encounter favors — deliberately adversarial to a
+    // single-role party, since it's guaranteed to hit at least one unfavorable encounter.
+    const encounters: ContractEncounter[] = [
+      { fighter: 1.5, wizard: 0.5, rogue: 1.0, priest: 1.0 },
+      { fighter: 0.5, wizard: 1.5, rogue: 1.0, priest: 1.0 },
+      { fighter: 1.0, wizard: 1.0, rogue: 1.5, priest: 0.5 },
+    ];
+
+    const singleRole = splitPowerByRole(uniformParty('fighter', 6, 20)); // 120 power, all fighter
+    const balanced = splitPowerByRole([
+      ...uniformParty('fighter', 2, 20),
+      ...uniformParty('wizard', 2, 20),
+      ...uniformParty('rogue', 1, 20),
+      ...uniformParty('priest', 1, 20),
+    ]); // same 120 total power, spread across all four roles
+
+    const singleRoleChance = estimateChainedSuccessChance(singleRole, requiredPower, encounters, 0);
+    const balancedChance = estimateChainedSuccessChance(balanced, requiredPower, encounters, 0);
+
+    expect(balancedChance).toBeGreaterThan(singleRoleChance);
+  });
+
+  it('lets a party matched to a favored role exceed what the flat formula alone would give', () => {
+    // Unlike the earlier per-encounter-noise design (where the flat formula was an
+    // unreachable ceiling), a fixed favored-role bias is a real, direct bonus — a party
+    // concentrated in a favored role should score strictly above the flat/neutral baseline
+    // for the same total power, not just avoid falling short of it.
+    const requiredPower = 100;
+    const encounters: ContractEncounter[] = [
+      { fighter: 1.3, wizard: 1, rogue: 1, priest: 1 },
+      { fighter: 1.3, wizard: 1, rogue: 1, priest: 1 },
+    ];
+    const powerByRole = splitPowerByRole(uniformParty('fighter', 6, 20)); // 120 power, all fighter
+    const totalPower = Object.values(powerByRole).reduce((a, b) => a + b, 0);
+
+    const chained = estimateChainedSuccessChance(powerByRole, requiredPower, encounters, 0);
+    const flat = estimateSuccessChance(totalPower, requiredPower, 0);
+
+    expect(chained).toBeGreaterThan(flat);
+  });
+
+  it('never drops below the minimum floor, even with heavy requirement penalties', () => {
+    const tiny: PartyPowerByRole = { fighter: 1, wizard: 0, rogue: 0, priest: 0 };
+    const encounters: ContractEncounter[] = [{ fighter: 1, wizard: 1, rogue: 1, priest: 1 }];
+    expect(estimateChainedSuccessChance(tiny, 1000, encounters, 10)).toBe(MIN_SUCCESS_CHANCE);
+  });
+
+  it('never exceeds the maximum ceiling regardless of overwhelming party power', () => {
+    const huge: PartyPowerByRole = { fighter: 100000, wizard: 0, rogue: 0, priest: 0 };
+    const encounters: ContractEncounter[] = [{ fighter: 1, wizard: 1, rogue: 1, priest: 1 }];
+    expect(estimateChainedSuccessChance(huge, 1, encounters, 0)).toBe(MAX_SUCCESS_CHANCE);
   });
 });

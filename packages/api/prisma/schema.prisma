@@ -148,6 +148,12 @@ model Contract {
   requiredPower     Int            @map("required_power")
   requiredStats     Json           @map("required_stats")
   requiredVocation  String?        @map("required_vocation")
+  // Per-encounter { fighter, wizard, rogue, priest } power modifiers — see
+  // estimateChainedSuccessChance/generateEncounters in @axes-actuaries/types. Empty array
+  // (the default, applied automatically to existing rows on migration) means "resolve with
+  // the flat single-check formula" — a graceful fallback for contracts generated before this
+  // field existed, not a state new contracts are ever created in.
+  encounters        Json           @default("[]") @map("encounters")
   rewardGold        Int            @map("reward_gold")
   reputationReward  Int            @map("reputation_reward")
   penaltyGold       Int            @map("penalty_gold")

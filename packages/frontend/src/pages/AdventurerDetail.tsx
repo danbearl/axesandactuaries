@@ -10,6 +10,7 @@ import type { Adventurer } from '@axes-actuaries/types';
 import AdventurerCard from '../components/AdventurerCard.tsx';
 import { useCountdown } from '../hooks/useCountdown.ts';
 import { formatDuration } from '../lib/time.ts';
+import { vocationIcon } from '../lib/roleIcons.ts';
 import './AdventurerDetail.css';
 
 const formatDate = (iso: string): string =>
@@ -285,7 +286,7 @@ export default function AdventurerDetail() {
               <div key={other.id} className="property-row">
                 <div>
                   <div className="value">{other.name}</div>
-                  <div className="label">{other.vocation} · Lv.{other.level}</div>
+                  <div className="label">{vocationIcon(other.vocation)} {other.vocation} · Lv.{other.level}</div>
                 </div>
                 <span className="value">{cohesion}%</span>
               </div>

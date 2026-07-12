@@ -1,5 +1,6 @@
 import type { Contract } from '@axes-actuaries/types';
 import { BIDDING_CONTRACT_TIERS, CONTRACT_TIER_REPUTATION_REQUIREMENTS } from '@axes-actuaries/types';
+import { ROLE_ICONS } from '../lib/roleIcons.ts';
 import './ContractCard.css';
 
 interface Props {
@@ -25,6 +26,21 @@ const formatDuration = (hours: number): string => {
   const h = hours % 24;
   return h > 0 ? `${d}d ${h}h` : `${d}d`;
 };
+
+// Highlights encounters that clearly favor (or punish) a role, rather than every modifier —
+// values near 1.0 are visually neutral, matching how little they actually matter to the
+// outcome. Thresholds are illustrative, not tied to MIN/MAX_ROLE_MODIFIER's [0.5, 1.5] range.
+function encounterModifierClass(value: number): string {
+  if (value >= 1.15) return 'cc-mod-high';
+  if (value <= 0.85) return 'cc-mod-low';
+  return '';
+}
+
+// A fully composition-neutral contract (errand tier always, or any tier that happened to roll
+// zero favored/unfavored roles) has every modifier exactly 1 — nothing worth showing.
+function hasRoleBias(encounter: { fighter: number; wizard: number; rogue: number; priest: number }): boolean {
+  return encounter.fighter !== 1 || encounter.wizard !== 1 || encounter.rogue !== 1 || encounter.priest !== 1;
+}
 
 export default function ContractCard({ contract: c, onAccept, onAcceptOnly, onBid, expanded, playerRep }: Props) {
   const hasStatReqs  = Object.keys(c.requiredStats).length > 0;
@@ -116,6 +132,26 @@ export default function ContractCard({ contract: c, onAccept, onAcceptOnly, onBi
           </div>
         </div>
       </div>
+
+      {/* Every encounter in a contract's chain carries the identical role modifiers (a
+          contract's favored/unfavored roles are a fixed property of the contract, not
+          something that varies encounter-to-encounter — see generateEncounters in
+          @axes-actuaries/types), so only the first entry needs showing. Hidden entirely for a
+          fully composition-neutral contract (errand tier always, or any tier that happened to
+          roll zero favored/unfavored roles) — nothing to read here beyond the flat power ratio
+          already shown above. */}
+      {c.encounters.length > 0 && hasRoleBias(c.encounters[0]) && (
+        <div className="cc-encounters mt-md">
+          <span className="label">Role Affinities</span>
+          <div className="cc-encounter-row mt-sm">
+            {(Object.keys(ROLE_ICONS) as Array<keyof typeof ROLE_ICONS>).map((role) => (
+              <span key={role} className={`cc-encounter-mod ${encounterModifierClass(c.encounters[0][role])}`}>
+                {ROLE_ICONS[role]} {c.encounters[0][role].toFixed(1)}×
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {(onAccept || onAcceptOnly || onBid || repBlocked) && (
         <div className="cc-actions">

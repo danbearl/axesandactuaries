@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api.ts';
-import { countUnmetRequirements, estimateSuccessChance, type Adventurer } from '@axes-actuaries/types';
+import { countUnmetRequirements, estimateSuccessChance, estimateChainedSuccessChance, splitPowerByRole, type Adventurer } from '@axes-actuaries/types';
 import AdventurerCard from '../components/AdventurerCard.tsx';
 import './AdventureDetail.css';
 
@@ -48,9 +48,19 @@ export default function AdventureDetail() {
   const { adventure } = data;
   const { contract } = adventure;
   const party = adventure.adventurers.map(aa => aa.adventurer);
-  const partyPower = party.reduce((s, a) => s + a.powerRating, 0);
+  const powerByRole = splitPowerByRole(party);
+  const partyPower = powerByRole.fighter + powerByRole.wizard + powerByRole.rogue + powerByRole.priest;
   const unmetRequirements = countUnmetRequirements(contract, party);
-  const successChance = Math.round(estimateSuccessChance(partyPower, contract.requiredPower, unmetRequirements) * 100);
+  const successChance = Math.round(estimateChainedSuccessChance(
+    powerByRole, contract.requiredPower, contract.encounters, unmetRequirements,
+  ) * 100);
+  // Ceiling this composition's total power could reach against this contract's encounter
+  // chain — see the matching comment in Dashboard.tsx for why this is exactly what a
+  // perfectly chain-matched party of the same power would score.
+  const ceilingChance = Math.round(estimateSuccessChance(
+    partyPower, contract.requiredPower, unmetRequirements,
+  ) * 100);
+  const efficiencyGap = ceilingChance - successChance;
 
   const total = new Date(adventure.completesAt).getTime() - new Date(adventure.startsAt).getTime();
   const elapsed = Date.now() - new Date(adventure.startsAt).getTime();
@@ -140,6 +150,9 @@ export default function AdventureDetail() {
                   {successChance}%
                 </span>
               </div>
+              {efficiencyGap > 0 && (
+                <div className="label mb-sm">(up to {ceilingChance}% with a better-matched party)</div>
+              )}
               <div>
                 <div className="detail-stat">
                   <span className="label">Party Power</span>

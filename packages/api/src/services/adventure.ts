@@ -1,14 +1,17 @@
 import { prisma } from '../lib/prisma.js';
 import {
   levelForXp, XP_PER_GOLD, MAX_LEVEL, computeDailyWage,
-  countUnmetRequirements, estimateSuccessChance,
+  countUnmetRequirements, estimateChainedSuccessChance,
   isTierBelowTolerance, computeAmbitionXpMultiplier, AMBITION_LOYALTY_CHANCE_PER_POINT,
   TEMPERAMENT_BONUS_CHANCE_PER_POINT, TEMPERAMENT_BONUS_GOLD_PER_TRIGGER,
   TEMPERAMENT_INJURY_BONUS_PER_POINT,
   computeCohesionBonus, computeCohesionIncrement, COHESION_MAX,
   computeTrainingHallBonus, findRolePropertyBonus, computeGearBonus,
+  splitPowerByRole,
 } from '@axes-actuaries/types';
-import type { StatBlock, ContractTier, PropertyBonus, Vocation } from '@axes-actuaries/types';
+import type {
+  StatBlock, ContractTier, PropertyBonus, Vocation, ContractEncounter, PartyPowerByRole,
+} from '@axes-actuaries/types';
 import { publish, CHANNELS } from '../lib/redis.js';
 import { logPlayerEvent } from './playerEvents.js';
 import { ClaimConflictError } from '../lib/errors.js';
@@ -153,29 +156,46 @@ async function computePartyCohesionBonus(adventurerIds: string[]): Promise<numbe
   return computeCohesionBonus(values);
 }
 
-// Returns the party's effective combined power, including property and cohesion bonuses.
-async function computePartyPower(
+// Returns the party's effective power broken out by role (fighter/wizard/rogue/priest),
+// including property and cohesion bonuses — same total as a flat sum would give, just split
+// via splitPowerByRole so estimateChainedSuccessChance can weight each role by a contract's
+// per-encounter modifiers. Property/cohesion bonuses apply as the same flat multiplier to
+// every bucket that a flat computation would apply to the total — splitting first and
+// multiplying each part by the same scalar is algebraically identical to multiplying the
+// pre-split total, so this isn't a behavior change for any contract with no encounters.
+async function computePartyPowerByRole(
   adventurerIds: string[],
   playerId: string,
-): Promise<number> {
+): Promise<PartyPowerByRole> {
   const [adventurers, properties, cohesionBonus] = await Promise.all([
     prisma.adventurer.findMany({ where: { id: { in: adventurerIds } } }),
     prisma.property.findMany({ where: { playerId } }),
     computePartyCohesionBonus(adventurerIds),
   ]);
 
-  // Gear is a per-adventurer bonus (unlike Training Hall/Cohesion, which apply uniformly to
-  // the whole party) — each adventurer's own gearTier boosts only their own contribution to
-  // basePower, before the party-wide bonuses below are layered on top.
-  const basePower = adventurers.reduce((sum, a) => sum + a.powerRating * (1 + computeGearBonus(a.gearTier)), 0);
-
   // Combined additively with cohesion (not multiplicatively/compounded) so the total bonus
   // stays easy to reason about as more power-affecting mechanics are added.
   const trainingBonus = computeTrainingHallBonus(
     properties.map((p) => ({ type: p.type, level: p.level, bonus: p.bonus as PropertyBonus })),
   );
+  const multiplier = 1 + trainingBonus + cohesionBonus;
 
-  return Math.round(basePower * (1 + trainingBonus + cohesionBonus));
+  // Gear is a per-adventurer bonus (unlike Training Hall/Cohesion, which apply uniformly to
+  // the whole party) — each adventurer's own gearTier boosts only their own contribution
+  // before the party-wide multiplier above is layered on top.
+  const byRole = splitPowerByRole(
+    adventurers.map((a) => ({
+      vocation:    a.vocation,
+      powerRating: a.powerRating * (1 + computeGearBonus(a.gearTier)),
+    })),
+  );
+
+  return {
+    fighter: Math.round(byRole.fighter * multiplier),
+    wizard:  Math.round(byRole.wizard * multiplier),
+    rogue:   Math.round(byRole.rogue * multiplier),
+    priest:  Math.round(byRole.priest * multiplier),
+  };
 }
 
 // Resolves an in-progress adventure whose completesAt has passed.
@@ -199,7 +219,7 @@ export async function resolveAdventure(
   if (!adventure || adventure.status !== 'in_progress') return adventure;
   if (!opts?.forceOutcome && adventure.completesAt > new Date()) return adventure;
 
-  const partyPower = await computePartyPower(
+  const partyPowerByRole = await computePartyPowerByRole(
     adventure.adventurers.map((aa) => aa.adventurerId),
     adventure.playerId,
   );
@@ -216,7 +236,12 @@ export async function resolveAdventure(
   );
 
   const outcomeRoll = Math.random();
-  const successChance = estimateSuccessChance(partyPower, adventure.contract.requiredPower, unmetRequirements);
+  const successChance = estimateChainedSuccessChance(
+    partyPowerByRole,
+    adventure.contract.requiredPower,
+    adventure.contract.encounters as unknown as ContractEncounter[],
+    unmetRequirements,
+  );
   const success = opts?.forceOutcome ? opts.forceOutcome === 'success' : outcomeRoll < successChance;
 
   const properties = await prisma.property.findMany({

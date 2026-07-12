@@ -5,8 +5,10 @@ import type { Contract } from '@axes-actuaries/types';
 import {
   BIDDING_CONTRACT_TIERS, CONTRACT_TIER_REPUTATION_REQUIREMENTS,
   countUnmetRequirements, adventurerMeetsAnyRequirement, estimateSuccessChance,
+  estimateChainedSuccessChance, splitPowerByRole,
 } from '@axes-actuaries/types';
 import { partyCohesionBonus, trainingHallBonus } from '../lib/cohesion.ts';
+import { vocationIcon } from '../lib/roleIcons.ts';
 import ContractCard from '../components/ContractCard.tsx';
 import './ContractMarket.css';
 
@@ -308,7 +310,7 @@ export default function ContractMarket() {
                       />
                       <div>
                         <span className="value">{adv.name}</span>{' '}
-                        <span className="label">{adv.vocation} · Power {adv.powerRating} · Lv.{adv.level}</span>{' '}
+                        <span className="label">{vocationIcon(adv.vocation)} {adv.vocation} · Power {adv.powerRating} · Lv.{adv.level}</span>{' '}
                         {matches && (
                           <span className="badge" style={{ background: 'var(--success)', color: '#fff', fontSize: '0.65rem' }}>
                             Matches
@@ -323,18 +325,40 @@ export default function ContractMarket() {
 
             {selectedAdventurerIds.length > 0 && (() => {
               const party = hiredAdventurers.filter(a => selectedAdventurerIds.includes(a.id));
-              const basePower = party.reduce((s, a) => s + a.powerRating, 0);
               const cohesionBonus = partyCohesionBonus(selectedAdventurerIds, playerData?.cohesionPairs ?? []);
               const trainingBonus = trainingHallBonus(playerData?.properties ?? []);
-              const partyPower = Math.round(basePower * (1 + trainingBonus + cohesionBonus));
+              const multiplier = 1 + trainingBonus + cohesionBonus;
+              // Split by role first, then scale each bucket by the same flat multiplier a
+              // party-wide bonus would apply to the total — algebraically identical, but lets
+              // estimateChainedSuccessChance weight each role by the contract's own encounters.
+              const powerByRole = splitPowerByRole(party);
+              const scaledByRole = {
+                fighter: powerByRole.fighter * multiplier,
+                wizard:  powerByRole.wizard * multiplier,
+                rogue:   powerByRole.rogue * multiplier,
+                priest:  powerByRole.priest * multiplier,
+              };
+              const partyPower = Math.round(scaledByRole.fighter + scaledByRole.wizard + scaledByRole.rogue + scaledByRole.priest);
               const unmetRequirements = countUnmetRequirements(deployingContract, party);
-              const chance = Math.round(estimateSuccessChance(partyPower, deployingContract.requiredPower, unmetRequirements) * 100);
+              const chance = Math.round(estimateChainedSuccessChance(
+                scaledByRole, deployingContract.requiredPower, deployingContract.encounters, unmetRequirements,
+              ) * 100);
+              // Ceiling this composition's total power could reach against this contract's
+              // encounter chain — see the matching comment in Dashboard.tsx for why this is
+              // exactly what a perfectly chain-matched party of the same power would score.
+              const ceilingChance = Math.round(estimateSuccessChance(
+                partyPower, deployingContract.requiredPower, unmetRequirements,
+              ) * 100);
+              const efficiencyGap = ceilingChance - chance;
               return (
                 <div className="panel panel-sm" style={{ marginBottom: '1rem' }}>
                   <span className="label">Party Power: </span>
                   <span className="value">{partyPower}</span>
                   <span className="label"> vs. {deployingContract.requiredPower} required · </span>
                   <span className="value">~{chance}% success</span>
+                  {efficiencyGap > 0 && (
+                    <span className="label"> (up to {ceilingChance}% with a better-matched party)</span>
+                  )}
                   {trainingBonus > 0 && (
                     <span className="label"> · +{Math.round(trainingBonus * 100)}% training bonus</span>
                   )}

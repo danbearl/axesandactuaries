@@ -6,7 +6,8 @@ import AdventurerCard from '../components/AdventurerCard.tsx';
 import AdventureTimer from '../components/AdventureTimer.tsx';
 import DailyResetTimer from '../components/DailyResetTimer.tsx';
 import DeployByCountdown from '../components/DeployByCountdown.tsx';
-import { computeRosterCap, countUnmetRequirements, adventurerMeetsAnyRequirement, estimateSuccessChance, PROPERTY_PARTY_ROLE, type Adventurer } from '@axes-actuaries/types';
+import { computeRosterCap, countUnmetRequirements, adventurerMeetsAnyRequirement, estimateSuccessChance, estimateChainedSuccessChance, splitPowerByRole, PROPERTY_PARTY_ROLE, type Adventurer } from '@axes-actuaries/types';
+import { vocationIcon } from '../lib/roleIcons.ts';
 import { partyCohesionBonus, trainingHallBonus } from '../lib/cohesion.ts';
 import { computeAvailableAt } from '../lib/availability.ts';
 import AvailabilityProjection from '../components/AvailabilityProjection.tsx';
@@ -332,7 +333,7 @@ export default function Dashboard() {
                       <input type="checkbox" checked={checked} onChange={() => toggleAdventurer(adv.id)} />
                       <div>
                         <span className="value">{adv.name}</span>{' '}
-                        <span className="label">{adv.vocation} · Power {adv.powerRating} · Lv.{adv.level}</span>{' '}
+                        <span className="label">{vocationIcon(adv.vocation)} {adv.vocation} · Power {adv.powerRating} · Lv.{adv.level}</span>{' '}
                         {matches && (
                           <span className="badge" style={{ background: 'var(--success)', color: '#fff', fontSize: '0.65rem' }}>
                             Matches
@@ -347,18 +348,43 @@ export default function Dashboard() {
 
             {selectedAdventurerIds.length > 0 && (() => {
               const party      = hiredAdventurers.filter(a => selectedAdventurerIds.includes(a.id));
-              const basePower  = party.reduce((s, a) => s + a.powerRating, 0);
               const cohesionBonus = partyCohesionBonus(selectedAdventurerIds, data.cohesionPairs);
               const trainingBonus = trainingHallBonus(data.properties);
-              const partyPower = Math.round(basePower * (1 + trainingBonus + cohesionBonus));
+              const multiplier = 1 + trainingBonus + cohesionBonus;
+              // Split by role first, then scale each bucket by the same flat multiplier a
+              // party-wide bonus would apply to the total — algebraically identical, but lets
+              // estimateChainedSuccessChance weight each role by the contract's own encounters.
+              const powerByRole = splitPowerByRole(party);
+              const scaledByRole = {
+                fighter: powerByRole.fighter * multiplier,
+                wizard:  powerByRole.wizard * multiplier,
+                rogue:   powerByRole.rogue * multiplier,
+                priest:  powerByRole.priest * multiplier,
+              };
+              const partyPower = Math.round(scaledByRole.fighter + scaledByRole.wizard + scaledByRole.rogue + scaledByRole.priest);
               const unmetRequirements = countUnmetRequirements(deployingContract, party);
-              const chance     = Math.round(estimateSuccessChance(partyPower, deployingContract.requiredPower, unmetRequirements) * 100);
+              const chance = Math.round(estimateChainedSuccessChance(
+                scaledByRole, deployingContract.requiredPower, deployingContract.encounters, unmetRequirements,
+              ) * 100);
+              // Ceiling this composition's total power could reach against this contract's
+              // encounter chain — arithmetic mean of the chain's per-encounter ratios always
+              // equals partyPower/requiredPower regardless of composition (see
+              // estimateChainedSuccessChance's design comment), so this is exactly what a
+              // perfectly chain-matched party of the same power would score. The gap between
+              // it and `chance` is how much composition mismatch is costing this party.
+              const ceilingChance = Math.round(estimateSuccessChance(
+                partyPower, deployingContract.requiredPower, unmetRequirements,
+              ) * 100);
+              const efficiencyGap = ceilingChance - chance;
               return (
                 <div className="panel panel-sm" style={{ marginBottom: '1rem' }}>
                   <span className="label">Party Power: </span>
                   <span className="value">{partyPower}</span>
                   <span className="label"> vs. {deployingContract.requiredPower} required · </span>
                   <span className="value">~{chance}% success</span>
+                  {efficiencyGap > 0 && (
+                    <span className="label"> (up to {ceilingChance}% with a better-matched party)</span>
+                  )}
                   {trainingBonus > 0 && (
                     <span className="label"> · +{Math.round(trainingBonus * 100)}% training bonus</span>
                   )}

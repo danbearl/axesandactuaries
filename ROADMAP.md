@@ -1432,82 +1432,167 @@ open to a small trusted player pool (Phase 0 below).
     (`packages/types/src/contracts.ts`) extended with chain-aware continuity (each link's
     flavor referencing the same location/client/threat as the one before it, rather than
     independently random every time).
-- Party vocation/role synergies (2026-07-10, user's idea, fleshed out in design discussion —
-  no scoping done). **Not to be confused with "Chained contracts" directly above** — that's a
-  sequence of *separate* contracts forming a narrative arc across multiple accept/complete
-  cycles; this is about a *single* contract's resolution becoming a sequence of encounters
-  internally. Promotes the "contracts favoring certain party compositions by role" note
-  flagged as a planned future feature during the property overhaul work (2026-07-08, see
-  above) into an actual design.
-  - **Two-fold intent, from the user directly**: (1) encourage players to hire more
-    deliberately for a *balanced roster*, not just the highest-power adventurers available —
-    today, power rating is the only thing that matters for `estimateSuccessChance`
-    (`packages/types/src/contracts.ts`), so an all-Sellsword roster is strictly optimal if
-    their power is high enough; (2) add depth to party assignment on top of the existing
-    Cohesion (`computeCohesionBonus`) and stat/vocation requirement (`countUnmetRequirements`)
-    mechanics, which are the only two things currently rewarding *which specific adventurers*
-    get deployed together beyond raw summed power.
-  - **The synergy design space** — specific vocations/roles doing specific things well, per
-    the user's own examples: a **Mender** in the party reduces injury/death chance (today
-    injury/death is a flat roll off `FAILURE_INJURY_CHANCE`/`SUCCESS_INJURY_CHANCE`/
-    `DEATH_SHARE_OF_INJURY` in `services/adventure.ts`, with no adventurer-composition input
-    at all); **Fighter**-role vocations (Sellsword, Outrider — see `VOCATION_PARTY_ROLE`) help
-    disproportionately on combat-heavy contracts; **Rogue**-role vocations (Trickster,
-    Alchemist) help on contracts about subterfuge/skullduggery. Wizard's (Arcanist, Invoker)
-    specific angle wasn't specified — open question. This reuses the `PartyRole` taxonomy that
-    already exists for property bonuses, just applied to contract *outcomes* instead of
-    passive XP/loyalty gains.
-  - **May replace the current stat/vocation requirement system**, per the user — today's
-    `requiredStats`/`requiredVocation` (a contract wants e.g. Might 15, or a Sellsword
-    specifically, checked by `countUnmetRequirements`/`adventurerMeetsAnyRequirement`) is a
-    flat pass/fail gate. The user's framing is that role-synergy effects would be "a more
-    natural and narrative implementation" of the same underlying idea (the party's makeup
-    should matter to a contract's outcome) — worth a real design decision on replace-vs-
-    coexist once this gets scoped, not assumed either way here.
-  - **The bigger proposed mechanism — chained encounters instead of one roll**: rather than a
-    single `estimateSuccessChance(partyPower, requiredPower, unmetRequirements)` check
-    (current model, one `Math.random()` roll decides the whole contract), a contract's
-    resolution becomes a short *series* of separate encounters chained together — closer to
-    how a tabletop RPG session actually runs a job (several distinct beats, not one skill
-    check). Each encounter's own outcome is influenced by overall party power *and* by
-    whether specific vocations/roles/stats relevant to that particular encounter are present
-    in the party — a combat encounter cares about Fighter presence, a subterfuge encounter
-    cares about Rogue presence, and so on. The contract's overall success (and the detail fed
-    into its report) comes from how the party fared across the whole chain, not one number.
-    - **Natural fit with "Contract narratives" above**: that item's own open questions
-      struggled with how to make two completions of the same contract read as genuinely
-      different stories rather than a templated Mad Lib. A per-encounter outcome sequence is
-      exactly the structured data a narrative generator needs — "the party was ambushed at
-      the ford (failed encounter 2, injury), but recovered to clear the pass (encounter 3
-      success)" is a real beat-by-beat story, not achievable from today's single win/lose
-      flag.
-    - **Resolution stays a black box to the player**, explicitly, per the user — no new UI
-      showing encounters play out live. The player's role is unchanged: get the contract,
-      assemble a party, wait for the result. The richer simulation is entirely server-side;
-      it only surfaces after the fact, through the (also unbuilt) narrative report.
-    - **Promising, not-yet-confirmed implementation angle**: the procedural flavor system
-      overhauled 2026-07-10 (see the "Fixed grammar/repetition bugs" entry above) already
-      tags each contract's flavor hook with a `subject` (`'thing' | 'hostile' | 'friendly'`)
-      and draws from thematically distinct flavor pools (combat-flavored hooks like Wyvern/
-      Bandit Ambush vs. subterfuge-flavored ones like Smuggling Ring/Crooked Game vs. rescue-
-      flavored ones like Missing Healer/Escort Risk). That existing thematic tagging could
-      plausibly seed what *kind* of encounters a given contract's chain contains, tying
-      generation, resolution, and narrative together — worth evaluating when this is
-      actually scoped, not a settled design.
-  - Open questions still unresolved:
-    - How many encounters per contract, and does that vary by tier/duration, or is it fixed?
-    - Do injury/death rolls move to per-encounter (more granular, more narrative material —
-      "injured in the second encounter") instead of the current single post-resolution roll?
-    - `CONTRACT_TIER_CONFIG`'s `powerRange`s were carefully calibrated (2026-07-08) against
-      the current single-roll `estimateSuccessChance` formula — a chained-encounter model
-      changes the underlying difficulty math entirely and would need its own fresh balancing
-      pass, not a reuse of today's numbers.
-    - Does this apply to all four tiers, or only to dangerous/legendary (errand/standard's
-      short duration and low stakes may not suit multi-encounter treatment)?
-    - Mechanically, how does "a relevant role helps this encounter" actually modify the math —
-      a flat bonus to that encounter's effective power, a bonus to its success chance
-      directly, or something closer to today's unmet-requirement penalty but inverted (a
-      bonus for a *met* affinity instead of just a penalty for an unmet requirement)?
+- [x] Party vocation/role synergies — chained-encounter contract resolution (2026-07-12) —
+  closes out the design captured 2026-07-10 below (replaces that entry with what actually
+  shipped). Numerical mechanic only, per the user's explicit scoping — no narrative flavor for
+  encounters yet, and injury/death stays exactly the flat post-resolution roll it always was,
+  deliberately decoupled from per-encounter results.
+  - **The mechanism**: each contract now generates a fixed chain of `encounters` at creation
+    time (tier-scaled — errand 1, standard 2, dangerous 3, legendary 4 — bigger jobs feel more
+    epic and differentiate balance-vs-imbalance more strongly where the stakes are highest).
+    Each encounter is a `{ fighter, wizard, rogue, priest }` power modifier vector in
+    `[0.5, 1.5]`, reusing the existing `PartyRole`/`VOCATION_PARTY_ROLE` taxonomy. At
+    resolution, party power is split by role (new `splitPowerByRole` in `game.ts`) instead of
+    summed flat, and each encounter's ratio (role-weighted effective power ÷ requiredPower) is
+    combined via **geometric mean**, not arithmetic mean, into the final ratio fed through the
+    unchanged `MIN_SUCCESS_CHANCE + ratio×0.5 − unmetRequirements×PENALTY` clamp (new
+    `estimateChainedSuccessChance` in `contracts.ts`, alongside the untouched
+    `estimateSuccessChance` as its low-level primitive and legacy fallback).
+  - **Why geometric mean specifically — this is the whole mechanism, not a bolted-on bonus**:
+    `generateRoleModifierSequence` guarantees each role's modifiers average to exactly 1.0
+    across the chain (rejection sampling: roll n-1 free values, derive the last from the
+    sum-must-equal-n constraint, resample if out of range), which means a role-neutral party's
+    *arithmetic* mean ratio always equals today's flat ratio regardless of composition — under
+    a plain average, balance would be invisible. Geometric mean is always ≤ arithmetic mean,
+    with equality only at zero variance (every encounter yields the same ratio). A
+    single-role party swings hard between favorable/unfavorable encounters (high variance,
+    pulled below baseline); a balanced party's ratios stay close together regardless of which
+    roles a given encounter favors (low variance, stays near baseline). Proven directly in
+    `contracts.test.ts` (`estimateChainedSuccessChance > scores a role-balanced party higher
+    than an equal-power single-role party against the same chain`) — not just claimed in a
+    comment. Consequence worth stating plainly: no composition can ever exceed today's
+    baseline, only match it (balance) or fall short (imbalance).
+  - **Confirmed design decisions from this session** (resolving the open questions the
+    2026-07-10 entry had left): per-encounter modifiers are shown to the player
+    pre-deployment (`ContractCard.tsx`'s new "Encounters" block — only shown when
+    `encounters.length > 1`, since errand's single entry is degenerate/uninteresting),
+    not hidden — doesn't conflict with "resolution stays a black box," which is about not
+    showing encounters play out live, not about hiding the contract's own stated
+    preferences. `requiredStats`/`requiredVocation`/`countUnmetRequirements` are **untouched**
+    — this coexists with, doesn't replace, the existing hard-requirement system. Weakest-link
+    (minimum) aggregation was considered and rejected in favor of geometric mean's smoother,
+    less swingy punishment curve.
+  - **Calibration — checked empirically, not assumed**: `CONTRACT_TIER_CONFIG.powerRange` was
+    calibrated against the old flat formula, and geometric-mean aggregation structurally means
+    any real imbalance scores below that baseline — so a recalibration pass looked necessary
+    going in. Wrote a dev-only simulation script (`packages/types/scripts/
+    simulate-encounter-balance.ts`, `pnpm --filter @axes-actuaries/types simulate-balance`,
+    20,000 samples per edge) that runs a "reasonably balanced" 6-person party (2/2/1/1 split
+    across the four roles — not perfectly even, matching what a real roster naturally looks
+    like) against the existing power ranges. **Result: no recalibration needed** — bottom of
+    every tier landed at 49.5-49.8% (target ~50%) and top at 89.4-90.0% (target ~90%,
+    capped), well within any reasonable tolerance. The single-role-vs-balanced gap the script
+    also reports (same total power, zero diversification) turned out modest — roughly 0.5-2
+    points depending on tier — since standard/dangerous only have 2-3 encounters, leaving
+    limited room for variance to compound; legendary's 4 encounters shows the most
+    differentiation. Reported honestly rather than manufacturing a powerRange change to
+    justify the calibration-pass plan — the existing numbers already held up.
+  - **Data model**: `Contract.encounters Json @default("[]")` in schema.prisma, following the
+    existing `requiredStats: Json` precedent — non-nullable with an empty-array default, so
+    existing/migrated rows resolve via the flat-formula fallback automatically (the same code
+    path errand's degenerate single-encounter chain already exercises, geometric mean of one
+    ratio being just that ratio — no separate special-casing needed for either). `Migration
+    generated as 20260712145100_add_contract_encounters` and applied only to the local `_test`
+    database (with the user's explicit go-ahead this time, asked upfront rather than assumed)
+    to run the test suite — **not** applied to local dev or production; those are still the
+    user's to run (`prisma migrate dev` locally; production already covered by `fly.toml`'s
+    existing `release_command`).
+- [x] Party vocation/role synergies — encounter generation redesign, same day (2026-07-12) —
+  replaces the per-encounter-random-noise generation described in the entry directly above with
+  a fixed per-contract favored/unfavored role pattern. The aggregation math
+  (`estimateChainedSuccessChance`, geometric mean of per-encounter ratios) is untouched; only
+  how `encounters` gets generated changed.
+  - **Why the first version wasn't enough**: walked through worked examples with the user after
+    shipping — the old mean-1-per-role random-noise design meant the gap between an ideal and
+    non-ideal party for a *specific* contract was pure generation-time luck. One example chain
+    showed only a ~0.1-point gap between an all-Fighter and a balanced party; the *same* chain
+    showed a ~4.6-point gap between all-Fighter and all-Rogue, purely because Fighter's
+    independently-random sequence happened to have near-zero variance for that particular
+    contract while Rogue's didn't. Not something a player could reliably read and act on.
+  - **New mechanism**: each contract (except errand, see below) now gets a randomly-sized
+    favored-role set and unfavored-role set — `pickRoleBiasPattern` draws `favoredCount` and
+    `unfavoredCount` each uniformly from 0-4 (remaining roles after favoredCount is reserved),
+    shuffles the four roles (proper Fisher-Yates, not the biased `.sort(() => Math.random() -
+    0.5)` idiom), and assigns the first `favoredCount` as favored, next `unfavoredCount` as
+    unfavored. Favored roles draw a modifier uniformly from `[1.15, 1.5]`, unfavored from
+    `[0.5, 0.85]` — deliberately matching `ContractCard.tsx`'s existing
+    `encounterModifierClass` highlight thresholds exactly, so a role that's mechanically
+    favored/unfavored is always the one visually called out too, with no "technically biased
+    but indistinguishable from noise" dead zone. This directly produces exactly the variety
+    asked for: `favoredCount=0, unfavoredCount=0` contracts are fully composition-neutral (any
+    roster, including all-one-vocation, does equally well); `favoredCount=1` with several
+    unfavored rewards specializing hard into the one favored role; larger favored sets are more
+    forgiving.
+  - **The same bias applies to every encounter in the chain** — a contract's role preferences
+    are now a fixed property of the contract, not per-encounter noise. `ENCOUNTER_COUNT`
+    (tier-scaled 1/2/3/4) is kept only for the existing chain data shape and future narrative
+    beats; mathematically a repeated-identical-value chain makes `estimateChainedSuccessChance`
+    a pass-through (geomean of N identical values is that value) for every contract generated
+    today, though the function itself is untouched so it stays correct for the legacy
+    empty-`encounters` fallback and forward-compatible if per-encounter variation is ever
+    layered back on top.
+  - **Real behavioral change, not just a bigger gap**: the previous design's "no composition can
+    ever exceed the flat baseline, only match or fall short of it" property no longer holds —
+    with a real fixed bonus/malus per role instead of noise-driven variance punishment, a party
+    concentrated in a favored role now genuinely *exceeds* what raw power alone would predict,
+    capped only by `MAX_SUCCESS_CHANCE`. Proven directly in `contracts.test.ts` (`lets a party
+    matched to a favored role exceed what the flat formula alone would give`).
+  - **Errand tier explicitly stays fully neutral** — no favored/unfavored roles, ever,
+    regardless of the random draw. This preserves an existing, already-documented design
+    decision (`CONTRACT_TIER_CONFIG`'s "stays easy, a way for new players to quickly earn gold
+    regardless of roster strength" comment) that the refactor would otherwise have silently
+    dropped, since the old per-tier `n<=1` special-case in the removed
+    `generateRoleModifierSequence` doesn't have a direct equivalent in the new design — caught
+    and restored deliberately rather than left as an accidental regression.
+  - **`ContractCard.tsx` UI collapsed from a per-encounter grid to a single "Role Affinities"
+    row** — showing N identical rows (since every encounter now carries the same modifiers)
+    would have looked broken/redundant. New `hasRoleBias` helper hides the section entirely for
+    a fully neutral contract, replacing the old `encounters.length > 1` visibility check (no
+    longer the right condition now that even a single-encounter tier's neutrality/bias is about
+    the contract, not the chain length). Removed the now-unused `.cc-encounter-grid`/
+    `.cc-encounter-index` CSS.
+  - **Recalibration re-run** (same simulation script as above, `pnpm --filter
+    @axes-actuaries/types simulate-balance`): bottom-of-tier landed at 51.3-51.6% (target ~50%,
+    close). Top-of-tier softened somewhat at dangerous/legendary — 87.0-87.1% vs. the 90% cap
+    (standard still hits 90.0% exactly) — because a max-power party can now genuinely draw an
+    unfavorable contract and fall short of the cap, which the old noise-averaging design didn't
+    allow (the flat ratio was always an achievable ceiling; it isn't anymore, by design). Also
+    confirmed "balanced" and "single-role" now score statistically identically when averaged
+    over many random contracts (~51.4% vs ~51.4%, ~87% vs ~85% — a small remaining gap from
+    encounter-count-limited averaging, not a real balance preference) — expected and correct,
+    since with purely random per-contract favored/unfavored assignment neither composition has
+    any inherent edge without seeing the specific contract; the entire point now is rewarding
+    reading and reacting to what's shown, not a generic "always diversify" heuristic. Reported
+    as-is rather than re-tuning `powerRange` to force an exact 90% — the softening is a direct,
+    intentional consequence of the mechanism working as designed, not a calibration miss.
+  - `pnpm typecheck`, a full `pnpm build`, `packages/types`' test suite (104 tests, including
+    replaced invariant tests — "average to 1.0" is no longer true and was removed, replaced
+    with "identical across all of a contract's encounters," "no near-1.0 dead zone," and a
+    statistical "favored count varies from 0 to 4 across contracts" check), and `packages/api`'s
+    test suite (124 tests, unaffected — its encounter-aware resolution tests use hand-
+    constructed `ContractEncounter[]` fixtures, independent of the generation algorithm) all
+    pass.
+  - **Implementation surface**: `packages/types/src/game.ts` (`ContractEncounter`/
+    `PartyPowerByRole` types, `splitPowerByRole`, `Contract.encounters`) and `contracts.ts`
+    (generation + `estimateChainedSuccessChance`); `packages/api/src/services/adventure.ts`
+    (`computePartyPower` → `computePartyPowerByRole`, real resolution now uses the chained
+    formula) and `bootstrap.ts` (the hand-authored welfare contract gets `encounters: []`,
+    not a generated chain); all three frontend success-chance preview call sites
+    (`Dashboard.tsx`, `ContractMarket.tsx`, `AdventureDetail.tsx`) swapped to match, each
+    preserving its own pre-existing fidelity level (the two deploy modals already include
+    cohesion/training bonus but not gear; `AdventureDetail` uses a raw sum) rather than
+    "fixing" that unrelated inconsistency in passing; `ContractCard.tsx`/`.css` for the new
+    encounter display (role-colored badges — green when a modifier clearly favors a role,
+    crimson when it clearly punishes one, neutral near 1.0).
+  - `pnpm typecheck`, a full `pnpm build` (all three packages, in dependency order —
+    `packages/types` must be built before `frontend`/`api`, since Vite resolves the workspace
+    package via its compiled `dist/` output, not source, unlike `tsc`'s type-only resolution),
+    `packages/types`' test suite (98 tests, including the geometric-mean balance proof above),
+    and `packages/api`'s test suite (124 tests, including two new `resolveAdventure` cases for
+    the encounter-weighted and legacy-fallback paths) all pass. Manual browser verification
+    (encounter modifiers rendering on a contract card, the deploy-assembly chance preview
+    reacting to vocation swaps, a resolved adventure's outcome matching the shown estimate)
+    handed to the user — no browser automation available in this environment.
 - Property system overhaul (2026-07-08, in progress — working through one property at a
   time with the user). **Audit finding that kicked this off**: of the six property types,
   only Dormitory (roster cap) and Training Hall (power rating) actually do anything

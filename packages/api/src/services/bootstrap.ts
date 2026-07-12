@@ -12,6 +12,10 @@ export const WELFARE_CONTRACT = {
   tier:              'errand' as const,
   requiredPower:     1,
   requiredStats:     {},
+  // A hand-authored fixed contract, not built via generateContract — no encounter chain,
+  // which resolves via estimateChainedSuccessChance's flat-formula fallback. Its trivial
+  // requiredPower already makes it near-guaranteed regardless of formula.
+  encounters:        [],
   rewardGold:        200,
   reputationReward:  5,
   penaltyGold:       0,

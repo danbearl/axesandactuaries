@@ -43,6 +43,30 @@
   letter-spacing: 0.05em;
 }
 
+.cc-encounters { display: flex; flex-direction: column; }
+
+.cc-encounter-row {
+  display:     flex;
+  align-items: center;
+  gap:         0.4rem;
+  flex-wrap:   wrap;
+}
+
+.cc-encounter-mod {
+  font-family:    var(--font-heading);
+  font-size:      0.65rem;
+  font-weight:    700;
+  padding:        0.15rem 0.4rem;
+  background:     var(--parchment-mid);
+  color:          var(--ink-faint);
+  border-radius:  3px;
+  letter-spacing: 0.02em;
+}
+/* Only encounters that clearly favor/punish a role get colored — see
+   encounterModifierClass in ContractCard.tsx. */
+.cc-encounter-mod.cc-mod-high { background: var(--emerald); color: var(--parchment); }
+.cc-encounter-mod.cc-mod-low  { background: var(--crimson); color: var(--parchment); }
+
 .cc-actions {
   display:     flex;
   justify-content: flex-end;

@@ -88,6 +88,37 @@ export const VOCATION_PARTY_ROLE: Partial<Record<Vocation, PartyRole>> = {
   Chanter:    'priest',
 };
 
+export type PartyPowerByRole = Record<PartyRole, number>;
+
+// One encounter's per-role power multiplier — see generateEncounters/estimateChainedSuccessChance
+// in contracts.ts for how a contract's encounter chain is generated and resolved. Lives here,
+// not in contracts.ts, so the Contract interface below can reference it without contracts.ts
+// (which already has a real runtime dependency on this file) needing one back. A Record type
+// alias, not a plain interface, so it stays structurally assignable to Prisma's JSON input
+// types the same way Partial<StatBlock> already is (a named interface with fixed properties
+// and no index signature doesn't satisfy Prisma's InputJsonObject even though every property
+// is a valid JSON value).
+export type ContractEncounter = Record<PartyRole, number>;
+
+// Buckets a party's power by role — no gear/cohesion/training-hall bonuses baked in, those
+// stay flat multipliers each caller applies around the split (splitting a total then
+// multiplying every bucket by the same scalar is algebraically identical to multiplying the
+// pre-split total, so this stays a pure, bonus-agnostic building block reusable by both the
+// backend resolution and the frontend success-chance previews). Every vocation currently maps
+// to a role (see VOCATION_PARTY_ROLE above), but falls back to 'fighter' defensively in case
+// that ever stops being true — a vocation with no valid contribution bucket would otherwise be
+// silently dropped from the power calculation entirely.
+export function splitPowerByRole(
+  party: Array<{ vocation: string; powerRating: number }>,
+): PartyPowerByRole {
+  const byRole: PartyPowerByRole = { fighter: 0, wizard: 0, rogue: 0, priest: 0 };
+  for (const a of party) {
+    const role = VOCATION_PARTY_ROLE[a.vocation as Vocation] ?? 'fighter';
+    byRole[role] += a.powerRating;
+  }
+  return byRole;
+}
+
 // ── Personality ───────────────────────────────────────────────────────────────
 
 export type Loyalty     = 1 | 2 | 3 | 4 | 5; // 1 = mercenary, 5 = steadfast
@@ -156,6 +187,11 @@ export interface Contract {
   requiredPower:       number;
   requiredStats:       Partial<StatBlock>;
   requiredVocation?:   Vocation;
+  // Empty only for contracts generated before this field existed (migrated with a `[]`
+  // default — see schema.prisma); resolution code treats that as "use the flat single-check
+  // formula." Errand-tier contracts always get exactly one entry, which needs no special
+  // casing — geometric mean of a single ratio is just that ratio.
+  encounters:          ContractEncounter[];
   rewardGold:          number;
   reputationReward:    number;
   penaltyGold:         number;
